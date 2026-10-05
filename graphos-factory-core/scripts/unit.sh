@@ -28,7 +28,7 @@
 # case, the run exits 3 (not_run) with "unit: no runnable cases:" and each
 # suite's sentence; when others did, it passes and names the empty ones. A
 # `skip: true` case is not a pass either: any skipped count fails. A missing
-# suite file is still a failure (ADR 0046).
+# suite file is still a failure.
 #
 # Exit codes: 0 pass · 1 fail · 3 not_run (no suite ran a case, each citing
 # its decision; or APOLLO_ELV2_LICENSE is not `accept`, see elv2.sh) · 127 a

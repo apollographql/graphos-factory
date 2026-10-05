@@ -3026,7 +3026,13 @@ fn an_unambiguous_success_error_union_types_the_success_branch_via_the_inventory
     // The error branch's own field never leaks into the example.
     assert!(body.get("message").is_none(), "{}", body);
     let notes = notes_for(d, "get:/status");
-    assert!(!notes.iter().any(|n| n.contains("ADR 0080")), "{:?}", notes);
+    assert!(
+        !notes
+            .iter()
+            .any(|n| n.contains("two-branch success/error union")),
+        "{:?}",
+        notes
+    );
 }
 
 #[test]
@@ -3075,7 +3081,7 @@ fn an_ambiguous_union_with_no_judgement_falls_back_to_json_and_the_finding_is_op
     assert!(
         notes
             .iter()
-            .any(|n| n.contains("ADR 0080") && n.contains("referenced_shape")),
+            .any(|n| n.contains("two-branch success/error union") && n.contains("referenced_shape")),
         "{:?}",
         notes
     );
@@ -3098,7 +3104,9 @@ fn a_selection_judgement_resolves_the_ambiguous_union_without_ever_touching_inve
     let before_stub = read_json(d, "tests/fixtures/mappings/bulk.json");
     assert_eq!(before_stub["response"]["jsonBody"], json!({}));
     let before_notes = notes_for(d, "get:/bulk");
-    assert!(before_notes.iter().any(|n| n.contains("ADR 0080")));
+    assert!(before_notes
+        .iter()
+        .any(|n| n.contains("two-branch success/error union")));
 
     // The reviewed judgement: recorded in selection.yaml only.
     let judged_selection = concat!(
@@ -3123,7 +3131,9 @@ fn a_selection_judgement_resolves_the_ambiguous_union_without_ever_touching_inve
     );
     let after_notes = notes_for(d, "get:/bulk");
     assert!(
-        !after_notes.iter().any(|n| n.contains("ADR 0080")),
+        !after_notes
+            .iter()
+            .any(|n| n.contains("two-branch success/error union")),
         "{:?}",
         after_notes
     );

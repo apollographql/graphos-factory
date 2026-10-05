@@ -7,7 +7,7 @@ decision (`graphos-factory-core decisions`) — that is what makes it
 reviewable instead of drift. Applying a policy as written is not a
 decision: it is recorded only as a finding (`graphos-factory-core findings add
 --cites …`), and only when an instrument reads its `omits` or `affects`
-(ADR 0113; workspace-contract.md rule 3).
+(workspace-contract.md rule 3).
 
 ## Envelopes
 
@@ -24,8 +24,7 @@ Pick one per connector and apply it everywhere. Mixed envelopes are the most
 common way a hand-authored connector starts feeling arbitrary.
 
 **Which key the payload sits under is a judgement, and it is written down.**
-It lives in `selection.yaml`, per operation, never in `inventory.json`
-(ADR 0018):
+It lives in `selection.yaml`, per operation, never in `inventory.json`:
 
 ```yaml
 "get:/lists":
@@ -133,7 +132,7 @@ When that default or maximum lies outside GraphQL `Int` (int64's
 can reach it: state `no practical maximum` (or `no practical default`) in
 place of the number, e.g. `"Page size (provider default: 5; no practical
 maximum)."`. `pagination-bounds-undocumented` accepts the phrase for a bound
-outside `Int` only (ADR 0065).
+outside `Int` only.
 
 For page-indexed pagination (`pagination.style: "page"` in the inventory), the
 page-index argument's doc comment must state the offset formula:
@@ -249,8 +248,7 @@ recorded literal that keeps it, and `queryParams` forwards `$args.<param>`. A li
 never narrow it. A non-string parameter gets an `info` finding and the rule
 does not apply. Lint validates the **declared default and the forwarding**.
 It cannot prove anything about a value a caller passes at run time; that
-narrowing is the caller's, and the argument's description says so (ADR
-0045).
+narrowing is the caller's, and the argument's description says so.
 
 ## Argument constraints
 
@@ -268,7 +266,7 @@ guess or to probe:
 ```
 
 An array-typed request-body property also carries `minItems`/`maxItems` when
-the spec declares them (Phase 7bg); state them the same way:
+the spec declares them; state them the same way:
 `"Custodians to add (1 to 100)."` A query parameter's array bounds are not
 recorded yet, so read those from the spec.
 
@@ -281,7 +279,7 @@ How to spell it, so two services read alike:
 - An argument typed as a GraphQL enum states its values too. The consumer
   reads the argument before it follows the type reference, and `one of
   closed|open|all` on the argument saves that hop. The enum type stays the
-  machine-readable list — `wire-enum-drift` (ADR 0016) checks *it* against the
+  machine-readable list — `wire-enum-drift` checks *it* against the
   spec and checks nothing about the prose, so when the spec's value set moves,
   fix both.
 - An argument whose inventory entry carries none of the four gets no such
@@ -301,29 +299,29 @@ How to spell it, so two services read alike:
   and it clears the default only. A `minimum`/`maximum` outside `Int` takes
   the same shape (`max: unbounded: the source's … does not fit Int`), but on
   any argument except the page size it is still an `int-overflow` error:
-  retype the argument (§ Scalar choice) (ADR 0065).
-- A workspace written before ADR 0065 (crate 0.5.26) states the number, as
+  retype the argument (§ Scalar choice).
+- A workspace written before crate 0.5.26 states the number, as
   this section then prescribed: `(default 9223372036854775807, min 0)`. That
   is still an `int-overflow` error, because a caller can copy the number.
   The finding quotes the clause (`default 9223372036854775807`) and gives
   the replacement with the number filled in; replace only that clause and
   keep the rest (`, min 0`). Adding `default: unbounded` beside the old
-  clause does not clear the finding: the number is still there to copy
-  (ADR 0093). The same holds for `default: no upper bound`, the wording
+  clause does not clear the finding: the number is still there to copy.
+  The same holds for `default: no upper bound`, the wording
   some 0.5.1 workspaces carry: the finding quotes it as the clause to
   replace, and while it sits beside `default: unbounded` the finding says
   to delete it. When a doc comment holds more than one legacy clause, the
-  finding names each one (ADR 0104).
+  finding names each one.
 - For a page-size argument use § Pagination's spelling (`"Page size (provider
   default: 20, maximum: 100)."`, or the explicit-gap wording): that is the
   wording the `pagination-bounds-*` lint rules read, and this section does not
   restate it.
 
-**The omission sentence, a fifth trigger (ADR 0066, ADR 0083).** An optional
+**The omission sentence, a fifth trigger.** An optional
 argument (no `!`) whose inventory `description` has a sentence saying what
 happens when the argument is omitted keeps that sentence verbatim in its doc
 comment. It is a source fact like any other: covered by the schema, or a
-recorded decision says why not (source coverage, ADR 0082). A sentence is one
+recorded decision says why not (source coverage). A sentence is one
 when it contains, in any case:
 
 - a default: `by default`, `defaults to`, `default to` (`will default to`),
@@ -400,29 +398,29 @@ a provider default, and it must be declared.
 What is checked mechanically: the page-size half of the rule above, by
 `pagination-bounds-undocumented` and `pagination-bounds-unknown`; and, for
 every other constrained argument, that it has a doc comment at all, by
-`argument-constraints-undocumented` (a warning, ADR 0062), whose message
+`argument-constraints-undocumented` (a warning), whose message
 spells the clause. Whether an existing doc comment states the clause, and the
 `= literal` ban everywhere, are applied by hand.
-The same rule also reads what an optional argument's doc comment says
-(ADR 0066): when the omission sentence above is missing, whether or not the
+The same rule also reads what an optional argument's doc comment says:
+when the omission sentence above is missing, whether or not the
 argument has a doc comment, the rule warns and quotes the sentence. The
 sentence counts as present when, without its final period, it appears in the
 doc comment after both are whitespace-normalised and compared
-case-insensitively. Since ADR 0095 `source-coverage --check` fails on the
+case-insensitively. `source-coverage --check` also fails on the
 same sentence, and a resolved `behaviour` waiver silences both the check and
 this warning.
 Both halves trace an argument to its source entry through a `queryParams`
 key, an aligned path segment, a header whose value is the argument
 (`{ name: "From", value: "{$args.from}" }`), and a body key, flat or nested
 in object literals, `$({ … })` included, through methods such as
-`->map(…)->first` (ADR 0083). An argument sub-selection (`$args.input { … }`)
+`->map(…)->first`. An argument sub-selection (`$args.input { … }`)
 or a deeper path (`$args.input.x`) sends an input type's fields: their doc
 comments are not read, so write their omission sentences by hand.
 The only lint rule that reads an SDL default is `sparse-fieldsets`, on its
 own argument. `int-overflow` reads one clause, `default: unbounded`, on an
-`Int` argument whose source default lies outside `Int` (ADR 0065), and
+`Int` argument whose source default lies outside `Int`, and
 quotes a `default N` clause stating that number, or a `default: no upper
-bound` clause, as the text to replace (ADR 0093, ADR 0104).
+bound` clause, as the text to replace.
 
 ## Nullability
 
@@ -490,7 +488,7 @@ section — a pagination size parameter is a small number by construction and is
 exempt from `int-overflow` outright. An `exclusiveMinimum`/`exclusiveMaximum`
 counts as the bound it is, and a `default` outside `Int` is a finding too
 (§ Argument constraints has the one spelling that clears a default on an
-argument) (ADR 0065).
+argument).
 
 An `ID` argument mapped into a JSON body is not re-typed to a string. The
 router sends the literal the caller wrote: `milestone: 1` reaches the body as
@@ -521,8 +519,8 @@ and the set is genuinely closed. Otherwise use `String`:
 - Keeping the vendor's own casing avoids the translation entirely when the
   values serialise straight back into request bodies.
 
-`graphos-factory-core lint` checks the first sentence (`closed-enum-as-string`,
-ADR 0041): a selected argument or response leaf typed `String` while the
+`graphos-factory-core lint` checks the first sentence (`closed-enum-as-string`):
+a selected argument or response leaf typed `String` while the
 source's `enum` is all strings and every value is a valid GraphQL name is a
 warning until it is an enum in wire casing or the reason it is not is on
 record. Keeping `String` over a valid enum is a call (the enum is the
@@ -580,8 +578,8 @@ nested object or list (`songs[]>album_id`, `owner>account_id`).
 operations that return the host shape and whether the by-id operation is
 selected, then the GET-by-id operations it refused as targets and why — a
 read keyed by an email that returns a balance (AppWorld splitwise) is one:
-it is not the record the email names, so no property gets a hint for it
-(ADR 0085); `inventory list` shows the same as `links:` lines under each
+it is not the record the email names, so no property gets a hint for it;
+`inventory list` shows the same as `links:` lines under each
 operation. It is a hint, never a finding. Route it through the selection,
 not the schema: `graphos-factory-core selection draft .` writes one `links:`
 entry per fact with `confirmed: false`; agree each with the user; a
@@ -632,12 +630,12 @@ object type and one wrapped in a list at any depth (`[Widget_Co_JSON]`,
 `[Widget_Co_JSON!]!`, …) — and matches each, keyed `"<TypeName>.<fieldName>"`,
 against a `json_reasons` entry on a **resolved** `.factory/decisions.json`
 record (`graphos-factory-core decisions add --json-reason 'Type.field|reason'`;
-never a `selection.yaml` field or a schema doc comment — ADR 0073, the
-decisions-only rule), for a reason from a closed vocabulary: `free-form-object`,
+never a `selection.yaml` field or a schema doc comment — the decisions-only
+rule, because reasons recorded in the schema confused the model reading it), for a reason from a closed vocabulary: `free-form-object`,
 `recursive`, `vendor-undocumented`, `polymorphic-without-discriminator`,
 `depth-cap`.
 `defaults.fields: all` decides which fields are *selected*; it never counts
-as a reason for one that is still typed JSON (ADR 0073).
+as a reason for one that is still typed JSON.
 
 **Reasons are re-checked every run, not recorded once and trusted
 forever.** Each is a predicate over the current `.factory/inventory.json`
@@ -686,7 +684,7 @@ carries — `$.message` for `{message: string}`, `$.error.message` for
 different statuses on the same `@source` document different bodies, chain
 their paths with `??` in declared order; a status whose `shape_ref` is
 `null` documents no body at all, which is why the chain still ends in a
-string fallback. Before ADR 0043, an error body written inline in the spec
+string fallback. In older inventories, an error body written inline in the spec
 — not a `$ref` — was silently dropped from the inventory (`shape_ref:
 null`) even though the body was fully documented; a path copied from
 another API's convention (`.detail` is FastAPI's default, not necessarily
@@ -704,7 +702,7 @@ Every root field and every type gets a doc comment. Prefer the vendor's own
 summary over a paraphrase; it is what the API's users already know, and it
 is what an MCP client shows to a model choosing between tools. A spec with no
 summaries (every Google discovery-derived one) gives the operation's
-`description` instead. `lint`'s `undocumented-root-field` (an error, ADR 0062)
+`description` instead. `lint`'s `undocumented-root-field` (an error)
 fails a selected root field with no doc comment while that text exists, and
 quotes it. Where the
 connector deliberately differs from the API (an excluded field, a flattened
@@ -716,7 +714,7 @@ doc comment — see [§ Argument constraints](#argument-constraints) for the
 general rule and § Pagination for the page-size case.
 
 **A service that mints its own credential states the rule on the login root
-field** (ADR 0064). App-level facts a consumer needs go on the
+field**. App-level facts a consumer needs go on the
 credential-minting root field's doc comment, before its Returns line, and on
 the token type's description. Never put them in a schema description (a
 description on the `schema` definition): the composed supergraph keeps only
@@ -747,17 +745,16 @@ the inventory already holds far more source material than that — gitea's
 from the OpenAPI/Swagger document onto every property already; the gap is
 guidance, not missing data.
 
-**Opt-in per service (ADR 0034).** Unlike Pagination and the rule above,
+**Opt-in per service.** Unlike Pagination and the rule above,
 this is not on by default: a workspace adopts it explicitly, recorded as a
 resolved decision in `decisions.json` (`graphos-factory-core decisions`, never
 hand-edited — [workspace-contract.md](workspace-contract.md)). The trade is
 unmeasured — bigger schema text, a larger context budget for every
 consumer, against filling a real documentation gap — and unlike the
-Returns-line rule (ADR 0032), which shipped only once the apollo-conn-gen
+Returns-line rule, which shipped only once the apollo-conn-gen
 benchmark had measured the turn it closes, there is no bundled evidence yet
-that this helps. Effectiveness is evaluated per service at the Phase 6
-evals, not asserted, the same discipline ADR 0031 and ADR 0032 already hold
-their own claims to.
+that this helps. Its effect is to be measured per service, not
+asserted.
 
 Once a workspace opts in:
 
@@ -788,20 +785,20 @@ Root-field arguments have the same gap and the same source material as
 object fields — the inventory copies every parameter's and request-body
 property's `description` verbatim — with one difference: this surface
 already carries a default-on rule, the constraint clause of
-[§ Argument constraints](#argument-constraints) (ADR 0031), and a lint-read
+[§ Argument constraints](#argument-constraints), and a lint-read
 wording for page-size arguments (§ Pagination). What it did not have was a
-rule for the rest, and the gap was measured (ADR 0040): an authoring run with
+rule for the rest, and the gap was measured: an authoring run with
 no rule for this surface produced 1,565 argument doc comments where the
 previous run had produced 0 — 691 of them verbatim OpenAPI parameter text,
 367 a per-argument "requires access_token" sentence — and the schemas'
 description text grew from 28 KB to 229 KB. A documentation surface with no
 rule fills with vendor text.
 
-**Opt-in per service for the source sentence (ADR 0040), the same mechanism
+**Opt-in per service for the source sentence, the same mechanism
 and the same reasoning as Object field descriptions above.** The constraint
-clause stays default-on because ADR 0031's benchmark measured what its
+clause stays default-on because a benchmark measured what its
 absence costs. The source sentence has no such measurement behind it, its
-cost side is the one ADR 0034 names — bigger schema text, a larger context
+cost side is the usual one — bigger schema text, a larger context
 budget for every consumer, vendor prose of uneven quality — and in the run
 above it was 691 lines nobody asked for. A workspace adopts it as a resolved
 decision in `decisions.json` (`graphos-factory-core decisions`, never
@@ -820,7 +817,7 @@ and nothing else:
    single-line `"…"` string, never a `"""` block (why, under part 3).
 2. **The constraint clause — default-on.** § Argument constraints,
    unchanged: `(default asc, one of asc|desc)`.
-   The omission sentence of § Argument constraints (ADR 0066) is also
+   The omission sentence of § Argument constraints is also
    default-on, and comes verbatim after the clause:
    `(default asc, one of asc|desc). Ascending when omitted.` When it is the
    source's first sentence and part (1) is opted in, part (1) carries it and
@@ -834,8 +831,8 @@ and nothing else:
    specified` or `no bound` anywhere in it (`lint_pagination`,
    `crate/src/lint.rs`); a source sentence that happens to carry a number or
    one of those phrases satisfies the rule without the schema saying what
-   the rule wants said. The mechanism is measured, not a gitea case (ADR
-   0040): Gitea's whole two-sentence `order` description — the second
+   the rule wants said. The mechanism is measured, not a gitea case:
+   Gitea's whole two-sentence `order` description — the second
    sentence ends `ignored if "sort" is not specified.` — placed on a
    page-size argument silences the gap warning; the one-sentence trim this
    rule would actually produce carries no such phrase and leaves lint where
@@ -845,10 +842,10 @@ and nothing else:
    doc comment leftmost-first, so a `"""` block on the page-size argument
    makes it read from the first earlier `"""` block in the argument list
    onward, and a source sentence on *any* earlier argument then satisfies
-   the rule (also measured, ADR 0040).
+   the rule (also measured).
 
 When (1) and (2) both apply, spell them as the source sentence without its
-final period, then the clause in parentheses, one period — the ADR 0031
+final period, then the clause in parentheses, one period — the constraint-clause
 spelling with the source sentence in front:
 
 ```graphql
@@ -878,7 +875,7 @@ No doc comment when none of the three applies.
   per-argument "Requires access_token" sentence: where the credential comes
   from is stated once — on the source directive and in the README, or, for a
   credential the service mints itself, on the login root field
-  (§ Descriptions, ADR 0064) — not on every argument that carries it.
+  (§ Descriptions) — not on every argument that carries it.
 - **An argument that already carries a doc comment keeps it.** As with
   object fields, this rule fills gaps; it does not relitigate existing
   curation. The two rules above that are not opt-in still apply to it: a
@@ -891,7 +888,7 @@ is a `"""` block and an earlier argument carries one too, everything from
 the earlier block onward, which is why part (1) is a single-line string; no
 rule counts argument doc comments, measures their length or reads them for
 type words. Review by reading the schema.
-Since ADR 0066, `argument-constraints-undocumented` checks that part (2)'s
+`argument-constraints-undocumented` also checks that part (2)'s
 omission sentence appears in the doc comment (§ Argument constraints).
 
 ### Returned field names
@@ -918,14 +915,14 @@ separated:
   String` gets none. Never guess a shape the schema does not state.
 
 **An object-typed entry renders one level deep, and a small leaf-only
-object inside it one more** (ADR 0039, amended by ADR 0067). A field whose
+object inside it one more**. A field whose
 type is an object, or a list of objects, carries that type's field names in
 braces — `teams { id, type, summary, self, htmlUrl }` — in the nested type's
 declaration order, comma separated, capped at **6** and closed with
 `(+N more)` inside the braces: `owner { id, login, loginName, sourceId,
 fullName, email (+16 more) }`. Inside the braces, an object field whose
 type has **at most 6 fields, every one a leaf** (scalar, enum or opaque-JSON
-scalar), gets braces of its own (ADR 0067): `cards { code, value, suit, image,
+scalar), gets braces of its own: `cards { code, value, suit, image,
 images { svg, png } }`, and on a splitwise-shaped type `shares { debtor {
 name, email }, debtAmount }`. A second-level type with any object-typed field,
 or more than 6 fields, stays a bare name — `piles { name, remaining, cards }`,
@@ -969,10 +966,10 @@ missing stop condition.
 Root fields only. Nested types keep their own doc comments — the turn this
 removes is on the operation the agent has already picked, and a `Returns:` line
 on every nested type would collide with the entity-type descriptions for no
-measured gain. Whether the line pays for itself is a Phase 6 eval question, not
+measured gain. Whether the line pays for itself is an eval question, not
 something this rule asserts.
 
-`returns-line-nesting` (warn, ADR 0067) reads each selected root field's
+`returns-line-nesting` (warn) reads each selected root field's
 Returns line against the SDL: a name the type does not declare, a bare
 object-typed entry at the first level (the envelope's payload field in the
 first line excepted), a bare small leaf-only object at the second level, and
@@ -998,16 +995,16 @@ nothing declares, or one two entries of the same rank both claim, is a
 `reconcile` selection error listing the candidates. For a root field,
 `lock` also refuses to record it, `codify` refuses it, and `lock --check`
 and `lint` (`unattributed-span`) report it as a tie to settle in the
-selection, not a hand edit. The tool never picks one (ADR 0044).
+selection, not a hand edit. The tool never picks one.
 
 ## Coverage: what the schema leaves on the wire
 
-**Source coverage** (ADR 0082): every fact the source offers is covered by
+**Source coverage**: every fact the source offers is covered by
 the schema, or a recorded decision says why not. A schema is finished when
 that holds, not when every selected operation compiles. `graphos-factory-core
 source-coverage . OP-KEY` reads one operation's request body and response out
-of `inventory.json` and classifies each leaf. It was `spans obligations`
-before ADR 0082, and that spelling still runs. It does **not** classify
+of `inventory.json` and classifies each leaf. It was once `spans obligations`,
+and that spelling still runs. It does **not** classify
 path, query or header parameters, with one exception (the behaviour section,
 below). Check the rest by hand against the operation's `parameters` in the
 inventory: every one should be an argument, a fixed value in the connector's
@@ -1026,12 +1023,12 @@ URL, `queryParams` or `headers`, or a recorded decision.
 Run it per operation while authoring, and again with `--check` (non-zero
 when anything is `unaccounted`, `unresolved`, `unverified-default` **or
 `transport-expansion-missing`**, naming which on stderr) before `lock`.
-**Zero of all four in both directions is the completion bar** (ADR 0037,
-ADR 0047): `--check` fails closed, because an unresolved path is not known
+**Zero of all four in both directions is the completion bar**:
+`--check` fails closed, because an unresolved path is not known
 to be handled. An `omits` record does not clear an unresolved or an
 unverified-default row.
 
-**Behaviour facts (ADR 0095).** A third section, `behaviour`, appears when
+**Behaviour facts.** A third section, `behaviour`, appears when
 an optional argument's source says what omitting it does (the omission
 sentence of § Argument constraints, "If not passed, Venmo balance will be
 used."). One row per such argument:
@@ -1074,12 +1071,12 @@ argument, so write those sentences by hand.
 
 **Do not make an optional source parameter required to get past this.** `!`
 on an argument whose source parameter or body key is optional is the lint
-error `argument-required-optional-in-source` (ADR 0096): the caller could no
+error `argument-required-optional-in-source`: the caller could no
 longer leave it out, so the source's omission behaviour would be unreachable.
 Make it optional, or, when it must be required, record why with the
 decision form of the `behaviour` waiver above (`--omit 'get:/x|behaviour|query:x|editorial'`).
 
-**A bare `$` selection (ADR 0105)** returns the whole response, and the
+**A bare `$` selection** returns the whole response, and the
 classifier reads it that way: `selection: "$"` on a `[String]` field over
 a root array of strings maps `[]`, and over an object or an array of
 objects maps every row beneath it as `mapped (json)`. `$ { … }` walks its
@@ -1088,7 +1085,7 @@ leaves every row `unresolved`. Record no `omits` entry for a root row a
 bare `$` returns; one recorded before 0.5.67 still resolves, but the row
 now reads `mapped` first.
 
-**Every selected operation at once (ADR 0101).** With no OP-KEY,
+**Every selected operation at once.** With no OP-KEY,
 `graphos-factory-core source-coverage . [--json] [--check]` runs the same
 classifier on every operation `selection.yaml` includes (`include: true`),
 in inventory order. Do not loop over `inventory list`: it pages, and it
@@ -1114,7 +1111,7 @@ lists operations the selection leaves out, which need no coverage.
   includes no operation, or a workspace with no `selection.yaml`, exits 1:
   nothing checked is not a pass.
 
-**Stale omits (ADR 0103).** An `omits` entry on a resolved decision or a
+**Stale omits.** An `omits` entry on a resolved decision or a
 current finding can outlive the reason for it: the schema now maps the path, a classifier
 upgrade now reads a `->match` it once reported `unresolved`, the envelope
 now reads the path (for an `editorial` entry), or a refreshed source no
@@ -1135,7 +1132,7 @@ resolved decision (for a finding, `graphos-factory-core findings supersede .
 row it covers that is `unresolved` or `unverified-default` counts as
 needing it.
 
-**Expansion boundaries (ADR 0047).** A response property whose inventory
+**Expansion boundaries.** A response property whose inventory
 node carries `x-expansion` is a relationship to another node, and the walk
 stops there instead of unfolding the target's graph:
 
@@ -1158,13 +1155,13 @@ names the operation and records the path, as a backtick span
 takes and sends the fields parameter gets no such exemption; its fix is the
 group in the default.
 
-**The classifier reads the forms this skill recommends** (ADR 0050):
+**The classifier reads the forms this skill recommends**:
 - `map->entries` over a dictionary maps the dictionary's row;
 - `field->match([from, to], …)` on a scalar maps `field`, as value translation
   (over an object or array, without a sub-selection, it stays unresolved:
   an arm can send any part of the value);
 - `field->map(@->match(…))` over an array of scalars maps `field`, the same
-  translation applied to each element (Phase 7ay); anything else inside the
+  translation applied to each element; anything else inside the
   map, or a method after it, stays unresolved. In a request body it is still
   unresolved, as every request-side `->match` is;
 - a nested object literal in a request body is read key by key;
@@ -1172,14 +1169,14 @@ group in the default.
   key by wire key;
 - a request body that is one `$args.<name>` expression, with or without a
   sub-selection (`body: "$args.input"`, `$args.input { Wire: field }`), is
-  classified at the request root (ADR 0070); a body that follows that
+  classified at the request root; a body that follows that
   expression with `key: expr` pairs is not, so write one form or the other;
 - a deeper argument path (`$args.a.b`) forwards the field it names;
 - a `...` spread of `disc->match(…)` arms, the abstract-type form
   ([mapping-language.md § Abstract types](mapping-language.md#abstract-types)),
   maps the discriminator and each arm's fields. Any other spread leaves every
   path under its object that the selection does not otherwise map
-  `unresolved` (ADR 0058).
+  `unresolved`.
 
 An `unresolved` row names the construct the classifier does not read, for
 example `request expression not parsed: ->map->first` or `selection method
@@ -1230,7 +1227,7 @@ a parent path covers its children, and never matches by type name — it is a
 path on one operation. `.` is the root path, the whole direction: it is the
 only way to record an EmptyResponse 204, whose one offered row sits at the
 empty root (`--omit 'delete:/ecommerce/stores/{store_id}|response|.|editorial'`). The classifier reads these records back, so the same
-record that justifies the gap is what closes it (ADR 0036, ADR 0113). Never widen
+record that justifies the gap is what closes it. Never widen
 an omit to silence a leaf you have not actually considered; that converts a
 finding into a lie the next `--check` will not catch.
 

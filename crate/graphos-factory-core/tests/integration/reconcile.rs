@@ -2136,7 +2136,7 @@ fn only_a_get_by_id_template_is_a_link_connector() {
 fn render_report_prints_the_links_section() {
     let header = |counts: &str| {
         format!(
-            "links ({}) — relationship fields inside types, from links: (ADR 0069):\n",
+            "links ({}) — relationship fields inside types (from links:):\n",
             counts
         )
     };
@@ -2218,7 +2218,7 @@ fn render_report_prints_the_links_section() {
     let text = render_report(&link_run(&confirmed, &sdl), "ws", None);
     assert!(
         text.contains(&format!(
-            "field connectors (5) — field-level connectors outside links:, not reconciled (ADR 0069):\n  · Widget_Co_Repo.issues  GET /repos/{{$this.owner}}/{{$this.name}}/issues   (line {})\n",
+            "field connectors (5) — field-level connectors outside links:, not reconciled:\n  · Widget_Co_Repo.issues  GET /repos/{{$this.owner}}/{{$this.name}}/issues   (line {})\n",
             line_of(&sdl, "  issues(")
         )),
         "{}",

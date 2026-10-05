@@ -59,6 +59,7 @@ mod scrub;
 mod selection;
 mod selection_review;
 mod selection_set;
+mod skill_doc;
 mod source_coverage_check;
 mod sources;
 mod spans;

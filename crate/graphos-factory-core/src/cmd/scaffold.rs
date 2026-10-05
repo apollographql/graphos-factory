@@ -2561,7 +2561,7 @@ pub fn main(argv: &[String]) -> i32 {
                 .unwrap_or(false);
         if ambiguous_union {
             notes.push(format!(
-                "{}'s response is a two-branch success/error union with no unambiguous source evidence (a status-code correlation or a shared discriminator) and no response.referenced_shape judgement recorded in selection.yaml (ADR 0080); the stub's body is typed as opaque JSON ({{}}) until one is recorded",
+                "{}'s response is a two-branch success/error union with no unambiguous source evidence (a status-code correlation or a shared discriminator) and no response.referenced_shape judgement recorded in selection.yaml; the stub's body is typed as opaque JSON ({{}}) until one is recorded",
                 name
             ));
         }

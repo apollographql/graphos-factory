@@ -22,6 +22,9 @@ jobs:
           workspaces: crate
       - name: Format
         run: cargo fmt --manifest-path crate/Cargo.toml --all --check
+      - name: The skill never cites a design document
+        # The binary's own strings are the test suite's skill_doc module.
+        run: bash graphos-factory-core/scripts/skill-doc-check.sh
       - name: Test
         run: cargo test --manifest-path crate/Cargo.toml --workspace --locked
       - name: Build

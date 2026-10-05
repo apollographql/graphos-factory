@@ -48,8 +48,8 @@
               "value": {},
               "was": {},
               "reason": { "type": "string", "minLength": 1 },
-              "decision": { "type": "string", "pattern": "^D-([0-9]{4,}|[0-9a-z]{6})$", "description": "Optional: the decision this patch carries out (a numbered or a random id, ADR 0118), when it is one (ADR 0113). `reason` carries the why." },
-              "context": { "type": "string", "minLength": 1, "description": "Optional background beyond the reason, in prose (`codify --source --context`, ADR 0113)." },
+              "decision": { "type": "string", "pattern": "^D-([0-9]{4,}|[0-9a-z]{6})$", "description": "Optional: the decision this patch carries out (a numbered or a random id), when it is one. `reason` carries the why." },
+              "context": { "type": "string", "minLength": 1, "description": "Optional background beyond the reason, in prose (`codify --source --context`)." },
               "verified": { "type": ["object", "string"], "description": "How the patch was verified against the real API (a recorded sample, a docs page)." }
             }
           }

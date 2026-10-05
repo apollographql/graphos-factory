@@ -26,14 +26,14 @@ pub const USAGE: &str = "usage: graphos-factory-core <command> [args]
   context    check [workspace] [--phase build|live] [--json]   assess declared customer-context requirements before authoring
              capture [workspace] (--requirement ID|--input) --id ID --from FILE --representation raw|derived|transcribed …   preserve an exact local artifact; no network or credentials
   decisions  list [workspace] [--open] [--causal] [--json]     the decision log: judgement calls recorded and open questions awaiting the user
-             add [workspace] --title T (--question Q | --choice id:label --choice id:label…) [--multiple] [--resolved --chosen id --note TEXT --decision TEXT [--by user|agent]] [--omit operation|direction|path|reason]…   a record with no question and fewer than two choices is refused (no-alternative, ADR 0113)
+             add [workspace] --title T (--question Q | --choice id:label --choice id:label…) [--multiple] [--resolved --chosen id --note TEXT --decision TEXT [--by user|agent]] [--omit operation|direction|path|reason]…   a record with no question and fewer than two choices is refused (no-alternative)
              resolve [workspace] --id D-id [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
              reopen [workspace] --id D-id [--json]           clear a resolved or superseded decision's answer so it can be resolved again
              supersede [workspace] --id D-id [--json]        mark a resolved decision replaced: its answer is kept, its omits stop counting
-             link [workspace] --id D-id (--after D-id | --amends D-id)… [--json]   edges on a decision recorded since ADR 0118
+             link [workspace] --id D-id (--after D-id | --amends D-id)… [--json]   edges on a decision recorded as its own file
              migrate [workspace] [--keep-md] [--force] [--dry-run] [--json]   import a legacy .factory/decisions.md into decisions.json
-             migrate [workspace] --split [--sorted FILE] [--dry-run] [--json]   ADR 0113: provenance onto its entries, facts to findings.json, the hand-sorted rest per FILE
-  findings   list [workspace] [--json]                 facts a reference, an ADR or the wire settled, read by the instruments that read omits and affects (ADR 0113)
+             migrate [workspace] --split [--sorted FILE] [--dry-run] [--json]   split an older-format log: provenance onto its entries, facts to findings.json, the hand-sorted rest per FILE
+  findings   list [workspace] [--json]                 facts a reference or the wire settled, read by the instruments that read omits and affects
              add [workspace] --title T --body TEXT [--cites C] [--source agent|codify|sources] [--affects P]… [--omit operation|direction|path|reason]… [--evidence E]… [--related D-id|F-id]… [--json]   --omit refuses editorial
              supersede [workspace] --id F-id [--json]        a later finding replaced it: its omits and affects stop counting
   lint       [workspace] [--json] [--warnings-as-errors] [--skip-evidence]
@@ -46,11 +46,11 @@ pub const USAGE: &str = "usage: graphos-factory-core <command> [args]
              refresh [workspace] --path SPEC --from FILE --reason R [--decision D-id] [--url U] [--retrieved-at T] [--dry-run] [--json] [--model MODEL]   a new vendor document: re-apply patches[], rebuild + diff the inventory; both record a finding
   source-coverage [workspace] [OP-KEY] [--json] [--check]   every request-body and response path the source offers, classified: covered by the schema, or a decision says why not; --check fails on unaccounted, unresolved, unverified-default, transport-expansion-missing or an unaccounted behaviour fact; no OP-KEY: every selected operation, one counts line each
   spans      obligations …                             the old spelling of source-coverage; still runs
-             json-accounting [workspace] [--json] [--check]   every response field still typed as the JSON scalar, matched against a resolved json_reasons decision (ADR 0073)
+             json-accounting [workspace] [--json] [--check]   every response field still typed as the JSON scalar, matched against a resolved json_reasons decision
   serialization [workspace] [--json]                   read-only: per body-sending write, whether each argument's value is proven at its own body pointer, query key, path or header placeholder by an executed e2e case, omission and explicit null included; the standalone form of the write_body_proof evidence layer; exit 1 on any gap
   render     [workspace] --out DIR [--unit]
   scaffold   [workspace] [--op KEY]… [--force] [--dry-run] [--json]   a case, a stub and a unit entry per selected operation, from the shapes; --op batch:<Shape> a $batch connector's proving case
-             --op KEY --status CODE|all-missing        error cases, each with `# expect-upstream-status` (ADR 0077)
+             --op KEY --status CODE|all-missing        error cases, each with `# expect-upstream-status`
   selection  draft [workspace] [--op KEY]… [--links | --envelopes] [--force] [--dry-run] [--json]   propose a response.envelope per included operation and a links: entry per candidate_entity_link fact, as hints to confirm
              set [workspace] --op KEY… --include true|false [--dry-run] [--json]   toggle an operation's include flag in place
              review [workspace] [--candidate FILE --expect-input TOKEN] [--expect-review TOKEN]   read-only JSON selection review

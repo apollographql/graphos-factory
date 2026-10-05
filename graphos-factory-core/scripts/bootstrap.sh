@@ -17,7 +17,7 @@
 # script looks there first, then on PATH. The wrappers (resolve-bin.sh)
 # refuse, with exit 78, a binary older than the version this script
 # installs — so a cache left behind by an old bootstrap fails loudly instead
-# of rendering silently (ADR 0087). Nothing is ever written into the
+# of rendering silently. Nothing is ever written into the
 # repository.
 #
 # Download channels (GitHub Releases of $GRAPHOS_FACTORY_CORE_RELEASE_REPO, by
@@ -45,7 +45,7 @@ NAME="${GRAPHOS_FACTORY_CORE_BIN_NAME:-}"
 CACHE="$GRAPHOS_FACTORY_CORE_CACHE_DIR"
 BIN_DIR="$CACHE/bin"
 BIN="$BIN_DIR/$NAME"
-# The shared name, a link to the product binary (ADR 0114, Phase 8f).
+# The shared name, a link to the product binary.
 LINK="$BIN_DIR/graphos-factory-core"
 EDGE_STAMP="$BIN_DIR/$NAME.edge-commit"
 OWNER_REPO="$GRAPHOS_FACTORY_CORE_RELEASE_REPO"

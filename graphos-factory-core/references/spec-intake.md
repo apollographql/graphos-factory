@@ -32,7 +32,7 @@ graphos-factory-core inventory build openapi.json                      # build (
 graphos-factory-core inventory list --tag Incidents --limit 25         # page, grouped by tag
 graphos-factory-core inventory list --support needs_review             # what needs a decision
 graphos-factory-core inventory describe get:/v2/incidents              # one operation, shapes expanded
-graphos-factory-core inventory links . [--json]                        # every relationship hint flat: shape, property path, canonical GET-by-id target, list-item host, target selected; then the GET-by-id operations refused as targets and why (ADR 0085)
+graphos-factory-core inventory links . [--json]                        # every relationship hint flat: shape, property path, canonical GET-by-id target, list-item host, target selected; then the GET-by-id operations refused as targets and why
 graphos-factory-core inventory diff old.json .factory/inventory.json # what a refresh changed
 ```
 
@@ -45,7 +45,7 @@ that walks every operation (an obligations loop, a coverage count, a
 selection draft check) reads `next_offset` and calls again until it is
 `null`; reading `operations` from the first page alone silently stops at 50.
 An unparsable `--offset` or `--limit`, a bare one with no value (an empty
-loop variable), or `--limit 0`, is refused with exit 1 (ADR 0091).
+loop variable), or `--limit 0`, is refused with exit 1.
 
 ## What the reader decides, and what it refuses to
 
@@ -75,8 +75,8 @@ field or root.
 
 `inventory.json` is a straight, deterministic representation of the source:
 every field is checkable against the document, the whole file is regenerable
-at any time, **it is never hand-edited, and it never governs the schema**
-(ADR 0018). Every judgement that affects the schema or the tests lives in
+at any time, **it is never hand-edited, and it never governs the schema**.
+Every judgement that affects the schema or the tests lives in
 `selection.yaml`.
 
 So the inventory does not say which key a payload's content sits under. It
@@ -129,7 +129,7 @@ its `kind`, the header or query parameter, the scheme prefix where the
 document implies one (`http`/`bearer` → `Bearer `; an `apiKey` scheme
 carries no prefix — that comes from the vendor's docs or a probe and goes in
 `memory.md`), and `source: spec`. An `oauth2` scheme also records what it
-declares about its flows, verbatim (ADR 0019):
+declares about its flows, verbatim:
 
 ```jsonc
 {
@@ -211,7 +211,7 @@ graphos-factory-core codify . --source openapi.json --reason "live API returns n
 codify computes the structural difference between upstream and working copy
 (JSON Patch; formatting never counts), writes it to the entry's `patches`
 with the reason (and `context`, from `--context TEXT`), records no
-decision (ADR 0113), and refreshes
+decision, and refreshes
 the lock, and prints the next step: rebuild the inventory (`graphos-factory-core
 inventory build openapi.json`; an `intake: mixed` workspace re-runs `infer
 --update-inventory` after it) and re-run `reconcile`: nothing records which document the
@@ -288,8 +288,8 @@ the patch left it; kept with its reason, decision and `verified`),
 **obsolete** (the vendor now says what the patch produced; dropped), or in
 **conflict** (the vendor changed the target — dropped, not applied, exit 3).
 The working copy is rewritten from the new upstream plus the re-applied
-patches, a finding recorded in `findings.json` (`source: sources`, ADR
-0113) captures both hashes, the origin label and every patch's fate with
+patches, a finding recorded in `findings.json` (`source: sources`)
+captures both hashes, the origin label and every patch's fate with
 the reason it had, `applied.lock.yaml` acknowledges
 the new working copy, and `.factory/inventory.json` is rebuilt with the
 `inventory diff` printed — so `lock --check` and `lint` are clean right

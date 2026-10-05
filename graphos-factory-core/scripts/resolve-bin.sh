@@ -9,7 +9,7 @@
 # ~/.cache/graphos-factory-core/<owner>-<repo>/bin, see cache.sh), then
 # graphos-factory-core on PATH. The first hit is used — and the cache wins over
 # PATH, so a binary a long-ago bootstrap left there shadows a newer one on
-# PATH. That is why the version is checked here and never assumed (ADR 0087).
+# PATH. That is why the version is checked here and never assumed.
 #
 # The expected version is the one bootstrap.sh installs: $GRAPHOS_FACTORY_CORE_VERSION
 # when set, else crate/Cargo.toml's `version` in the checkout that holds these

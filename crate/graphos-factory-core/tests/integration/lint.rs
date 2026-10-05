@@ -6174,7 +6174,7 @@ fn a_relationship_field_carrying_its_own_credential_is_an_error() {
     // (`the_source_level_message_names_the_credential_path_the_field_opens`).
     assert_eq!(
         finding.message,
-        "Widget_Co_Widget.owner carries its own credential (an Authorization header, {$args.access_token} in a header); no root field reaches GET /owners/{$this.owner_id} for it to mirror, so it has no per-call credential to carry — drop the header and its argument (ADR 0069)"
+        "Widget_Co_Widget.owner carries its own credential (an Authorization header, {$args.access_token} in a header); no root field reaches GET /owners/{$this.owner_id} for it to mirror, so it has no per-call credential to carry — drop the header and its argument"
     );
     // FieldSpan.line is the line of the field name (`owner(access_token…`,
     // line 22), not of its @connect on line 23.
@@ -6318,7 +6318,7 @@ fn a_relationship_field_mirrors_its_by_id_root_fields_per_call_credential() {
         .unwrap_or_else(|| panic!("{:?}", rules(&result)));
     assert_eq!(
         finding.message,
-        "Widget_Co_Widget.owner must carry exactly the credential its by-id root field Query.widget_co_owner carries (access_token: String! as header Authorization: Bearer {$args.access_token}); it carries none — declare the same argument and send it the same way (ADR 0069)"
+        "Widget_Co_Widget.owner must carry exactly the credential its by-id root field Query.widget_co_owner carries (access_token: String! as header Authorization: Bearer {$args.access_token}); it carries none — declare the same argument and send it the same way"
     );
     // `owner…` is line 16 of PER_CALL_SDL, the field name's line.
     assert_eq!(finding.line, Some(16), "{:?}", finding);
@@ -6443,7 +6443,7 @@ fn a_credential_sent_through_an_expression_is_mirrored_like_a_bare_one() {
         assert_eq!(
             finding.message,
             format!(
-                "Widget_Co_Widget.owner must carry exactly the credential its by-id root field Query.widget_co_owner carries (access_token: String as header Authorization: {}); it carries none — declare the same argument and send it the same way (ADR 0069)",
+                "Widget_Co_Widget.owner must carry exactly the credential its by-id root field Query.widget_co_owner carries (access_token: String as header Authorization: {}); it carries none — declare the same argument and send it the same way",
                 value
             )
         );
@@ -6762,7 +6762,7 @@ fn a_paging_token_on_the_by_id_root_field_is_no_credential_to_mirror() {
         .expect("the root sends access_token per call");
     assert_eq!(
         finding.message,
-        "Widget_Co_Widget.owner must carry exactly the credential its by-id root field Query.widget_co_owner carries (access_token: String! as query parameter access_token); it carries none — declare the same argument and send it the same way (ADR 0069)"
+        "Widget_Co_Widget.owner must carry exactly the credential its by-id root field Query.widget_co_owner carries (access_token: String! as query parameter access_token); it carries none — declare the same argument and send it the same way"
     );
 }
 
@@ -6897,12 +6897,12 @@ fn the_source_level_message_names_the_credential_path_the_field_opens() {
     );
     assert_eq!(
         link_credential(&with_root).expect("with root").message,
-        format!("{}the one @source supplies {{{{AUTH_EXPR}}}} to every request — drop the header and its argument (ADR 0069, ADR 0019)", own)
+        format!("{}the one @source supplies {{{{AUTH_EXPR}}}} to every request — drop the header and its argument", own)
     );
     // No root field reaches it: nothing to mirror, and no claim about the @source.
     assert_eq!(
         link_credential(LINK_SDL).expect("no root").message,
-        format!("{}no root field reaches GET /owners/{{$this.owner_id}} for it to mirror, so it has no per-call credential to carry — drop the header and its argument (ADR 0069)", own)
+        format!("{}no root field reaches GET /owners/{{$this.owner_id}} for it to mirror, so it has no per-call credential to carry — drop the header and its argument", own)
     );
     // The by-id root field sends nothing and the @source carries nothing.
     let source_level = PER_CALL_SDL.replace(
@@ -6912,7 +6912,7 @@ fn the_source_level_message_names_the_credential_path_the_field_opens() {
     assert_ne!(source_level, PER_CALL_SDL);
     assert_eq!(
         link_credential(&source_level).expect("uncredentialed").message,
-        format!("{}its by-id root field Query.widget_co_owner sends no credential and the @source carries none — drop the header and its argument (ADR 0069)", own)
+        format!("{}its by-id root field Query.widget_co_owner sends no credential and the @source carries none — drop the header and its argument", own)
     );
 }
 
@@ -6932,7 +6932,7 @@ fn a_source_level_field_sending_an_ordinary_argument_is_told_it_is_an_argument()
     );
     assert_eq!(
         link_credential(&expand).expect("an argument").message,
-        "Widget_Co_Widget.owner carries an argument its by-id root field does not ({$args.expand} in the request); a relationship field declares only the mirrored credential — drop the argument (ADR 0069)"
+        "Widget_Co_Widget.owner carries an argument its by-id root field does not ({$args.expand} in the request); a relationship field declares only the mirrored credential — drop the argument"
     );
     // The by-id root field taking the same argument does not make it the
     // field's, and the message does not claim the root lacks it.
@@ -6943,7 +6943,7 @@ fn a_source_level_field_sending_an_ordinary_argument_is_told_it_is_an_argument()
     assert_ne!(root_takes, expand);
     assert_eq!(
         link_credential(&root_takes).expect("still an argument").message,
-        "Widget_Co_Widget.owner carries an argument that is no credential ({$args.expand} in the request); a relationship field declares only the mirrored credential — drop the argument (ADR 0069)"
+        "Widget_Co_Widget.owner carries an argument that is no credential ({$args.expand} in the request); a relationship field declares only the mirrored credential — drop the argument"
     );
     // A credential-named query argument keeps the credential wording.
     let token = with_root.replace(
@@ -7046,7 +7046,7 @@ fn a_vendor_spelled_credential_on_the_by_id_root_field_is_mirrored_not_dropped()
     );
     assert_eq!(
         link_credential(&missing).expect("the root sends private_token per call").message,
-        "Widget_Co_Widget.owner must carry exactly the credential its by-id root field Query.widget_co_owner carries (private_token: String! as query parameter private_token); it carries none — declare the same argument and send it the same way (ADR 0069)"
+        "Widget_Co_Widget.owner must carry exactly the credential its by-id root field Query.widget_co_owner carries (private_token: String! as query parameter private_token); it carries none — declare the same argument and send it the same way"
     );
 }
 

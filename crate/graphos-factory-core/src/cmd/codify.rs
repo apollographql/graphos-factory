@@ -433,7 +433,7 @@ pub fn main(argv: &[String]) -> i32 {
             crate::spans::LOCK_FILE
         );
         eprintln!("  `--key` records an edit `graphos-factory-core reconcile` or `lock --check` reported. Nothing here differs from what the agent last wrote.");
-        eprintln!("  A correction to what the tool *inferred* is a different thing: a wrong shape or response belongs in the pinned description document (`graphos-factory-core codify --source PATH --reason …`), and a judgement — which root property the payload sits under, the root, a name, a tag — belongs in selection.yaml (ADR 0018).");
+        eprintln!("  A correction to what the tool *inferred* is a different thing: a wrong shape or response belongs in the pinned description document (`graphos-factory-core codify --source PATH --reason …`), and a judgement — which root property the payload sits under, the root, a name, a tag — belongs in selection.yaml.");
         return 2;
     }
 

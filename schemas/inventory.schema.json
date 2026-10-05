@@ -28,7 +28,7 @@
     "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } },
     "shapes": {
       "type": "object",
-      "description": "Named response/request shapes, JSON-Schema-like, referenced as #/shapes/<name>. A property node may additionally carry a candidate_entity_link (#/$defs/candidate_entity_link), a computed cross-reference to a canonical GET-by-id operation's path parameter — guidance only (ADR 0033, ADR 0069), never enforced, so shape internals otherwise stay unschematized here. <S> is any shape an operation's response returns, or any named shape a response reaches through $ref at any depth (a list's items.$ref, a property's $ref, and on through each shape so reached); a shape reached only from a request or error body carries none. The fact sits on the property node wherever the property sits in <S>, never on a $ref node itself: shapes.<S>.properties.<p>; shapes.<S>.items.properties.<p> for a root-array response; shapes.<S>.properties.<a>.items.properties.<p> under an inline list; shapes.<S>.properties.<o>.properties.<p> under an inline object. `graphos-factory-core inventory links` prints every fact flat with its path in the fields grammar (album_id, []>album_id, songs[]>album_id).",
+      "description": "Named response/request shapes, JSON-Schema-like, referenced as #/shapes/<name>. A property node may additionally carry a candidate_entity_link (#/$defs/candidate_entity_link), a computed cross-reference to a canonical GET-by-id operation's path parameter — guidance only, never enforced, so shape internals otherwise stay unschematized here. <S> is any shape an operation's response returns, or any named shape a response reaches through $ref at any depth (a list's items.$ref, a property's $ref, and on through each shape so reached); a shape reached only from a request or error body carries none. The fact sits on the property node wherever the property sits in <S>, never on a $ref node itself: shapes.<S>.properties.<p>; shapes.<S>.items.properties.<p> for a root-array response; shapes.<S>.properties.<a>.items.properties.<p> under an inline list; shapes.<S>.properties.<o>.properties.<p> under an inline object. `graphos-factory-core inventory links` prints every fact flat with its path in the fields grammar (album_id, []>album_id, songs[]>album_id).",
       "additionalProperties": { "type": "object" }
     },
     "unresolved": { "type": "array", "items": { "$ref": "#/$defs/unresolved" } }
@@ -113,7 +113,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "style": { "enum": ["cursor", "page", "offset", "link_header", "next_link", "none", "unknown"], "description": "next_link: the request takes no paging parameter and the response carries a link to the next page (next_url), which the client follows (ADR 0052)." },
+        "style": { "enum": ["cursor", "page", "offset", "link_header", "next_link", "none", "unknown"], "description": "next_link: the request takes no paging parameter and the response carries a link to the next page (next_url), which the client follows." },
         "request": { "type": ["string", "null"], "description": "Request parameter carrying the cursor/page." },
         "size_param": { "type": ["string", "null"] },
         "response": { "type": ["string", "null"], "description": "Dotted path to the next cursor in the response." },
@@ -231,25 +231,25 @@
         },
         "minimum": {
           "type": "number",
-          "description": "The source-declared minimum value for a numeric parameter. Omitted (never null) when the source declares none — JSON Schema requires the keyword's value to be a number, so an explicit null in the source is malformed and treated as absent (ADR 0025)."
+          "description": "The source-declared minimum value for a numeric parameter. Omitted (never null) when the source declares none — JSON Schema requires the keyword's value to be a number, so an explicit null in the source is malformed and treated as absent."
         },
         "maximum": {
           "type": "number",
-          "description": "The source-declared maximum value for a numeric parameter. Omitted (never null) when the source declares none (ADR 0025)."
+          "description": "The source-declared maximum value for a numeric parameter. Omitted (never null) when the source declares none."
         },
         "exclusiveMinimum": {
           "type": ["number", "boolean"],
-          "description": "The source's exclusiveMinimum, as written: a number is the exclusive bound itself (OpenAPI 3.1); a boolean says whether `minimum` is exclusive (OpenAPI 3.0, Swagger 2.0). Omitted when the source declares none (ADR 0065)."
+          "description": "The source's exclusiveMinimum, as written: a number is the exclusive bound itself (OpenAPI 3.1); a boolean says whether `minimum` is exclusive (OpenAPI 3.0, Swagger 2.0). Omitted when the source declares none."
         },
         "exclusiveMaximum": {
           "type": ["number", "boolean"],
-          "description": "The source's exclusiveMaximum, as written: a number is the exclusive bound itself (OpenAPI 3.1); a boolean says whether `maximum` is exclusive (OpenAPI 3.0, Swagger 2.0). Omitted when the source declares none (ADR 0065)."
+          "description": "The source's exclusiveMaximum, as written: a number is the exclusive bound itself (OpenAPI 3.1); a boolean says whether `maximum` is exclusive (OpenAPI 3.0, Swagger 2.0). Omitted when the source declares none."
         }
       }
     },
     "candidate_entity_link": {
       "type": "object",
-      "description": "A computed cross-reference found on a shape property node wherever it sits in the shape (properties.<p>, items.properties.<p>, or any inline properties/items below them, in a response shape or a named shape a response reaches through $ref; never on a $ref node itself), not on the parameter: a canonical GET-by-id operation's trailing path parameter — an operation whose success response is one record carrying that key (a property named after the parameter or ending with its name, or an `id` for a parameter ending in id, in the parameter's type family, at the top level or inside a one-property envelope; ADR 0085) — whose case-normalized name (folding snake_case and camelCase) and type family (string/ID-shaped vs integer-shaped, never exact scalar equality) matched this property. A candidate for a field-level relationship connector on the host type, keyed by {$this.<p>} — guidance only, never a lint (ADR 0033, ADR 0069); the judgement lives in selection.yaml `links:` and a declined candidate is recorded in decisions.json.",
+      "description": "A computed cross-reference found on a shape property node wherever it sits in the shape (properties.<p>, items.properties.<p>, or any inline properties/items below them, in a response shape or a named shape a response reaches through $ref; never on a $ref node itself), not on the parameter: a canonical GET-by-id operation's trailing path parameter — an operation whose success response is one record carrying that key (a property named after the parameter or ending with its name, or an `id` for a parameter ending in id, in the parameter's type family, at the top level or inside a one-property envelope) — whose case-normalized name (folding snake_case and camelCase) and type family (string/ID-shaped vs integer-shaped, never exact scalar equality) matched this property. A candidate for a field-level relationship connector on the host type, keyed by {$this.<p>} — guidance only, never a lint; the judgement lives in selection.yaml `links:` and a declined candidate is recorded in decisions.json.",
       "required": ["operation", "parameter", "list_context"],
       "additionalProperties": false,
       "properties": {
@@ -263,7 +263,7 @@
         },
         "list_context": {
           "type": "boolean",
-          "description": "Whether the matched operation returns a list (response.root_is_array). False on every fact since ADR 0085, which refuses a target whose response is a list; true was the signal for the $batch entity form documented as the exception. Which keyed types a bulk-by-keys endpoint could resolve in one $batch call is what `batch find` is to report (ADR 0068, pending #109); a relationship field never emits $batch (ADR 0069)."
+          "description": "Whether the matched operation returns a list (response.root_is_array). False on every fact: a target whose response is a list is refused; true was the signal for the $batch entity form documented as the exception. Which keyed types a bulk-by-keys endpoint could resolve in one $batch call is what `batch find` is to report (not built yet); a relationship field never emits $batch."
         }
       }
     },
@@ -279,7 +279,7 @@
     },
     "response": {
       "type": ["object", "null"],
-      "description": "The success response, and the factual signals an envelope judgement rests on. There is no `envelope` here on purpose (ADR 0018): which key the payload's useful content sits under decides the shape of the schema, so it is a judgement and lives in selection.yaml (`operations.<key>.response.envelope`). Every key below is checkable against the description document. A key carrying no information (false, zero, empty, absent) is omitted.",
+      "description": "The success response, and the factual signals an envelope judgement rests on. There is no `envelope` here on purpose: which key the payload's useful content sits under decides the shape of the schema, so it is a judgement and lives in selection.yaml (`operations.<key>.response.envelope`). Every key below is checkable against the description document. A key carrying no information (false, zero, empty, absent) is omitted.",
       "required": ["status", "content_type"],
       "additionalProperties": false,
       "properties": {
@@ -288,7 +288,7 @@
         "shape_ref": { "type": ["string", "null"] },
         "referenced_shape": {
           "type": "string",
-          "description": "ADR 0080: when `shape_ref` names a two-branch oneOf/anyOf of one success shape and one error shape, and the source document itself makes the branches distinguishable (the spec correlates a branch with a specific non-2xx status documented on the same operation, or the branches share a required property pinned to a distinct literal value in each — a structural discriminator, never a property's name alone), this points at the success branch so scaffold and reconcile type it instead of falling back to JSON. Omitted whenever the union is ambiguous by that rule — inventory build never guesses from a property literally named `error`/`errors`, and a reviewed judgement on an ambiguous case belongs in selection.yaml's own `response.referenced_shape`, never here."
+          "description": "When `shape_ref` names a two-branch oneOf/anyOf of one success shape and one error shape, and the source document itself makes the branches distinguishable (the spec correlates a branch with a specific non-2xx status documented on the same operation, or the branches share a required property pinned to a distinct literal value in each — a structural discriminator, never a property's name alone), this points at the success branch so scaffold and reconcile type it instead of falling back to JSON. Omitted whenever the union is ambiguous by that rule — inventory build never guesses from a property literally named `error`/`errors`, and a reviewed judgement on an ambiguous case belongs in selection.yaml's own `response.referenced_shape`, never here."
         },
         "root_is_array": {
           "type": "boolean",

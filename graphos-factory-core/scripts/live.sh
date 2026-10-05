@@ -192,7 +192,7 @@ for ((i = 0; i < excluded; i++)); do
   if [ -n "$op" ] && [ -n "$field" ]; then echo "FAIL: exclusion $i names both an operation ($op) and a field ($field); give each its own entry"; FAIL=$((FAIL+1)); continue; fi
   if [ -z "$reason" ]; then echo "FAIL: exclusion for ${op:-$field} gives no reason"; FAIL=$((FAIL+1)); continue; fi
   # A field's line has its own prefix, so evidence cannot read it as an
-  # operation row (a relationship field has none, ADR 0094/0106).
+  # operation row (a relationship field has none).
   if [ -n "$field" ]; then echo "EXCLUDED FIELD: $field — $reason"; else echo "EXCLUDED: $op — $reason"; fi
   EXCL=$((EXCL+1))
 done

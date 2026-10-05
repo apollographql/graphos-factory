@@ -1,6 +1,6 @@
 # Service workspace contract
 
-**Status:** All workspace contracts use `contract_version: 1`, except `evidence/latest.json`, which is `contract_version: 2` (the `write_body_proof` layer and `case_proofs` were added to a closed schema, so a version-1 reader rejects the file), the record files under `.factory/decisions/` and `.factory/findings/`, each `contract_version: 2` from the first (ADR 0118; `decisions.json` and `findings.json` stay 1), and `selection.yaml`, which is `contract_version: 2` since ADR 0113 (`context` on overrides and waivers, `decision:` optional; a version-1 file is still read, and codify or `decisions migrate --split` upgrades it when it writes a `context`). The seven
+**Status:** All workspace contracts use `contract_version: 1`, except `evidence/latest.json`, which is `contract_version: 2` (the `write_body_proof` layer and `case_proofs` were added to a closed schema, so a version-1 reader rejects the file), the record files under `.factory/decisions/` and `.factory/findings/`, each `contract_version: 2` from the first (`decisions.json` and `findings.json` stay 1), and `selection.yaml`, which is `contract_version: 2` (`context` on overrides and waivers, `decision:` optional; a version-1 file is still read, and codify or `decisions migrate --split` upgrades it when it writes a `context`). The seven
 machine-readable files described here are enforced by JSON Schemas in
 the repository's `schemas/` directory — `workspace.schema.json`,
 `inventory.schema.json`, `selection.schema.json`, `evidence.schema.json`,
@@ -9,9 +9,9 @@ the repository's `schemas/` directory — `workspace.schema.json`,
 embeds them, and a target adds its own schemas for the files it owns.
 
 `workspace.yaml`'s `context_mode` records the generic / specialized /
-undecided assessment (ADR 0022); the optional `context.yaml` companion records
+undecided assessment; the optional `context.yaml` companion records
 only the requirements and inputs that assessment depends on, and exists only
-when there are any. An unrecorded `context_mode` reads as generic (ADR 0081):
+when there are any. An unrecorded `context_mode` reads as generic:
 `graphos-factory-core context check` blocks only on `undecided` and on the
 requirements and inputs `context.yaml` declares. The
 [`customer-context.md`](customer-context.md) reference covers discovery and resumption.
@@ -33,8 +33,7 @@ Three rules the layout is built around:
    the regions it promises not to touch, and engineers stop editing the
    schema (lessons.md § Regeneration destroys iteration).
 
-   The dividing line is **facts against judgements**
-   (ADR 0018).
+   The dividing line is **facts against judgements**.
    `inventory.json` carries only what a reader can verify against the source
    in seconds; it is regenerable at any time, is never hand-edited, and
    never governs the schema. Every judgement that changes the schema or the
@@ -51,14 +50,14 @@ Three rules the layout is built around:
    only the affected operations and types. Every apply is one git commit
    whose message names the selection or decision that caused it.
 3. **Every judgment is written down once, where the next agent will look.**
-   One test decides where (ADR 0113): *could a reasonable engineer have
+   One test decides where: *could a reasonable engineer have
    gone the other way, and would the service still be valid?*
 
    - **Yes** → a decision in `.factory/decisions.json`
      (`graphos-factory-core decisions add`, with the question and every
      alternative), resolved by the user, or by the agent with `--note`
      saying why it was confident enough not to ask (§ `decisions.json`).
-   - **No, because a reference, an ADR or the wire settles it** → a
+   - **No, because a reference or the wire settles it** → a
      finding in `.factory/findings.json` (`graphos-factory-core findings add
      --cites …`), and only when an instrument needs its `omits` or
      `affects` or the next session needs the fact (§ `findings.json`).
@@ -113,9 +112,9 @@ both. Nothing under `.factory/` is ever part of that subset.
     inventory.json                 # what the API offers (discovered; refreshable)
     selection.yaml                 # what the user chose (decided; durable) + overrides (hand edits, codified)
     applied.lock.yaml              # the schema (one hash per span) and the pinned specs (one content hash each) as last applied
-    decisions.json                 # tracked decision log: decisions only — resolved calls with their alternatives + open questions (schema-governed; written only by graphos-factory-core decisions); the records written before ADR 0118, D-nnnn, never added to
-    decisions/                     # every decision added since ADR 0118: one file each, <id>-<slug>.json, random D-k7m2qx ids
-    findings.json                  # settled facts an instrument reads (omits, affects), F-nnnn (schema-governed; written only by graphos-factory-core findings); never added to since ADR 0118
+    decisions.json                 # tracked decision log: decisions only — resolved calls with their alternatives + open questions (schema-governed; written only by graphos-factory-core decisions); the older-format records, numbered D-nnnn, never added to
+    decisions/                     # every newer decision: one file each, <id>-<slug>.json, random D-k7m2qx ids
+    findings.json                  # settled facts an instrument reads (omits, affects), F-nnnn (schema-governed; written only by graphos-factory-core findings); the older format, never added to
     findings/                      # every finding added since: one file each, <id>-<slug>.json
     memory.md                      # vendor quirks, dead endpoints, auth details, gotchas, tried and rejected
     evidence/
@@ -175,7 +174,7 @@ include_subgraph_errors:
 ```
 
 **Every file under `.factory/` is a regular file inside the workspace, and
-the binary enforces it** (ADR 0025). One module owns every `.factory/*` read
+the binary enforces it**. One module owns every `.factory/*` read
 and in-place write: it `lstat`s each component of the path — `.factory`
 itself, `sources/`, `evidence/runs/<stamp>/`, the file — and refuses a
 symlink at any of them, opens with `O_NOFOLLOW`, and writes by truncating
@@ -210,10 +209,10 @@ type_prefix: Incident_Io
 field_prefix: incident_io
 skill: { name: example, version: 0.3.0 }   # the target's name, which the binary writes
 source_kind: rest              # the only implemented kind; grpc / database / graphql are planned
-connect_spec: v0.4             # rest: the default since ADR 0049; v0.3 remains valid for workspaces created before it
+connect_spec: v0.4             # rest: the default for a new workspace; v0.3 remains valid for older workspaces
 federation_version: "2.15.2"    # composition plugin pin; render/compose match this exactly against supergraph.yaml
-# federation_spec_version: "2.12"  # set only when the schema links an older federation spec than the plugin minor (e.g. a pre-ADR-0049 workspace moved to plugin 2.15.2 but still linking v2.12, ADR 0035); a new workspace links federation/v2.15 and omits it
-sparse_fieldsets: { param: fields }  # optional: the string query parameter a GET names its fields in; absent means `fields`; `enabled: false` turns the rule off for a source whose parameter means something else (ADR 0045, schema-authoring.md § Sparse fieldsets)
+# federation_spec_version: "2.12"  # set only when the schema links an older federation spec than the plugin minor (e.g. an older workspace moved to plugin 2.15.2 but still linking v2.12); a new workspace links federation/v2.15 and omits it
+sparse_fieldsets: { param: fields }  # optional: the string query parameter a GET names its fields in; absent means `fields`; `enabled: false` turns the rule off for a source whose parameter means something else (schema-authoring.md § Sparse fieldsets)
 intake: spec | discovered | mixed   # rest: how inventory.json was built — from a description document (`inventory build`; the format is the sources.lock entry's kind), from docs and probes, or both
 created_at: 2026-09-08T00:00:00Z
 ```
@@ -246,7 +245,7 @@ sources:
         value: [id]
         was: [id, summary]
         reason: "live API returns null; spec says non-nullable string"
-        context: "every open incident probed so far has a null summary"   # optional, from codify --context (ADR 0113)
+        context: "every open incident probed so far has a null summary"   # optional, from codify --context
         verified: { how: recorded sample, sample: .factory/samples/incidentsShow/1.json }
   - kind: docs
     url: https://api-docs.incident.io/tag/Incidents-V2
@@ -288,7 +287,7 @@ via the bundled `inventory` script. Operation keys use the same
     "title": "incident.io API",
     "base_urls": ["https://api.incident.io"],
     "auth": [{ "kind": "bearer", "header": "Authorization", "prefix": "Bearer ", "source": "spec|docs|probe" }],
-                                                // an oauth2 scheme adds "oauth2": { "flows": [...], "authorization_code": { urls, scopes } } (ADR 0019)
+                                                // an oauth2 scheme adds "oauth2": { "flows": [...], "authorization_code": { urls, scopes } }
     "security": [{ "bearer": [] }],             // the document's default requirement (scheme -> scopes), verbatim; operations[].security overrides it
     "pagination": { "style": "cursor", "request": "after", "response": "pagination_meta.after",
                     "counts": { "cursor": 12, "unknown": 1 } }   // the majority of operations[].pagination, never a pooled parameter-name set; counts absent when nothing is paginated
@@ -335,7 +334,7 @@ via the bundled `inventory` script. Operation keys use the same
 
 A shape property or array item may carry **`x-expansion`** beside its
 `$ref`: `{target, mechanism: fields, default, evidence?}`, a relationship to
-another node that the source expands on the wire (ADR 0047). `default` is
+another node that the source expands on the wire. `default` is
 the verified list of leaves the source returns unexpanded, with `evidence:
 {kind: probe|doc, ref}`, or `unverified`. Anything short of a non-empty
 list of names with that evidence (`[]`, no evidence, a blank `ref`) is read
@@ -376,18 +375,18 @@ does not, and `selection draft` and `selection set` splice into a file that
 already exists. `selection draft` proposes a `response.envelope` only for
 operations the file already marks `include: true`, and on a fresh workspace
 it exits 1 with a message that names the missing `.factory/selection.yaml` and
-states the `include: true` requirement (Phase 7bg). The operations, their roots and names are
-the select verb's judgements (ADR 0018 § 5). Field paths use the same
+states the `include: true` requirement. The operations, their roots and names are
+the select verb's judgements. Field paths use the same
 `>`-separated path grammar the existing UI emits
 (`get:/animals/{animalId}>**` means "everything under this operation").
 
 ```yaml
-contract_version: 2             # 2 since ADR 0113; a version-1 file is still read
+contract_version: 2             # 2 adds `context` on overrides and waivers; a version-1 file is still read
 defaults:
   fields: all                 # all | none — what an included operation selects by default
   max_depth: 6
   opaque_json_policy: forbid  # forbid | allow_with_reason — an undocumented JSON field fails lint under forbid
-  null_handling: omit         # omit | send_null — what an explicit null argument sends; optional, a decisions.json entry overrides it per argument (ADR 0079)
+  null_handling: omit         # omit | send_null — what an explicit null argument sends; optional, a decisions.json entry overrides it per argument
 operations:
   get:/v2/incidents:
     include: true
@@ -419,7 +418,7 @@ operations:
   # A bulk exclusion reads better as a one-line flow entry, and is equally
   # valid. `graphos-factory-core selection set` edits either form in place — it
   # replaces just the `include` value's bytes and leaves the reason, the
-  # quoting, the spacing and the key order exactly as written (ADR 0027).
+  # quoting, the spacing and the key order exactly as written.
   # Keep a flow entry on ONE line: a `{ … }` wrapped across lines is legal
   # YAML but `selection set` refuses it and tells you to unwrap it.
   "delete:/v2/incidents/{id}": { include: false, reason: "read-only in first release" }
@@ -427,7 +426,7 @@ overrides:
   # Hand edits, codified (written by `graphos-factory-core codify`). Each names a
   # schema span, says why (`reason`, and `context` from --context), and
   # asserts what must stay true; `decision:` (optional, D-0019 or D-k7m2qx) names a
-  # real decision only when the edit carries one out (ADR 0113). Drift
+  # real decision only when the edit carries one out. Drift
   # between selection and schema on these is reported,
   # not fixed; the agent may still change the span when the selection or
   # inventory changes, as long as every assertion holds.
@@ -441,7 +440,7 @@ overrides:
     expires: "2027-01-01"                                     # machine-checked: reported as expired after this
 ```
 
-**`response`** is where the envelope judgement lives (ADR 0018): `envelope`
+**`response`** is where the envelope judgement lives: `envelope`
 names the single root property the payload's useful content sits under, or is
 `null` when the field returns the whole body. It must name a root property of
 the operation's response shape — `reconcile` and lint both refuse one that
@@ -454,8 +453,8 @@ operation with no `response` block at all falls back to the suggestion, and
 `reconcile` says which one it used (`no-response-envelope`). An absent
 `confirmed` means confirmed: a hand-written selection is the user's word.
 
-**`response.referenced_shape`** is a different judgement in the same block
-(ADR 0080): which branch of a two-branch success/error `oneOf`/`anyOf`
+**`response.referenced_shape`** is a different judgement in the same block:
+which branch of a two-branch success/error `oneOf`/`anyOf`
 response is the actual payload, for a case the source document itself
 leaves ambiguous. `inventory build` already writes the same key as a
 *fact* when the source makes the branches distinguishable on its own (one
@@ -469,7 +468,7 @@ recording the same key here (a `#/shapes/<Name>` pointer, the grammar
 body both read the inventory fact first and fall back to this judgement
 only when the fact is absent. Absent both, the response types as the
 workspace's JSON scalar and the finding stays open — `scaffold` says so in
-a note naming ADR 0080.
+a note.
 
 **Field paths** are rooted at the response body and use a
 `>`-separated grammar with `[]` after a list segment:
@@ -494,7 +493,7 @@ is **pinned**: the span is compared byte-for-byte against `--baseline` and
 the agent must not change it — lint warns, because a pin freezes the
 operation forever; assertions are what let it keep evolving. `until` is
 free text saying when to revisit; `expires` (YYYY-MM-DD) is checked, and an
-expired override is reported and is not clean. `customized` (the Phase 4
+expired override is reported and is not clean. `customized` (the old
 list of fenced operations) is retired; reconcile and lint refuse it.
 
 **`links`** are the relationship fields the user chose to expose — a
@@ -548,13 +547,13 @@ entry declares as `links.remove`, and a wrong operation, verb or `$this`
 variable as `links.change`. A confirmed entry the current rules no
 longer back (its target refused, its fact gone, or a target the builder
 would never propose) is **stale**, and raises an open decision for the
-field (ADR 0113): the refusal reason as `context`, choices `keep` and
+field: the refusal reason as `context`, choices `keep` and
 `drop`, `affects: [Type.field]`, recorded with the `decisions add` command
 reconcile and lint print in their fix text, and named in the entry's
 `decision:`. While that decision is open (or the entry names none) the
 entry is `links.change` with `stale: true`, never `links.add`, lint
-reports it, and `links apply` refuses it `target-refused` (ADR 0098, ADR
-0100). Resolved `keep` is the exemption; resolved `drop` means setting
+reports it, and `links apply` refuses it `target-refused`.
+Resolved `keep` is the exemption; resolved `drop` means setting
 `include: false` with a `reason` citing the decision and removing the
 field on the next apply. Only a decision keeps a stale link, never a
 finding. Decline a link with `include: false` and a
@@ -571,7 +570,7 @@ against the rendered SDL rather than an inventory path — the same span
 namespace `overrides` uses for `type:<Name>`, without the `type:` prefix,
 since a field belongs to exactly one type declaration. The reason is a
 `decisions.json` record, never a `selection.yaml` field or a schema doc
-comment (ADR 0073, the decisions-only rule — the same rule `null_handling` below
+comment (the decisions-only rule — the same rule `null_handling` below
 follows): `spans json-accounting` enumerates every field the current SDL
 still types as the workspace's own JSON scalar (nested inside another
 object type, or wrapped in a list at any depth, included) and reports one
@@ -589,11 +588,10 @@ graphos-factory-core decisions add . --title "Incident.body stays JSON" \
 ```
 
 `json_reasons` live only on decisions, which carry their alternative
-(`decisions add` refuses a record with neither a question nor choices,
-ADR 0113).
+(`decisions add` refuses a record with neither a question nor choices).
 
 `defaults.fields: all` never counts as a reason on its own — it decides
-which fields are selected, not why one of them is still untyped (ADR 0073).
+which fields are selected, not why one of them is still untyped.
 
 The recorded `reason` is not trusted forever: each is a predicate over the
 CURRENT `.factory/inventory.json` shape at the field's own path, checked
@@ -625,7 +623,7 @@ accepts, a `reason`, and optionally `context` (from `--context`), a
 `decision` (`D-0019` or `D-k7m2qx`, only a real decision the waiver carries out) and
 `until` / `expires` as overrides do. Written by `graphos-factory-core codify
 --waive`, which refuses a gap validate does not report and records no
-decision (ADR 0113); validate then reports the body as `waived`
+decision; validate then reports the body as `waived`
 and evidence records it per operation. Lint: `waiver-unused` (nothing has
 that status there any more), `waiver-expired`,
 `waiver-bad-target`, `waiver-unknown-key`, `waiver-bad-status`.
@@ -666,7 +664,7 @@ flag and variable that supply the value, and, when a variable is set, the
 value it holds and why that is not a checkout. When
 `$GRAPHOS_FACTORY_CORE_SKILL_ROOT` is set it wins over
 `$GRAPHOS_FACTORY_CORE_SCRIPTS`, and the line says to repoint or unset it. The
-lock is still written, and the exit code is still 0 (ADR 0090).
+lock is still written, and the exit code is still 0.
 
 ```yaml
 contract_version: 1
@@ -702,12 +700,11 @@ file whose bytes differ from the record (`~ path (outputs)`, or `- path
 apply must stop on an uncodified hand edit, not on a memory.md line or a
 case added since the last lock. `lock --check --provenance` exits 3 on any
 such drift. CI runs it on every pilot, and `validate` runs it before
-reporting, so a lock that no longer describes the committed tests is caught
-(ADR 0006, amended 2026-09-24).
+reporting, so a lock that no longer describes the committed tests is caught.
 
 Relock on that drift only when a plain `lock --check` reports no changed
-or unattributed span (a relock refuses to write on an unattributed one, ADR
-0044), no pinned-source problem and no edited inventory. The schema, the
+or unattributed span (a relock refuses to write on an unattributed one),
+no pinned-source problem and no edited inventory. The schema, the
 pinned documents and `inventory.json` are recorded provenance files too, so
 an uncodified hand edit to any of them also appears in the drift listing. A
 relock would acknowledge it: `codify --key` then refuses the span as in sync,
@@ -745,7 +742,7 @@ applied.lock.yaml", `graphos-factory-core lock --check` exits 3 on them, and
 committed hand edit fails CI until it is codified, and an `apply` must not
 start while any exist (the agent could not tell them from its own delta).
 An edited `inventory.json` is `unacknowledged-inventory-edit`, and there is
-nothing to codify: the inventory is built, never edited (ADR 0018), so the
+nothing to codify: the inventory is built, never edited, so the
 fix is to correct the pinned document (`codify --source`) or to move the
 judgement into `selection.yaml`, and rebuild.
 A root field whose path several operations match equally, and that the
@@ -753,7 +750,7 @@ selection does not declare, is not a hand edit either: its `Query.<f>` key
 would move to an operation key once the selection names it. `lock` and
 `codify` refuse to record it, and `lock --check` (exit 3) and `lint`
 (`unattributed-span`) report it as a tie to settle in `selection.yaml`
-(schema-authoring.md § Which operation a root field serves; ADR 0044).
+(schema-authoring.md § Which operation a root field serves).
 Git history is not the baseline on purpose: engineers and a host UI commit
 too, and the lock is the one file that means "the agent has seen this".
 
@@ -774,9 +771,9 @@ satisfy, then writes two things at once:
 2. the span's hash in `applied.lock.yaml`, so the edit stops being a hand
    edit.
 
-codify appends to no log (ADR 0113). `reason` is required and carries the
+codify appends to no log. `reason` is required and carries the
 why; `context` carries the prose the diff cannot show; the entry's
-`decision:` is optional. `--decision D-id` (numbered or random, ADR 0118) attaches the entry to a real
+`decision:` is optional. `--decision D-id` (numbered or random) attaches the entry to a real
 decision — one the user made that this edit carries out — and codify warns
 when no such record exists. Never record a decision only to have one to
 cite.
@@ -824,21 +821,21 @@ Validation rules the skill enforces before applying:
   sent the same way otherwise (`link-credential`); one keyed by a foreign
   key the host declares nullable carries the null guard `links apply`
   prints, in `isSuccess` and in the selection (`link-null-guard`, a
-  warning, ADR 0084); a confirmed entry whose by-id target `inventory
+  warning); a confirmed entry whose by-id target `inventory
   links` refuses or that no `candidate_entity_link` fact backs is
   `link-target-refused` — an error once its field is pasted, a warning
   before — until its `decision:` names its keep-or-drop decision resolved
-  `keep` (ADR 0098, ADR 0113; connectors-language.md § Relationship
+  `keep` (connectors-language.md § Relationship
   fields); every field-level
   `@connect` in the schema has a unit entry targeting `<Type>.<field>` and
   an e2e case that selects the field on its host type (`link-untested`, a
-  warning naming the one missing or both, ADR 0094; this one reads the
+  warning naming the one missing or both; this one reads the
   schema and `tests/`, not `links:`); one whose fk is nullable and that
   has an e2e case also has a mapping answering the empty-segment GET that
-  serves a case selecting it (`link-null-untested`, a warning, ADR 0106);
+  serves a case selecting it (`link-null-untested`, a warning);
   when `tests/live.yaml` exists, each is selected by a listed live case or
-  named by a `field:` exclusion (`link-live-unaccounted`, a warning, ADR
-  0106), and each exclusion names exactly one of `operation:` or `field:`
+  named by a `field:` exclusion (`link-live-unaccounted`, a warning),
+  and each exclusion names exactly one of `operation:` or `field:`
   (`live-exclusion-malformed`, an error);
 - `root` is present for every included write-shaped or POST operation
   (the Query/Mutation split is a judgement, and is recorded);
@@ -851,10 +848,10 @@ Validation rules the skill enforces before applying:
 
 The workspace's decision log (`schemas/decisions.schema.json`,
 `contract_version: 1`), which a host UI's decisions view, if any,
-projects. It holds **decisions only** (ADR 0113): calls a reasonable
+projects. It holds **decisions only**: calls a reasonable
 engineer could have made the other way, each carrying its alternative, so
 a reader sees the choice taken and the ones not. Two kinds of record share
-one shape (ADR 0026):
+one shape:
 
 - an **open question** the service still needs answered — `status: "open"`,
   with a `question`, agent-suggested `choices` (`{id, label, detail?}`), and
@@ -894,13 +891,13 @@ graphos-factory-core decisions resolve . --id D-id [--chosen id]… [--note TEXT
 graphos-factory-core decisions reopen  . --id D-id [--json]  # clear the answer so the user can revise it; status back to open
 graphos-factory-core decisions supersede . --id D-id [--json]  # a resolved decision a later one replaced; answer kept, omits, json_reasons and null_handling stop counting
 graphos-factory-core decisions add  . … [--slug S] [--after D-id]… [--amends D-id]…   # a new record's file name, and the decisions it presumes or changes
-graphos-factory-core decisions link . --id D-id (--after D-id | --amends D-id)…   # edges on a record added since ADR 0118; an old record is refused
+graphos-factory-core decisions link . --id D-id (--after D-id | --amends D-id)…   # edges on a record that is its own file; a numbered record is refused
 graphos-factory-core decisions list . --causal                # the log in the order its decisions presume one another
 ```
 
-### One file per new record (ADR 0118)
+### One file per new record
 
-`decisions.json` holds the records written before ADR 0118, with their
+`decisions.json` holds the records written in the older format, with their
 numbered ids, at `contract_version` 1, and **never gains a record or a
 field**. Every decision added since is its own file under
 `.factory/decisions/`, and every finding under `.factory/findings/`:
@@ -975,9 +972,9 @@ because the write-body proof check reads a stub that shows the other
 behavior as unproven, whichever rule applied. With neither a default nor an
 entry, the argument is unproven: the check never picks a value, and never
 reads prose. Both fields are optional and additive, so `contract_version`
-stays 1 (ADR 0079).
+stays 1.
 
-**Superseding a decision (ADR 0103).** `decisions supersede . --id D-id`
+**Superseding a decision.** `decisions supersede . --id D-id`
 sets a `resolved` record's status to `superseded` and changes nothing else:
 the resolution stays, so the log still says what was decided, and its
 `omits` stop counting. Use it when the question itself changed, or when
@@ -1008,9 +1005,9 @@ resolved. `reopen` refuses — exit 1, nothing written — an unknown id
 missing log (`decisions-missing`; it never creates one) and an unreadable
 or invalid one (`decisions-invalid`). With `--json` a refusal prints
 `{error, code, exit}` and success prints `{id, status, previous_status,
-cleared, exit}` (ADR 0060).
+cleared, exit}`.
 
-**Migrating a legacy workspace.** A workspace authored before ADR 0026 has a
+**Migrating a legacy workspace.** A workspace authored before `decisions.json` existed has a
 free-form `.factory/decisions.md` and no `decisions.json`. Run
 `graphos-factory-core decisions migrate .` once: it imports every `## D-nnnn` block
 as a `resolved` record (`Context:` → context, `Decision:` →
@@ -1025,8 +1022,8 @@ block skipped there would be lost when the `.md` is removed. Do this before
 any `codify`/`sources` run in an upgraded workspace, or a fresh `decisions.json`
 would start at `D-0001` and collide with the ids in the orphaned `decisions.md`.
 
-**Splitting a pre-ADR-0113 log.** A `decisions.json` written before ADR
-0113 mixes decisions with findings, the binary's provenance records and
+**Splitting an older-format log.** A `decisions.json` in the older format
+mixes decisions with findings, the binary's provenance records and
 session narrative. `graphos-factory-core decisions migrate . --split` sorts it
 once, writing both files:
 
@@ -1110,11 +1107,11 @@ decision (or `superseded`) rather than editing one in place.
 ## `findings.json`
 
 The facts the agent established that an instrument must read, or the next
-session must know (`schemas/findings.schema.json`, `contract_version: 1`,
-ADR 0113). A finding has no alternative, because a reference, an ADR or the
+session must know (`schemas/findings.schema.json`, `contract_version: 1`).
+A finding has no alternative, because a reference or the
 wire settles it: "`errors[]` and `success` are consumed by the `@source`
 error mapping on every operation", "enums keep wire casing per naming.md",
-"descriptions end with the returned field names (ADR 0032)". A call
+"descriptions end with the returned field names". A call
 somebody could make the other way is a decision, never a finding, and
 nothing becomes a finding just to avoid deleting it.
 
@@ -1129,7 +1126,7 @@ graphos-factory-core findings supersede . --id F-id     # a later finding replac
 ```
 
 Ids are `F-nnnn` in `findings.json`, a sequence of their own beside
-`D-nnnn`, and random `F-9k2wde` for every finding added since ADR 0118. A
+`D-nnnn`, and random `F-9k2wde` for every finding recorded as its own file. A
 record:
 
 ```jsonc
@@ -1156,7 +1153,7 @@ record:
 ```
 
 - `body` is the fact in prose; `cites` is the rule that settles it
-  (`references/schema-authoring.md § Enums`, `ADR 0032`).
+  (`references/schema-authoring.md § Enums`).
 - `source` is who wrote it: `agent` (`findings add`); `codify` (an
   `--expressed` codification given `--context`, which leaves no entry to
   hold the prose); `sources` (`sources refresh` and `sources pin --force`:
@@ -1196,7 +1193,7 @@ endpoints and the vendor page that documents them, whether the tokens are
 opaque — one line each, with the page that states it. A target that drafts
 auth configuration names its own markers in its references.
 
-**`## Tried and rejected`** (ADR 0113) holds what no current file shows and
+**`## Tried and rejected`** holds what no current file shows and
 the next session must not repeat, one line each with what was tried and
 why it was rejected:
 
@@ -1217,9 +1214,9 @@ ran but deliberately did not exercise this operation; the reason is under
 the layer's `exclusions`, from `tests/live.yaml`; a relationship field,
 which has no row, is excluded by a `field:` entry instead, kept as an
 `EXCLUDED FIELD: <Type>.<field> — <reason>` line in the live layer's
-`findings` and named on evidence's report as not validated — ADR 0106) and `n/a` (the layer ran
+`findings` and named on evidence's report as not validated) and `n/a` (the layer ran
 and nothing covered it; this includes a unit layer that ran zero cases,
-whose empty suite covers no operation by a recorded decision — ADR 0046).
+whose empty suite covers no operation by a recorded decision).
 Only `pass` is proof.
 
 What was proven, per layer, per operation, at which commit. A host UI can
@@ -1292,9 +1289,9 @@ When no suite ran a case, `unit.sh` exits 3, and evidence records:
 When other suites ran cases, the layer is judged on those, and `unit.sh`
 names each cited empty suite in its log. A `skip: true` case is a `fail`,
 whether it is one case or all of them: rover counts it as skipped and still
-says SUCCESSFUL. A missing suite file is a `fail` too (ADR 0046).
+says SUCCESSFUL. A missing suite file is a `fail` too.
 
-**`write_body_proof`** (ADR 0079 Step 2) is additive: optional in
+**`write_body_proof`** is additive: optional in
 `evidence.schema.json`, not yet part of the validation gate below, and
 excluded from `evidence`'s own exit code as well — a `fail` here never
 fails the `evidence` command itself, or a CI step that keys off its exit
@@ -1303,7 +1300,7 @@ code. It reads the SAME run's `wiremock_e2e` status and log — never
 *previous* run's file (the same-run evidence contract) — and attaches its
 per-case verdicts to `wiremock_e2e`'s own `case_proofs`, additive beside the
 existing integer `cases`. When an argument was placed by execution (an
-executed case's stub demands its value at one body pointer, ADR 0079) the
+executed case's stub demands its value at one body pointer) the
 layer entry also carries `placements`: `{operation, argument, via:
 "executed", location, case}` for each; an argument not listed was placed by
 the reader. Absent when none needed execution.
@@ -1318,14 +1315,14 @@ fails the run otherwise). Any other `not_run`, and any `skipped` or
 layer does not gate: it runs against the real API and stays local, and a
 live-only gap is reported as `not_run` without blocking the offline
 layers. Neither does `json_accounting`: none of the 14 workspaces measured
-for ADR 0073 is anywhere near clean, and gating on it today would block
+when it was added is anywhere near clean, and gating on it today would block
 every one. Report its status as it is; a `fail` there is a real, tracked
 finding, just not yet a blocker.
 Report live's status as it is; it is never a pass. The same holds
 per operation: `fail`, `unchecked` or `skipped` on an offline layer of any
 selected operation means not validated, whatever the layers say (a
 conformance body that matches no operation is recorded as `fail`).
-An operation's e2e verdict is `unchecked` in two cases (ADR 0077): a case
+An operation's e2e verdict is `unchecked` in two cases: a case
 without `# expect-upstream-status` whose stub answered an error status on an
 operation documenting several, and a documented non-2xx status that no
 passing case saw answer the operation's **own** request. The second is
@@ -1335,15 +1332,15 @@ recorded per status in `layers.wiremock_e2e.error_coverage[<op>]` as
 nested lookup or side call is not the operation's. CI's `assert-evidence.sh`
 treats any `not_run` status as an error, with no way to allow one.
 A target that publishes a workspace computes this gate as one of its
-evidence layers (`target_evidence_layers`, ADR 0114) and refuses to hand
+evidence layers (`target_evidence_layers`) and refuses to hand
 the workspace on without it; `lint` does not enforce it, since it accepts a failed layer
 that carries a reason.
 
 ## Creating a workspace: `graphos-factory-core init`
 
 A spec-backed workspace starts from one description document (OpenAPI 3.x or
-Swagger 2.0) the agent has already fetched; the binary never fetches (ADR
-0056). The workspace belongs to one target, whose name `init` writes to
+Swagger 2.0) the agent has already fetched; the binary never fetches.
+The workspace belongs to one target, whose name `init` writes to
 `skill.name`; a binary that registers more than one target needs it named
 with `--target <name>`, and the skill's own `init` row says which:
 
@@ -1375,7 +1372,7 @@ these five files and nothing else, in this order:
 | `.factory/inventory.json` | the inventory, built by the same reader `inventory build` uses; a later `inventory build` reproduces it byte for byte |
 
 Without `--context-mode`, `workspace.yaml` records no `context_mode`, and
-`context check` reads the workspace as generic (ADR 0081).
+`context check` reads the workspace as generic.
 With `specialized`, the agent writes `context.yaml` next (see
 [`customer-context.md`](customer-context.md)). No `applied.lock.yaml` is written
 before the first `apply`, so `sources status` reports the working copy as

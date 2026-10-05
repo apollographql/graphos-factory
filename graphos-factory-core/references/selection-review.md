@@ -17,7 +17,7 @@ explicitly unconfirmed response hints and writes assigned to GraphQL queries.
 
 The input token covers the canonical workspace path, embedded inventory/selection schemas,
 and the bytes or absence of workspace.yaml, inventory.json, selection.yaml, sources.lock.yaml,
-applied.lock.yaml, decisions.json, findings.json (ADR 0113) and memory.md inside .factory. The review token additionally
+applied.lock.yaml, decisions.json, findings.json and memory.md inside .factory. The review token additionally
 binds the exact candidate bytes. Expected-token mismatches refuse the review.
 
 Tokens establish observed content equality, not uninterrupted history or user approval.

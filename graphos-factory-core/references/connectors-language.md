@@ -114,8 +114,8 @@ type Query {
   `GET: "/widgets/{$args.id}"`.
 - **`queryParams`** is mapping entries separated by whitespace, not GraphQL
   — one per line in every pilot, and several on one line
-  (`a: $args.a b: $args.b`) is the same block to the router and, since
-  ADR 0042, to the lint rules and `scaffold` that read it. A null-valued
+  (`a: $args.a b: $args.b`) is the same block to the router and
+  to the lint rules and `scaffold` that read it. A null-valued
   entry is omitted from the request.
 - **`headers`** is a GraphQL list of `{ name, value }` objects, the form the
   `@source` example above uses; a value may interpolate an expression
@@ -231,7 +231,7 @@ Validation runs in one direction only, which is what makes this worth knowing:
   keyless type no other subgraph can reference (one that tries fails with
   `INVALID_FIELD_SHARING`): it looks like it worked and buys nothing.
 
-Lint checks every `@key` type (ADR 0076): it needs a lookup by each
+Lint checks every `@key` type: it needs a lookup by each
 resolvable key, one full key wherever a connector's selection embeds it,
 something that returns it, and a connector mapping each of its fields. A
 `@key(fields: "id", resolvable: false)` stub, which references another
@@ -356,7 +356,7 @@ What it is and is not:
   reads fetch the same representation; an optional argument that is not
   the credential does not, nor does a constant `Authorization` header,
   which would open a second credential path.
-- **A nullable foreign key carries the null guard (ADR 0084).** Nothing
+- **A nullable foreign key carries the null guard.** Nothing
   in Connectors skips a field-level connector: for a parent whose fk is
   null the router still sends the GET, with an empty final segment
   (`GET /owners/`), once per distinct null parent. What answers it is
@@ -484,14 +484,14 @@ or no Query field carries a connector to it: include and apply the by-id
 operation first — it is the field's provenance, and lint's
 `link-operation-excluded` says the same). Several Query fields on one
 `/{id}` path are settled by the root field the selection names for the
-operation (ADR 0044), or refused. An entry whose field is already there is
+operation, or refused. An entry whose field is already there is
 skipped as applied, and two entries whose shapes the schema gives one type
 print that field once only when they are the same relationship — one
 operation keyed by one foreign key.
 
-**A confirmed link the current rules no longer back is stale (ADR
-0098).** The rules that make a `candidate_entity_link` fact change —
-ADR 0085 refuses a GET-by-id whose response does not carry the key its
+**A confirmed link the current rules no longer back is stale.** The rules
+that make a `candidate_entity_link` fact change — the inventory now
+refuses a GET-by-id whose response does not carry the key its
 path parameter names, or that returns a list — and a rebuilt inventory
 drops the fact, or an old inventory keeps a fact whose target
 `inventory links` now lists under refused targets. The `links:` entry
@@ -505,10 +505,10 @@ with that person and answers 422 for the caller's own email) — and a
 **warning** before. Reconcile reports the
 entry as `links.change` drift (`~`, `stale: true`) with the reason, and
 never as `links.add`. `links apply --dry-run` refuses it
-**`target-refused`** with the same reason (ADR 0100): it prints nothing
+**`target-refused`** with the same reason: it prints nothing
 for the entry, pasted or not, and exits 1.
 
-A stale link **raises a decision** (ADR 0113): an open record for the
+A stale link **raises a decision**: an open record for the
 field with the refusal reason as its `context`, choices `keep` and `drop`,
 and `affects: [Type.field]`. Reconcile and lint print the exact `decisions
 add` command in their fix text; run it, name the record on the entry
@@ -535,11 +535,11 @@ Then:
 **Testing a relationship field (by hand, for now).** `scaffold`
 drafts no test for a link field, and `evidence/latest.json` has no row for
 it, so every layer can pass while a pasted field has never run. Lint's
-`link-untested` (ADR 0094) warns on each relationship field that lacks a
+`link-untested` warns on each relationship field that lacks a
 unit entry targeting it or an e2e case selecting it on its host type,
 naming the one missing or both, and `evidence` prints the same fields after
-its layer table; `link-null-untested` and `link-live-unaccounted` (ADR
-0106, below) cover the null-parent case and the live layer. A workspace with no suite still lacks the unit entry. A
+its layer table; `link-null-untested` and `link-live-unaccounted`
+(below) cover the null-parent case and the live layer. A workspace with no suite still lacks the unit entry. A
 fragment no operation spreads, a selection under a literal `@skip(if:
 true)` or `@include(if: false)`, and a commented-out `target:` line are not
 coverage. Write both tests by hand. In the workspace's
@@ -581,9 +581,9 @@ every CI run: `Gitea_RepositoryMeta.ownerUser`, with a unit entry, an e2e
 case answered by the parent's and the by-id read's existing stubs (each
 lists the case in `x-cases`; a second stub on the same request would be a
 `fixture-collision`) and a live case whose `require` holds the fetched
-record's key equal to the foreign key (ADR 0089).
+record's key equal to the foreign key.
 
-**A nullable fk needs a null-parent e2e case too (ADR 0084).** The parent's
+**A nullable fk needs a null-parent e2e case too.** The parent's
 stub returns at least one item whose fk is `null` beside one that carries a
 value, and a second mapping answers the empty-segment GET the null parent
 produces (`"urlPath": "/owners/"`) the way the API does — measure it with
@@ -598,15 +598,15 @@ a `require:` that selects both kinds of parent says it: `[… |
 select(.owner_id == null)] | length > 0 and all(.owner == null)`. Report a
 confirmed link whose field has no unit and no e2e case, or whose nullable
 fk has no null-parent e2e case, as **not validated**, whatever the evidence
-file says. Lint's `link-null-untested` (ADR 0106) warns on a field that has
+file says. Lint's `link-null-untested` warns on a field that has
 an e2e case but no null-parent one: no mapping answers `GET` (or `ANY`) on
 the empty-segment path, as `urlPath` or `url` (a query string allowed),
 while serving — by `x-cases`, `x-shared` or its file name — a case that
 selects the field on its host type. Fixture paths are connector-relative,
 so a base URL carrying a path (gitea's `/api/v1`) still stubs `/users/`.
 
-**Live, a relationship field is a case or a `field:` exclusion (ADR
-0106).** `evidence/latest.json` has no row for a link field, so
+**Live, a relationship field is a case or a `field:` exclusion.**
+`evidence/latest.json` has no row for a link field, so
 `live-unaccounted` cannot see one. When `tests/live.yaml` exists, lint's
 `link-live-unaccounted` warns on every relationship field that no listed
 case's `tests/live/<case>.graphql` selects on its host type and no
@@ -636,17 +636,17 @@ prefer a relationship field. Only make a type an entity when a decision
 records why in `decisions.json` (`graphos-factory-core decisions`); entities
 widen the supergraph's contract.
 
-`list_context` is false on every fact since ADR 0085 refuses a target whose
+`list_context` is false on every fact: the inventory refuses a target whose
 response is a list. When you find such a list-returning by-id read yourself
 (the matched parameter's own operation already returns a list), write a `$batch` type-level connector instead of a
 singular `$this` one — the backing shape is already a list, which is what
 `$batch` needs instead of unwrapping one item at a time. Check the target
 first: such a read can list a collection the key *owns* rather than name
-the key's record — before ADR 0085, gitea's `RepositoryMeta > owner` hint
+the key's record — before list targets were refused, gitea's `RepositoryMeta > owner` hint
 targeted `get:/packages/{owner}`, the owner's packages — and that is no
 relationship at all. Point the `links:` entry's `operation` and
 `parameter` at the record's own by-id read (`get:/users/{username}`), or
-decline it (ADR 0089):
+decline it:
 
 ```graphql
 type Query {
@@ -681,7 +681,7 @@ and because it is the entity form it needs the decision.
 ### Finding a `$batch` candidate
 
 Do not guess whether a vendor has a bulk lookup. Run
-`graphos-factory-core batch find .` on every build (ADR 0068). For each keyed
+`graphos-factory-core batch find .` on every build. For each keyed
 type it lists the operations that return an array of the type, and whether
 one takes a list of the type's key. It also says how the list is passed:
 

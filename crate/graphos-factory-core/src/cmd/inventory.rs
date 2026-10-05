@@ -77,7 +77,7 @@ fn unacknowledged_edit(out: &Path, built: &Value) -> Option<String> {
         lock_file.display()
     )];
     out_lines.push(
-        "  The inventory is built, never edited: it is a straight reading of the description document, and every judgement it might carry belongs in selection.yaml (ADR 0018)."
+        "  The inventory is built, never edited: it is a straight reading of the description document, and every judgement it might carry belongs in selection.yaml."
             .to_string(),
     );
     out_lines.push(format!(
@@ -525,7 +525,7 @@ fn cmd_validate(args: &Args) -> i32 {
 /// The usage text: `inventory --help` prints it on stdout (ADR 0086).
 pub fn usage() -> String {
     format!(
-        "usage: inventory <command> [options]\n\n  build <document> [--out FILE] [--force]\n                                     build an inventory from a description document (OpenAPI 3.x or Swagger 2.0)\n  list [--tag T] [--support S] [--grep RE] [--offset N] [--limit N] [--json]\n                                     one page, 50 operations by default; --json carries total, offset, limit and\n                                     next_offset (null on the last page) -- follow next_offset to see them all (ADR 0091)\n  describe <key>... [--no-shape]     one operation with its fully expanded shape\n  links [workspace] [--json]         every candidate_entity_link fact, flat: shape > path -> by-id operation (ADR 0069)\n  diff <before.json> <after.json>    what a spec refresh changed\n  validate                           check an inventory against the contract schema\n\n  --inventory FILE                   default {}\n\n",
+        "usage: inventory <command> [options]\n\n  build <document> [--out FILE] [--force]\n                                     build an inventory from a description document (OpenAPI 3.x or Swagger 2.0)\n  list [--tag T] [--support S] [--grep RE] [--offset N] [--limit N] [--json]\n                                     one page, 50 operations by default; --json carries total, offset, limit and\n                                     next_offset (null on the last page) -- follow next_offset to see them all\n  describe <key>... [--no-shape]     one operation with its fully expanded shape\n  links [workspace] [--json]         every candidate_entity_link fact, flat: shape > path -> by-id operation\n  diff <before.json> <after.json>    what a spec refresh changed\n  validate                           check an inventory against the contract schema\n\n  --inventory FILE                   default {}\n\n",
         DEFAULT_INVENTORY
     )
 }

@@ -1886,7 +1886,7 @@ impl LinkStaleness {
     pub fn reason(&self, link: &Link) -> Option<String> {
         if let Some(r) = self.refused.iter().find(|r| r.operation == link.operation) {
             return Some(format!(
-                "{} is a refused link target: {} (ADR 0085; `inventory links` lists it under refused targets)",
+                "{} is a refused link target: {} (`inventory links` lists it under refused targets)",
                 link.operation, r.reason
             ));
         }
@@ -2684,7 +2684,7 @@ pub fn reconcile(inputs: &Inputs) -> Value {
             (
                 "message",
                 Value::from(format!(
-                    "{} field-level connector{} outside links: {} — no GET-by-id template, so no links: entry declares {} and reconcile does not check {} (ADR 0069)",
+                    "{} field-level connector{} outside links: {} — no GET-by-id template, so no links: entry declares {} and reconcile does not check {}",
                     outside.len(),
                     if one { "" } else { "s" },
                     outside_named.join(", "),
@@ -3623,7 +3623,7 @@ pub fn render_report(report: &Value, dir: &str, baseline_label: Option<&str>) ->
         let n = |k: &str| get_arr(links, k).map(|a| a.len()).unwrap_or(0);
         if n("add") + n("remove") + n("change") + n("unchanged") + n("notes") > 0 {
             lines.push(format!(
-                "links (+{} −{} ~{} ={}) — relationship fields inside types, from links: (ADR 0069):",
+                "links (+{} −{} ~{} ={}) — relationship fields inside types (from links:):",
                 n("add"),
                 n("remove"),
                 n("change"),
@@ -3670,7 +3670,7 @@ pub fn render_report(report: &Value, dir: &str, baseline_label: Option<&str>) ->
     }
     if count("field_connectors") > 0 {
         lines.push(format!(
-            "field connectors ({}) — field-level connectors outside links:, not reconciled (ADR 0069):",
+            "field connectors ({}) — field-level connectors outside links:, not reconciled:",
             count("field_connectors")
         ));
         for f in get_arr(report, "field_connectors").into_iter().flatten() {
@@ -3792,7 +3792,7 @@ pub fn render_report(report: &Value, dir: &str, baseline_label: Option<&str>) ->
             }
             if lock.and_then(|l| get(l, "inventory_edited")) == Some(&Value::Bool(true)) {
                 lines.push(
-                    "  ! .factory/inventory.json changed since applied.lock.yaml — the inventory is built, never edited: rebuild it, or move the correction into the pinned spec (graphos-factory-core codify --source) or into selection.yaml when it is a judgement (ADR 0018)"
+                    "  ! .factory/inventory.json changed since applied.lock.yaml — the inventory is built, never edited: rebuild it, or move the correction into the pinned spec (graphos-factory-core codify --source) or into selection.yaml when it is a judgement"
                         .to_string(),
                 );
             }

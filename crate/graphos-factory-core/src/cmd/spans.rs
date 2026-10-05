@@ -39,7 +39,7 @@ pub fn main(argv: &[String]) -> i32 {
     match argv.first().map(String::as_str) {
         Some("obligations") => {
             eprintln!(
-                "spans: `spans obligations` is now `graphos-factory-core source-coverage` (ADR 0082); running it"
+                "spans: `spans obligations` is now `graphos-factory-core source-coverage`; running it"
             );
             crate::cmd::source_coverage::main(&argv[1..])
         }

@@ -7,7 +7,7 @@ the skill refuses to act on a file that does not satisfy its schema.
 
 Each schema's `$id` is `https://github.com/apollographql/graphos-factory/schemas/<file>`:
 the public repository the core is mirrored to, so the identifier is the same
-in every tree that carries the schema (ADR 0114, 8e amendment). An `$id` is a
+in every tree that carries the schema. An `$id` is a
 name; nothing fetches it.
 
 | Schema | File it governs | Written by |
@@ -19,15 +19,15 @@ name; nothing fetches it.
 | [`applied-lock.schema.json`](applied-lock.schema.json) | `.factory/applied.lock.yaml` | `graphos-factory-core lock` at the end of every `apply`. New locks include optional skill, binary, toolchain, input, and output provenance. |
 | [`sources-lock.schema.json`](sources-lock.schema.json) | `.factory/sources.lock.yaml` | the skill at `init` and `discover` (docs/probe entries); `graphos-factory-core sources pin` (kind, version, upstream, hashes) and `codify --source` (`patches`) for pinned documents |
 | [`context.schema.json`](context.schema.json) | `.factory/context.yaml` (optional; present only when an assessment has requirements to track — the generic/specialized decision itself is `workspace.yaml`'s `context_mode`) | the agent during intake and context reassessment; `context capture` records local artifacts; `context check` and lint validate them |
-| [`decisions.schema.json`](decisions.schema.json) | `.factory/decisions.json` (the decision log: judgement calls recorded and open questions awaiting the user, as tracked records — ADR 0026). Decisions only: each carries its alternative, a `question` or two or more `choices` (ADR 0113) | `graphos-factory-core decisions` (its only writer); a headless agent and any UI record through the same command |
-| [`findings.schema.json`](findings.schema.json) | `.factory/findings.json` (facts a reference, an ADR or the wire settled, which an instrument reads or the next session needs: `omits` with reason `consumed` or `not-applicable`, `affects`, a `cites`; ids `F-nnnn`, `current` until superseded — ADR 0113) | `graphos-factory-core findings` (its only writer); `codify --expressed --context` and `sources refresh` / `sources pin --force` write through the same module |
+| [`decisions.schema.json`](decisions.schema.json) | `.factory/decisions.json` (the decision log: judgement calls recorded and open questions awaiting the user, as tracked records). Decisions only: each carries its alternative, a `question` or two or more `choices` | `graphos-factory-core decisions` (its only writer); a headless agent and any UI record through the same command |
+| [`findings.schema.json`](findings.schema.json) | `.factory/findings.json` (facts a reference or the wire settled, which an instrument reads or the next session needs: `omits` with reason `consumed` or `not-applicable`, `affects`, a `cites`; ids `F-nnnn`, `current` until superseded) | `graphos-factory-core findings` (its only writer); `codify --expressed --context` and `sources refresh` / `sources pin --force` write through the same module |
 
 A target embeds the contracts of the files it adds to a workspace beside
-these (`Target::embedded_schemas`, ADR 0114); they live with the target's
+these (`Target::embedded_schemas`); they live with the target's
 code, not here, and `lint` checks them with the same validator.
 
 The `.factory/` contracts use `contract_version: 1`, except
-`evidence/latest.json` (2) and `selection.yaml`, which is 2 since ADR 0113:
+`evidence/latest.json` (2) and `selection.yaml`, which is 2:
 an override or waiver may carry `context`, and its `decision:` is optional.
 The schema reads a version-1 selection too, as long as it carries no
 `context`; every writer that adds one writes 2, and `decisions migrate
@@ -65,8 +65,8 @@ need and test it in `crate/graphos-factory-core/tests/integration/jsonschema.rs`
 
 ## Rules the schemas encode on purpose
 
-- **`inventory.json` is facts; `selection.yaml` is judgements**
-  (ADR 0018). Every field
+- **`inventory.json` is facts; `selection.yaml` is judgements**.
+  Every field
   of the inventory is checkable against the source document, the file is
   regenerable at any time, and it never governs the schema — which is why
   `response` records `array_root_properties` and `root_property_count` and
@@ -75,7 +75,7 @@ need and test it in `crate/graphos-factory-core/tests/integration/jsonschema.rs`
   `$defs.response` carries it with a `confirmed` flag so a tool's draft
   cannot become a schema's shape by default. `applied-lock.schema.json`
   hashes the inventory so a hand edit to it cannot pass unseen.
-- **A relationship is a judgement too** (ADR 0069).
+- **A relationship is a judgement too**.
   The inventory's `candidate_entity_link` fact says only that a property's
   name and type family match the trailing path parameter of a canonical
   GET-by-id operation; whether to expose it, as which field, on which
@@ -88,7 +88,7 @@ need and test it in `crate/graphos-factory-core/tests/integration/jsonschema.rs`
   drift from the schema exactly as a stored envelope suggestion would.
   `contract_version` stays 1: the key is optional and additive.
 - **Authentication is recorded as the document states it, never as a
-  default** (ADR 0019).
+  default**.
   `api.auth[].oauth2` carries the flows a scheme declares and the
   authorization-code flow's endpoints and scopes verbatim; `api.security`
   and `operations[].security` carry the requirements in OpenAPI's own
@@ -119,4 +119,4 @@ need and test it in `crate/graphos-factory-core/tests/integration/jsonschema.rs`
   generic/specialized decision is `workspace.yaml`'s `context_mode`, so a
   generic wrapper needs no `context.yaml`; the companion file appears only to
   track requirements. An unrecorded `context_mode` reads as generic, so a
-  workspace with neither marker nor file is ready (ADR 0081).
+  workspace with neither marker nor file is ready.

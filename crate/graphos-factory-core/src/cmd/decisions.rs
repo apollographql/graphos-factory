@@ -34,22 +34,22 @@ pub const USAGE: &str = "usage: graphos-factory-core decisions <list|add|resolve
   add     [workspace] --title T (--question Q | --choice id:label --choice id:label…) [--context C] [--phase P]
           [--choice-detail id:text]… [--multiple]
           [--affects PATH]… [--requested-by WHO]
-          [--slug S] [--after D-id]… [--amends D-id]…   the record file's name; decisions this one presumes or changes (ADR 0118)
+          [--slug S] [--after D-id]… [--amends D-id]…   the record file's name; decisions this one presumes or changes
           [--resolved [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent]]   --by defaults to agent
           [--json]
           a record with no --question, fewer than two --choice and no editorial --omit is refused (no-alternative):
-          a fact a reference, an ADR or the wire settles is `findings add`
+          a fact a reference or the wire settles is `findings add`
           [--omit 'operation|direction|path|reason']…   (counted only on a resolved record; direction response|request|behaviour)
           [--json-reason 'Type.field|reason']…   (read only on a resolved record)
           [--null-handling 'operation|argument|behavior']…   (behavior: send_null or omit; read only on a resolved record)
-          [--secret-field 'Type.field|disposition|reason']…   (disposition: expose or exclude; secret-field-exposed, ADR 0078)
+          [--secret-field 'Type.field|disposition|reason']…   (disposition: expose or exclude; secret-field-exposed)
   resolve [workspace] --id D-id [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
   reopen  [workspace] --id D-id [--json]   clear a resolved or superseded decision's answer; status back to open
   supersede [workspace] --id D-id [--json] mark a resolved decision replaced; its answer is kept, its omits, json_reasons and null_handling stop counting
-  link    [workspace] --id D-id (--after D-id | --amends D-id)… [--json]   a decision recorded since ADR 0118 presumes or changes another
+  link    [workspace] --id D-id (--after D-id | --amends D-id)… [--json]   a decision recorded as its own file presumes or changes another
           (how decision-overlap is answered); an old D-nnnn record never gains a field and is refused
   migrate [workspace] [--keep-md] [--force] [--dry-run] [--json]   import a legacy .factory/decisions.md into decisions.json
-  migrate [workspace] --split [--sorted FILE] [--dry-run] [--json]   ADR 0113: leave decisions.json holding decisions only
+  migrate [workspace] --split [--sorted FILE] [--dry-run] [--json]   split an older-format log, leaving decisions.json holding decisions only
           kept: a record with a question, choices or an editorial omit stays a decision, id and all
           moved: `Hand edit codified:` / `Source patch:` / `Conformance waiver:` move onto the override, patch or
             waiver whose decision: names them (non-template context -> the entry's context:), then drop;
@@ -506,7 +506,7 @@ fn add(argv: &[String]) -> i32 {
             args.has("json"),
             ReopenRefusal {
                 code: "no-alternative",
-                message: "add: refused (no-alternative) — a decision names what else could have been done: give it a --question, two or more --choice id:label, or an --omit whose reason is editorial (the alternative is to expose the path). A fact a reference, an ADR or the wire settles is `graphos-factory-core findings add --cites …`; a vendor quirk or a negative result is a memory.md line".into(),
+                message: "add: refused (no-alternative) — a decision names what else could have been done: give it a --question, two or more --choice id:label, or an --omit whose reason is editorial (the alternative is to expose the path). A fact a reference or the wire settles is `graphos-factory-core findings add --cites …`; a vendor quirk or a negative result is a memory.md line".into(),
             },
         );
     }
@@ -1007,7 +1007,7 @@ fn migrate_split(args: &Args, dir: &Path) -> i32 {
             json_out,
             ReopenRefusal {
                 code: "split-refused",
-                message: "migrate --split reads and writes decisions.json and findings.json only, and this workspace already records decisions or findings one file each under .factory/ (ADR 0118); the split is for a log written before them".into(),
+                message: "migrate --split reads and writes decisions.json and findings.json only, and this workspace already records decisions or findings one file each under .factory/; the split is for a log written before them".into(),
             },
         );
     }

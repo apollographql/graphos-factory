@@ -275,7 +275,7 @@ and `...` fails with "Spread syntax (...) is not supported in connect/v0.3
 (use connect/v0.4)". A
 polymorphic payload is a documented JSON scalar there.
 
-**What the skill's tools see** (ADR 0058). `rover connector test` asserts a
+**What the skill's tools see**. `rover connector test` asserts a
 spread correctly, and an unmatched element fails the case with
 `Method ->match did not match any [candidate, value] pair`. The factory
 readers parse this form, with each arm reading from the object the spread
@@ -576,7 +576,7 @@ change ([Literals](#literals)) with the rewrite that preserves each one.
    `federation/v2.15` and delete `federation_spec_version`, which is only for a
    link that differs from the plugin pin ([workspace-contract.md](workspace-contract.md)),
    or set it to `"2.15"`. To keep it, set `federation_spec_version` to the
-   version it links, as ADR 0049 does for the pilots (`federation/v2.12`,
+   version it links, as the pilots do (`federation/v2.12`,
    `"2.12"`). `graphos-factory-core lint` and `render` fail until the pins and the
    schema agree.
 5. **Treat the rewrites as schema edits.** Record them under SKILL.md's
@@ -697,8 +697,7 @@ Composition was measured with rover 0.41.0 at federation 2.12.0, 2.13.0,
 2.15.1 for the grammar note under the pin table. Runtime results come from
 Router 2.17.0 on schemas composed at 2.15.2 (`connect/v0.4`) and 2.12.0
 (`connect/v0.3`). [Abstract types](#abstract-types) was measured the same way:
-composition at 2.15.2 and at 2.12.0, and runtime on Router 2.17.0
-(ADR 0058 lists the probes).
+composition at 2.15.2 and at 2.12.0, and runtime on Router 2.17.0.
 
 Every selection and every result in this file was produced that way. If you
 change one, re-run it.

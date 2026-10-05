@@ -1123,7 +1123,7 @@ fn lint_link_connectors(sdl: &str, schema_file: &str, findings: &mut Findings) {
                     findings.error(
                         "link-credential",
                         format!(
-                            "{}.{} carries {} ({}); a relationship field declares only the mirrored credential — drop the argument{} (ADR 0069)",
+                            "{}.{} carries {} ({}); a relationship field declares only the mirrored credential — drop the argument{}",
                             lc.type_name,
                             lc.field,
                             match (one, root_takes) {
@@ -1154,15 +1154,15 @@ fn lint_link_connectors(sdl: &str, schema_file: &str, findings: &mut Findings) {
                     // What the field diverges from, as the schema states it.
                     let from = match roots.first() {
                         None => format!(
-                            "no root field reaches {} {} for it to mirror, so it has no per-call credential to carry — drop the header and its argument (ADR 0069)",
+                            "no root field reaches {} {} for it to mirror, so it has no per-call credential to carry — drop the header and its argument",
                             c.method.as_deref().unwrap_or("?"),
                             c.path.as_deref().unwrap_or("?")
                         ),
                         Some((root, _)) if !source_credential => format!(
-                            "its by-id root field Query.{} sends no credential and the @source carries none — drop the header and its argument (ADR 0069)",
+                            "its by-id root field Query.{} sends no credential and the @source carries none — drop the header and its argument",
                             root
                         ),
-                        Some(_) => "the one @source supplies {{AUTH_EXPR}} to every request — drop the header and its argument (ADR 0069, ADR 0019)".to_string(),
+                        Some(_) => "the one @source supplies {{AUTH_EXPR}} to every request — drop the header and its argument".to_string(),
                     };
                     findings.error(
                         "link-credential",
@@ -1224,7 +1224,7 @@ fn lint_link_connectors(sdl: &str, schema_file: &str, findings: &mut Findings) {
                     findings.error(
                         "link-credential",
                         format!(
-                            "{}.{} must carry exactly the credential its by-id root field Query.{} carries ({}); it carries {} — declare the same argument and send it the same way (ADR 0069)",
+                            "{}.{} must carry exactly the credential its by-id root field Query.{} carries ({}); it carries {} — declare the same argument and send it the same way",
                             lc.type_name,
                             lc.field,
                             root,
@@ -1266,7 +1266,7 @@ fn lint_link_connectors(sdl: &str, schema_file: &str, findings: &mut Findings) {
             findings.warn(
                 "link-null-guard",
                 format!(
-                    "{}.{} reads {{$this.{}}} and {} is nullable ({}), but the connector carries no {}; for a parent whose {} is null the router still sends GET {} and the field fails with CONNECTOR_FETCH (a 307 or 404 from the empty segment) or maps whatever that GET answers — print the field again with `graphos-factory-core links apply --dry-run` and paste its isSuccess and selection, and write an e2e case with a null-{} parent (connectors-language.md § Relationship fields, ADR 0084)",
+                    "{}.{} reads {{$this.{}}} and {} is nullable ({}), but the connector carries no {}; for a parent whose {} is null the router still sends GET {} and the field fails with CONNECTOR_FETCH (a 307 or 404 from the empty segment) or maps whatever that GET answers — print the field again with `graphos-factory-core links apply --dry-run` and paste its isSuccess and selection, and write an e2e case with a null-{} parent (connectors-language.md § Relationship fields)",
                     lc.type_name,
                     lc.field,
                     fk,
@@ -1300,7 +1300,7 @@ fn lint_link_connectors(sdl: &str, schema_file: &str, findings: &mut Findings) {
             findings.warn(
                 "link-key-drift",
                 format!(
-                    "{}.{} resolves {} {} through a field-level connector while type {} resolves the same operation through @key and a type-level @connect (line {}); keep one form — the relationship field within this subgraph, the entity only when a decision records why (ADR 0069)",
+                    "{}.{} resolves {} {} through a field-level connector while type {} resolves the same operation through @key and a type-level @connect (line {}); keep one form — the relationship field within this subgraph, the entity only when a decision records why",
                     lc.type_name,
                     lc.field,
                     c.method.as_deref().unwrap_or("?"),
@@ -2200,7 +2200,7 @@ fn lint_link_coverage(dir: &Path, sdl: &str, schema_file: &str, findings: &mut F
                     findings.warn(
                         "link-null-untested",
                         format!(
-                            "{} reads {{$this.{}}} and {} is nullable, but no e2e case answers the empty-segment GET {} for a null-{} parent; the field is not validated — add a mapping for that GET (\"urlPath\": \"{}\") serving a case that selects the field on a parent whose {} is null (connectors-language.md § Relationship fields, ADR 0084)",
+                            "{} reads {{$this.{}}} and {} is nullable, but no e2e case answers the empty-segment GET {} for a null-{} parent; the field is not validated — add a mapping for that GET (\"urlPath\": \"{}\") serving a case that selects the field on a parent whose {} is null (connectors-language.md § Relationship fields)",
                             coordinate, fk, fk, empty, fk, empty, fk
                         ),
                         Some(schema_file),
@@ -5063,7 +5063,7 @@ fn lint_returns_line(
                         findings.warn(
                             "returns-line-nesting",
                             format!(
-                                "{}: `{}`'s Returns line names `{}`, which `{}` does not declare (schema-authoring.md § Returned field names, ADR 0067)",
+                                "{}: `{}`'s Returns line names `{}`, which `{}` does not declare (schema-authoring.md § Returned field names)",
                                 key, field, item.as_str(), returns
                             ),
                             Some(schema_file),
@@ -5129,7 +5129,7 @@ fn lint_returns_line(
                 findings.warn(
                     "returns-line-nesting",
                     format!(
-                        "{}: `{}`'s Returns line: {} (schema-authoring.md § Returned field names, ADR 0067)",
+                        "{}: `{}`'s Returns line: {} (schema-authoring.md § Returned field names)",
                         key, field, message
                     ),
                     Some(schema_file),
@@ -7242,7 +7242,7 @@ fn lint_decision_alternatives(decisions: Option<&Value>, findings: &mut Findings
         findings.warn(
             "decision-without-alternative",
             format!(
-                "{} ({}) names no alternative: a decision carries its question and the choices not taken. Re-record it with them through `graphos-factory-core decisions migrate --split --sorted FILE` and `{}: {{as: decision, question: …, choices: [{{id, label}}…], chosen: [id]}}`; if no reasonable engineer could have gone the other way, it is a finding (`findings add --cites …`) or a memory.md line instead (ADR 0113)",
+                "{} ({}) names no alternative: a decision carries its question and the choices not taken. Re-record it with them through `graphos-factory-core decisions migrate --split --sorted FILE` and `{}: {{as: decision, question: …, choices: [{{id, label}}…], chosen: [id]}}`; if no reasonable engineer could have gone the other way, it is a finding (`findings add --cites …`) or a memory.md line instead",
                 id,
                 get_str(rec, "title").unwrap_or(""),
                 id
@@ -7277,7 +7277,7 @@ fn lint_decision_log(
             findings.error(
                 "decision-id-duplicate",
                 format!(
-                    "{} is the id of more than one record: a merge kept both. Every reference to {} now means whichever comes first; settle it as the merge conflict it is: keep one of the two, or, if both are real, remove the later one and `decisions add` it again so it gets a fresh id, then update what cites it (ADR 0118)",
+                    "{} is the id of more than one record: a merge kept both. Every reference to {} now means whichever comes first; settle it as the merge conflict it is: keep one of the two, or, if both are real, remove the later one and `decisions add` it again so it gets a fresh id, then update what cites it",
                     id, id
                 ),
                 Some(file_of(&id)),
@@ -7292,7 +7292,7 @@ fn lint_decision_log(
         findings.error(
             "decision-link-unresolved",
             format!(
-                "{} names {} in after or amends, and the log has no {}: a merge dropped it, or the id is mistyped. Restore {} or correct the id; to drop the edge, edit {}'s record file under {}/ by hand, since no verb removes an edge (ADR 0118)",
+                "{} names {} in after or amends, and the log has no {}: a merge dropped it, or the id is mistyped. Restore {} or correct the id; to drop the edge, edit {}'s record file under {}/ by hand, since no verb removes an edge",
                 from, to, to, to, from, crate::record_log::DECISIONS.dir
             ),
             Some(crate::decisions::file_of(&from)),
@@ -7303,7 +7303,7 @@ fn lint_decision_log(
         findings.error(
             "decision-link-cycle",
             format!(
-                "after and amends form a cycle, so no decision in it comes first: {}. Remove the edge that runs backwards (ADR 0118)",
+                "after and amends form a cycle, so no decision in it comes first: {}. Remove the edge that runs backwards",
                 cycle.join(" -> ")
             ),
             Some(crate::decisions::file_of(&cycle[0])),
@@ -7314,7 +7314,7 @@ fn lint_decision_log(
         findings.warn(
             "decision-overlap",
             format!(
-                "{} and {} both decide {} and neither names the other: added independently, they may disagree. Record how they relate on the newer one: `graphos-factory-core decisions link . --id {} --after {}` (it presumes the other) or `--amends {}` (it changes the other's answer there) (ADR 0118)",
+                "{} and {} both decide {} and neither names the other: added independently, they may disagree. Record how they relate on the newer one: `graphos-factory-core decisions link . --id {} --after {}` (it presumes the other) or `--amends {}` (it changes the other's answer there)",
                 old, new, span, new, old, old
             ),
             Some(crate::decisions::file_of(&new)),
@@ -8147,7 +8147,7 @@ fn lint_live(
         findings.warn(
             "link-live-unaccounted",
             format!(
-                "{} is a relationship field no live case selects and no exclusion names — add a tests/live case that selects {} on {}, or an `exclusions:` entry `field: \"{}\"` with the reason it cannot be tested live; until then it has no live evidence (ADR 0106)",
+                "{} is a relationship field no live case selects and no exclusion names — add a tests/live case that selects {} on {}, or an `exclusions:` entry `field: \"{}\"` with the reason it cannot be tested live; until then it has no live evidence",
                 coordinate, lc.field, lc.type_name, coordinate
             ),
             Some("live.yaml"),
@@ -8559,7 +8559,7 @@ fn lint_secret_fields(
             findings.warn(
                 "secret-field-exposed",
                 format!(
-                    "{}.{} is named like a credential (ADR 0078) and is exposed in the schema; exclude it via selection.yaml's fields.exclude, or record `graphos-factory-core decisions add . --resolved … --secret-field '{}.{}|expose|<reason>'` if exposing it is deliberate",
+                    "{}.{} is named like a credential and is exposed in the schema; exclude it via selection.yaml's fields.exclude, or record `graphos-factory-core decisions add . --resolved … --secret-field '{}.{}|expose|<reason>'` if exposing it is deliberate",
                     decl.name, f.name, decl.name, f.name
                 ),
                 Some(schema_file),

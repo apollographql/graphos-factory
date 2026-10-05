@@ -163,7 +163,7 @@ Field notes:
 
 `graphos-factory-core context check . [--phase build|live] [--json]` reads
 `context_mode` and validates the file if present. An unrecorded `context_mode`
-reads as generic (ADR 0081): the marker is self-attested, so its absence is
+reads as generic: the marker is self-attested, so its absence is
 not a gap, and only `undecided` and the declared requirements block. Only an
 absent key reads as generic: an unreadable `workspace.yaml` or a non-string
 marker is an invalid record (exit 1). It rehashes `inputs` and

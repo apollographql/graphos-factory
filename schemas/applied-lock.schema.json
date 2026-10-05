@@ -19,7 +19,7 @@
     "inventory": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
-      "description": "SHA-256 (hex) of `.factory/inventory.json` as compact JSON, so formatting never counts as an edit. The inventory is the tool's own output and is never hand-edited: a correction belongs in the pinned spec (`codify --source`) or, when it is a judgement, in selection.yaml (ADR 0018). A differing hash is reported as `unacknowledged-inventory-edit`; `graphos-factory-core inventory build` refuses to overwrite such a file without `--force`."
+      "description": "SHA-256 (hex) of `.factory/inventory.json` as compact JSON, so formatting never counts as an edit. The inventory is the tool's own output and is never hand-edited: a correction belongs in the pinned spec (`codify --source`) or, when it is a judgement, in selection.yaml. A differing hash is reported as `unacknowledged-inventory-edit`; `graphos-factory-core inventory build` refuses to overwrite such a file without `--force`."
     },
     "sources": {
       "type": "object",

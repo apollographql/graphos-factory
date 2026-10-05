@@ -37,7 +37,7 @@
         "conformance": { "$ref": "#/$defs/layer" },
         "lint": { "$ref": "#/$defs/layer" },
         "live": { "$ref": "#/$defs/layer" },
-        "json_accounting": { "$ref": "#/$defs/layer", "description": "Optional (ADR 0073): `spans json-accounting`'s counts. Absent on evidence written before this layer existed; a workspace with no schema yet reports `not_run` rather than being omitted." }
+        "json_accounting": { "$ref": "#/$defs/layer", "description": "Optional: `spans json-accounting`'s counts. Absent on evidence written before this layer existed; a workspace with no schema yet reports `not_run` rather than being omitted." }
       }
     },
     "operations": {
@@ -48,7 +48,7 @@
     },
     "target_evidence_layers": {
       "type": "object",
-      "description": "The evidence layers the target adds (ADR 0114), keyed by layer name, each with the target that ran it beside its status. Run after the core layers, with the same statuses, and skipped is never a pass. Optional and additive: a reader that does not know a layer shows it by name and status.",
+      "description": "The evidence layers the target adds, keyed by layer name, each with the target that ran it beside its status. Run after the core layers, with the same statuses, and skipped is never a pass. Optional and additive: a reader that does not know a layer shows it by name and status.",
       "additionalProperties": { "$ref": "#/$defs/targetLayer" }
     }
   },
@@ -66,7 +66,7 @@
         "failed": { "type": "integer", "minimum": 0 }
       }
     },
-    "status": { "enum": ["pass", "fail", "skipped", "not_run", "excluded", "unchecked", "waived", "n/a"], "description": "excluded: the layer ran but deliberately did not exercise this operation, for a recorded reason (see the layer's `exclusions`). unchecked / waived (conformance): the oracle had nothing to compare a body against, or the engineer accepted that gap in selection.yaml `waivers[]`; neither is a pass. unchecked (e2e, ADR 0077): a case whose stub answered an error status without `# expect-upstream-status`, on an operation documenting more than one, or an operation with a documented error status no passing case saw answer its own request (see `error_coverage`); not a pass." },
+    "status": { "enum": ["pass", "fail", "skipped", "not_run", "excluded", "unchecked", "waived", "n/a"], "description": "excluded: the layer ran but deliberately did not exercise this operation, for a recorded reason (see the layer's `exclusions`). unchecked / waived (conformance): the oracle had nothing to compare a body against, or the engineer accepted that gap in selection.yaml `waivers[]`; neither is a pass. unchecked (e2e): a case whose stub answered an error status without `# expect-upstream-status`, on an operation documenting more than one, or an operation with a documented error status no passing case saw answer its own request (see `error_coverage`); not a pass." },
     "layer": {
       "type": "object",
       "required": ["status"],
@@ -81,7 +81,7 @@
         "failed": { "type": "integer", "minimum": 0 },
         "error_coverage": {
           "type": "object",
-          "description": "wiremock_e2e only (ADR 0077): per selected operation that documents a non-2xx status, which documented statuses a passing e2e case saw answer the operation's OWN request (a status served to a nested lookup or side call is not credited). `not_run` are the documented statuses no such case covers: never a pass, and the operation's e2e verdict reads `unchecked` while any remain. Additive to contract_version 1.",
+          "description": "wiremock_e2e only: per selected operation that documents a non-2xx status, which documented statuses a passing e2e case saw answer the operation's OWN request (a status served to a nested lookup or side call is not credited). `not_run` are the documented statuses no such case covers: never a pass, and the operation's e2e verdict reads `unchecked` while any remain. Additive to contract_version 1.",
           "additionalProperties": {
             "type": "object",
             "required": ["documented", "executed", "not_run"],
@@ -97,12 +97,12 @@
         "read_gaps": { "type": "integer", "minimum": 0, "description": "write_body_proof only: unproven assertions on every other selected operation (a read's query arguments)." },
         "placements": {
           "type": "array",
-          "description": "write_body_proof only: the write arguments whose place in the outbound request was found by execution, not read from the connector (ADR 0079, executed placement). Each names the operation, the argument, where it goes and the executed case whose stub demands its value there. An argument not listed was placed by the reader. Absent when no argument needed execution.",
+          "description": "write_body_proof only: the write arguments whose place in the outbound request was found by execution, not read from the connector (executed placement). Each names the operation, the argument, where it goes and the executed case whose stub demands its value there. An argument not listed was placed by the reader. Absent when no argument needed execution.",
           "items": { "$ref": "#/$defs/placement" }
         },
         "case_proofs": {
           "type": "object",
-          "description": "Per-case verdict from a same-run evidence layer (the write-body proof check, ADR 0079 Step 2), attached to the layer that executed the case: case name -> {verdict, findings}. Additive; distinct from the integer `cases` above, which is untouched and required for neither this field's presence nor its absence.",
+          "description": "Per-case verdict from a same-run evidence layer (the write-body proof check), attached to the layer that executed the case: case name -> {verdict, findings}. Additive; distinct from the integer `cases` above, which is untouched and required for neither this field's presence nor its absence.",
           "additionalProperties": { "$ref": "#/$defs/caseProof" }
         },
         "oracle": { "type": ["string", "null"], "description": "What the shapes were checked against: the pinned description document's working-copy path (openapi.json, swagger.json, …) | \"inferred-schema.json (recorded samples)\" | \"inventory.json\" (neither a pinned document nor an inferred schema exists)" },
@@ -122,7 +122,7 @@
         },
         "counts": {
           "type": "object",
-          "description": "json_accounting only (ADR 0073): totals and a per-type breakdown of `spans json-accounting`'s five statuses.",
+          "description": "json_accounting only: totals and a per-type breakdown of `spans json-accounting`'s five statuses.",
           "additionalProperties": false,
           "properties": {
             "total_fields": { "type": "integer", "minimum": 0 },

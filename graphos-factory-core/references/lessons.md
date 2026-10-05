@@ -154,14 +154,14 @@ inventory records no server and there was no base path *to* strip; eleven
 unit bodies went `unchecked` — silently, because `unchecked` did not fail
 anything. `validate` now also strips the path of
 `template.yaml`'s `BASE_URL.test_default`, which is the URL the unit suite
-really builds; Phase 4d makes could-not-match a failure (`unmatched`).
+really builds; could-not-match is a failure (`unmatched`).
 
 A third layer, from a third arrangement: Confluence's inventory server is
 `…/wiki/api/v2`, its `BASE_URL` is `…/wiki`, and its connectors write
 `/api/v2/...`. `reconcile` paired 0 of 211 connectors and reported them as
 211 separate unmatched entries. It now stops at a total mismatch, prints the
 server URL, `BASE_URL`, the target's default base URL and a connector
-path, and exits 2 (ADR 0074). The fix is on the workspace side: keep the
+path, and exits 2. The fix is on the workspace side: keep the
 prefix on one side only.
 
 ## The oracle must see what the reader saw
@@ -243,12 +243,12 @@ fails the apply regardless of how green the other layers are.
 
 ## A fence is a lock; an assertion is a contract
 
-Phase 4's `customized:` list protected two hand-edited operations by
+An early `customized:` list protected two hand-edited operations by
 freezing their bytes. That answered "don't overwrite my edit" and created
 three new problems: an edit nobody listed was invisible until the agent
 "fixed" it; a listed operation could never be touched again, even when
 the selection changed for it; and the list said nothing about *why*, so a
-later agent had to guess. Phase 4b replaced it with a per-span hash of
+later agent had to guess. Its replacement is a per-span hash of
 the schema as last applied (detection), `overrides` that carry a reason,
 a decision and assertions about what must stay true (codification), and
 `codify` to write all three at once.
@@ -257,8 +257,8 @@ a decision and assertions about what must stay true (codification), and
 check (`contains`, `tag`, `arg`, …) lets it keep editing the span; a byte
 pin is a last resort and lint says so. The reason goes on the override
 itself (`reason`, and `context` for the prose), because that is what the
-next agent reads before touching the span. Phase 4b also appended a
-decision per codify; ADR 0113 stopped it, since nothing read those records
+next agent reads before touching the span. `codify` once also appended a
+decision per run; it no longer does, since nothing read those records
 back and they buried the real decisions (69 of Asana's 71 records).
 
 ## A supported API description may not contain the customer's field definitions
@@ -376,14 +376,13 @@ a guess in its place.
 `teams { id, type, summary, self, htmlUrl }`, the nested type's fields in
 declaration order, capped at 6 then `(+N more)` — so a reference type reads
 as one and its real fields are on the line. One level only: an object inside
-the braces is a bare name. See schema-authoring.md § Returned field names
-(ADR 0039).
+the braces is a bare name. See schema-authoring.md § Returned field names.
 
 The one-level stop left the same trap one level down: splitwise's `shares {
 debtor, debtAmount }` and spotify's `songs { …, artists }` named objects bare
 inside the braces, and the 25 Sep bundle's 11 bare-selection errors came from
 those spans. A second-level object whose type has at most 6 leaf fields now
-gets its own braces, and `returns-line-nesting` checks the line (ADR 0067).
+gets its own braces, and `returns-line-nesting` checks the line.
 
 ## A closed vocabulary typed String
 
@@ -397,7 +396,7 @@ a vocabulary the spec states in full.
 
 **Rule:** a spec `enum` of two or more values, every one a valid GraphQL
 name, is a GraphQL enum in wire casing, or the reason it is not is a resolved
-decision whose `affects` names the slot; `closed-enum-as-string` (ADR 0041)
+decision whose `affects` names the slot; `closed-enum-as-string`
 warns until one of the two is true. It is quiet on its own for a one-value
 constant and for a shared field whose reaching spec properties do not all
 declare the enum — pagerduty's `type` fields are both — because a decision
@@ -407,8 +406,8 @@ counts as declaring none. The smoke that found this could not see it at first
 
 ## A documentation surface with no rule fills with vendor text
 
-An authoring run had a rule for an argument's constraint clause (ADR 0031),
-a rule for object-field descriptions (ADR 0034), and none for the rest of an
+An authoring run had a rule for an argument's constraint clause,
+a rule for object-field descriptions, and none for the rest of an
 argument's doc comment. It produced 1,565 argument doc comments where the
 previous run had produced 0: 691 verbatim OpenAPI parameter descriptions, 367
 a per-argument "requires access_token" sentence copied from the authoring
@@ -419,8 +418,8 @@ with the text in front of it. (AppWorld run, LLM arm,
 2026-09-22 — fix-list finding D1.)
 
 **Rule:** an argument's doc comment is at most the source description cut to
-one sentence (opt-in per service, recorded in `decisions.json`), the ADR 0031
-constraint clause, and § Pagination's wording on a page-size or page-index
+one sentence (opt-in per service, recorded in `decisions.json`), the
+constraint clause (schema-authoring.md), and § Pagination's wording on a page-size or page-index
 argument — nothing else, and never the argument's type or requiredness, which
 the SDL already states. A credential argument gets no per-argument sentence
 about where the credential comes from. See schema-authoring.md § Argument
@@ -439,7 +438,7 @@ with the two G5 slots retyped to `String`: 0 findings from all three rules;
 the same two blocks reflowed to one pair per line: 1 finding each. No layer
 said so — compose accepts both layouts, the unit and e2e layers never read
 the rules' inputs, and a rule that finds nothing looks like a clean schema.
-ADR 0042 made the readers tokenise a block the way the mapping language does
+The readers were changed to tokenise a block the way the mapping language does
 (whitespace separates entries; brackets and string literals do not), and the
 same slots now fire as written — `amazon.graphql:234 … argument duration …
 closed enum of monthly, yearly` and `file-system.graphql:39 … argument
@@ -467,12 +466,12 @@ API's — against a spec that documented `{"message": ...}` on 401/422/409.
 **Rule:** an inline schema is still a schema; register it under a
 synthesized name the same way a fallback `{Op}Response`/`{Op}Request`
 shape is, and take an error's message path from the shape the inventory
-actually resolved, never from another API's convention. See ADR 0043 and
+actually resolved, never from another API's convention. See
 schema-authoring.md § Errors.
 
 ## A list argument on a plain query key goes out as the key repeated
 
-**Seen on:** Databricks (ADR 0051 lever 6), connect v0.3, Apollo Router 2.17.
+**Seen on:** Databricks, connect v0.3, Apollo Router 2.17.
 
 A `queryParams` line that is exactly `key: $args.list` sends
 `key=a&key=b`, one pair per element, whether or not the key ends in `[]`.
@@ -503,12 +502,12 @@ outside the headers (a required header is the credential) — never an
 operation that returns the host's own shape, never a property named after
 one of the host shape's own trailing path parameters, and never a bare
 `id`/`name` parameter, and never an operation whose response is not one
-record carrying the key its parameter names (ADR 0085). Look wherever a response reaches, a list's
+record carrying the key its parameter names. Look wherever a response reaches, a list's
 `items.$ref` component included: on a components-based spec that is where
 the list items' foreign keys are (gitea: 5 of its 8 hints). Measure a
 heuristic against a hand-wired answer key before trusting its count; a count
 that goes down is not a heuristic that got better until the targets are
-checked one by one. See ADR 0069.
+checked one by one.
 
 ## A list item and its detail read given one type cannot link to each other
 
@@ -529,7 +528,7 @@ and selection with the host. The same type is `self`: decline the link
 into two types. A by-id selection that reaches back into the host (`album {
 songs { … } }`) is `circular`: decline the link, or split a type
 (below). Excluding the field that selects back (`fields.exclude`) composes
-but takes it from every reader of the shared type. See ADR 0069.
+but takes it from every reader of the shared type.
 
 ## A child cannot link to its own parent through one shared type
 
@@ -557,7 +556,7 @@ hand, with its own unit, e2e, null-parent and live cases
 
 ## A GET keyed by an email returned a balance, not a person
 
-**Seen on:** AppWorld splitwise, binary 0.5.47 (ADR 0085).
+**Seen on:** AppWorld splitwise, binary 0.5.47.
 
 `get:/splitwise/balance/person/{email}` is shaped like a GET-by-id, so every
 `email` property (35 of 56 hints) pointed at it, and `selection draft
@@ -574,17 +573,17 @@ it refused and why; a relationship you still want through one is authored
 by hand and reported as not validated. A list item linking to its own
 detail read by the same id is not a self-link while the two have different
 types — the detail carries fields the summary lacks; it is `self` only when
-one type serves both. See ADR 0085.
+one type serves both.
 
 ## A hint's target can be a collection the key owns, not the key's record
 
 **Seen on:** the gitea pilot, binary 0.5.45 (`inventory links`,
-`selection draft --links`), 29 Sep 2026 (ADR 0089).
+`selection draft --links`), 29 Sep 2026.
 
 `RepositoryMeta > owner` — the owner's login on every issue — was hinted at
 `get:/packages/{owner}` (`list_context: true`): a GET with one trailing path
-parameter and a response shape, so it passes every test of the ADR 0069
-rule, and it lists the owner's packages. The owner's own record is
+parameter and a response shape, so it passes every test of the
+link rule, and it lists the owner's packages. The owner's own record is
 `get:/users/{username}`. The same pilot's other 7 hints were none of them
 usable as drafted: 6 sit on shapes no included operation returns, and the
 1 draft (`Organization > username`) is reached only through an excluded
@@ -596,9 +595,9 @@ response type: it must return the record the key names, one of it. A
 relationship — write the entry against the record's by-id read (`operation`
 and `parameter` are yours to set; lint checks only that the operation is an
 included GET), or decline it. Never follow connectors-language's `$batch`
-advice for such a hint. See ADR 0089.
+advice for such a hint.
 
-Since 0.5.51 (ADR 0085) `inventory links` refuses both reads on this
+Since 0.5.51 `inventory links` refuses both reads on this
 pilot: `get:/packages/{owner}` because its response is a list, and
 `get:/users/{username}` because Gitea's User spells its key `login`, so the
 pilot has 0 facts. A relationship the rule refuses can still be a confirmed
@@ -610,7 +609,7 @@ live cases.
 
 ## An auth rule in the schema description never reached the consumer
 
-**Seen on:** AppWorld (ADR 0064), 24–25 Sep 2026.
+**Seen on:** AppWorld, 24–25 Sep 2026.
 
 The composed supergraph keeps one schema description, so an app's auth rule
 written there was invisible for 8 of the 9 apps. The login docs said only the
@@ -636,7 +635,7 @@ a literal as `$("…")`. Both mean the same at every version.
 
 ## A null foreign key still sends the GET
 
-**Seen on:** AppWorld Spotify and Splitwise (ADR 0084), 2026-09-29.
+**Seen on:** AppWorld Spotify and Splitwise, 2026-09-29.
 
 A relationship field keyed by `{$this.albumId}` fired for every parent,
 including the ones whose `albumId` was null: the router sent `GET
@@ -657,7 +656,7 @@ response side no `$this` (testing.md).
 
 ## Two flags quoted into one argument relocked the workspace
 
-**Seen on:** this repo's own pilots (ADR 0097), 2026-09-30.
+**Seen on:** this repo's own pilots, 2026-09-30.
 
 `graphos-factory-core lock <ws> '--check --provenance'` handed `lock` one flag
 named `check --provenance`. The shared grammar took any flag it did not
@@ -672,7 +671,7 @@ exit 2 before the verb runs, naming the flag and the accepted set. On exit
 it — the flag that was refused is the one that made the call read-only.
 ## A renamed argument is not found by its wire name
 
-**Seen on:** Granola (Phase 7ay), `page_size` on the wire, `pageSize` in the
+**Seen on:** Granola, `page_size` on the wire, `pageSize` in the
 schema.
 
 `pagination-bounds-undocumented` looked the size argument up by the
@@ -686,7 +685,7 @@ reads as the field itself.
 
 ## Two branches minted the same decision id
 
-**Seen on:** this repo's pilots and its ADRs (ADR 0118), the week of Sep 29.
+**Seen on:** this repo's pilots and its own design-record numbering, the week of Sep 29.
 
 `decisions add` numbered a new record one past the highest id, so two
 branches that each added a decision both wrote `D-0021`. Git conflicted at

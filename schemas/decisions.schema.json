@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/apollographql/graphos-factory/schemas/decisions.schema.json",
   "title": "Design decisions and open questions",
-  "description": "The workspace's decision log: every judgement call the agent recorded and every open question still awaiting the user, as individually tracked records. Replaces the free-form decisions.md (ADR 0026). Skill-native — the `graphos-factory-core decisions` command is the only writer, so a headless agent and any UI record resolutions through the same path.",
+  "description": "The workspace's decision log: every judgement call the agent recorded and every open question still awaiting the user, as individually tracked records. Replaces the free-form decisions.md. Skill-native — the `graphos-factory-core decisions` command is the only writer, so a headless agent and any UI record resolutions through the same path.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -11,7 +11,7 @@
   ],
   "properties": {
     "contract_version": {
-      "description": "1 on disk, always: the single file holds the records written before ADR 0118 and never gains one. 2 only for the log as readers see it, the file's records with those added since, each its own $defs/file under the record directory (ADR 0118).",
+      "description": "1 on disk, always: the single file holds the records written in the older format and never gains one. 2 only for the log as readers see it, the file's records with those added since, each its own $defs/file under the record directory.",
       "enum": [
         1,
         2
@@ -277,7 +277,7 @@
           "pattern": "^D-([0-9]{4,}|[0-9a-z]{6})$"
         },
         "slug": {
-          "description": "The record file's name after its id (ADR 0118): lower-case letters and digits in hyphen-separated runs, at most 40 characters. Directory shape only.",
+          "description": "The record file's name after its id: lower-case letters and digits in hyphen-separated runs, at most 40 characters. Directory shape only.",
           "allOf": [
             {
               "type": "string",
@@ -365,7 +365,7 @@
           }
         },
         "after": {
-          "description": "Decisions this one presumes (ADR 0118). Directory shape only.",
+          "description": "Decisions this one presumes. Directory shape only.",
           "type": "array",
           "uniqueItems": true,
           "items": {
@@ -374,7 +374,7 @@
           }
         },
         "amends": {
-          "description": "Decisions whose answer this one changes where their affects overlap; the amended record keeps its status (ADR 0118). Directory shape only.",
+          "description": "Decisions whose answer this one changes where their affects overlap; the amended record keeps its status. Directory shape only.",
           "type": "array",
           "uniqueItems": true,
           "items": {
@@ -383,7 +383,7 @@
           }
         },
         "resolved_against": {
-          "description": "At resolve, the applied lock's hash of every affects entry that is a lock key (ADR 0118). Directory shape only; nothing reads it yet.",
+          "description": "At resolve, the applied lock's hash of every affects entry that is a lock key. Directory shape only; nothing reads it yet.",
           "type": "object",
           "additionalProperties": {
             "type": "string",
@@ -405,7 +405,7 @@
       }
     },
     "file": {
-      "description": "One record file under .factory/decisions/ (ADR 0118): the record, beside its own contract version.",
+      "description": "One record file under .factory/decisions/: the record, beside its own contract version.",
       "type": "object",
       "additionalProperties": false,
       "required": [

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/apollographql/graphos-factory/schemas/context.schema.json",
   "title": "Customer-context requirements",
-  "description": "Optional companion to workspace.yaml, present only when an assessment has requirements to track. The generic/specialized/undecided decision itself lives in workspace.yaml's context_mode (ADR 0022). Additive capture fields preserve local artifact provenance without invalidating existing v1 files.",
+  "description": "Optional companion to workspace.yaml, present only when an assessment has requirements to track. The generic/specialized/undecided decision itself lives in workspace.yaml's context_mode. Additive capture fields preserve local artifact provenance without invalidating existing v1 files.",
   "type": "object",
   "additionalProperties": false,
   "required": [

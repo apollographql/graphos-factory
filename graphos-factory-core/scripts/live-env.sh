@@ -3,7 +3,7 @@
 #
 # Live cases need real credentials (and sometimes a real <SERVICE>_BASE_URL),
 # and every other layer must NOT see them. The unit render has ignored
-# <SERVICE>_BASE_URL since ADR 0055, but compose and e2e render with every
+# <SERVICE>_BASE_URL, but compose and e2e render with every
 # override, so a real value exported into a whole `graphos-factory-core evidence`
 # run would still change what those layers test. So the file is loaded here,
 # inside the live.sh process, and nowhere else.

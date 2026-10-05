@@ -202,7 +202,7 @@ impl std::fmt::Display for LinkRefusal {
                 reason,
             } => write!(
                 f,
-                "nullable-fk — {host}.{fk} is nullable, so for a parent whose {fk} is null the router sends GET {empty_get} and the field fails (CONNECTOR_FETCH) or maps that answer; the null guard cannot be printed here: {reason} (ADR 0084)"
+                "nullable-fk — {host}.{fk} is nullable, so for a parent whose {fk} is null the router sends GET {empty_get} and the field fails (CONNECTOR_FETCH) or maps that answer; the null guard cannot be printed here: {reason}"
             ),
             LinkRefusal::TargetRefused {
                 reason,
@@ -422,7 +422,7 @@ fn by_id_root(
             match declared.as_slice() {
                 [one] => Ok((*one).clone()),
                 _ => Err(LinkRefusal::NoRootField(format!(
-                    "{} Query fields reach GET {} ({}) and the selection declares none of them alone for {}; give the operation its graphql name (ADR 0044)",
+                    "{} Query fields reach GET {} ({}) and the selection declares none of them alone for {}; give the operation its graphql name",
                     several.len(),
                     op_path,
                     several.join(", "),

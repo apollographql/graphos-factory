@@ -34,14 +34,14 @@
 # case's own (its case list or shared.list): with every stub loaded at once,
 # another case's stub can answer a request the connector got wrong (a
 # dropped query parameter matching a sibling's `absent` matcher), and that
-# must fail the case, as per-case loading did (ADR 0002). The request
+# must fail the case, as per-case loading did. The request
 # journal names the stub that answered each request (`stubMapping.name`,
 # the fixture's filename, set at load). A stub of the case's own marked
 # `metadata."x-required": true` must also have answered at least one request,
-# or the case fails naming it: a $batch case's lookup (ADR 0071), which a
+# or the case fails naming it: a $batch case's lookup, which a
 # planner that resolves the fields locally never calls.
 #
-# Upstream status, before the snapshot diff (ADR 0077): a case declaring
+# Upstream status, before the snapshot diff: a case declaring
 # `# expect-upstream-status: CODE` fails unless one of its own stubs
 # answered CODE. A router that redacts subgraph errors renders every error
 # status alike, so the snapshot alone cannot tell a 401 case from a 404 one.
@@ -50,7 +50,7 @@
 # counted apart, never as a pass, and not a failure of the run.
 #
 # --only PATTERN restricts which cases actually run (each is the 3-file unit
-# ADR 0014 lays out: tests/cases/NAME.graphql, its .expected.json, and its
+# of tests/cases/NAME.graphql, its .expected.json, and its
 # mapping) to those whose NAME contains PATTERN as a literal substring,
 # hyphens and underscores interchangeable — same normalisation the mapping
 # classifier below already uses. Classification still runs over every
@@ -117,7 +117,7 @@ shopt -s nullglob
 case_files=("$CASES_DIR"/*.graphql)
 mappings=("$MAPPINGS_DIR"/*.json)
 shopt -u nullglob
-# Byte order, never the shell's locale (ADR 0115): a glob and `sort` collate
+# Byte order, never the shell's locale: a glob and `sort` collate
 # by LC_COLLATE, and under en_US.UTF-8 `X_minimal.json` sorts before
 # `X.json` while under C it sorts after. Stubs load in this order, and
 # WireMock answers a request two stubs match with the one loaded last, so
@@ -414,7 +414,7 @@ for query_file in "${run_cases[@]}"; do
   fi
   # Every answering stub is the case's own by now. A status counts for an
   # operation only when the journal shows it answering that operation's own
-  # request (ADR 0077): the statuses a nested lookup or side call was served
+  # request: the statuses a nested lookup or side call was served
   # belong to no operation under test. `OWN` holds one line per operation
   # whose root field the case calls: key, own statuses, documented statuses.
   served="$(jq -r '[.requests[] | select(.wasMatched) | .response.status] | unique | map(tostring) | join(",")' <<< "$journal")"

@@ -86,7 +86,7 @@ fn read_legacy(root: &Path, log: &Log, schema: &Value) -> Result<Option<Value>, 
     }
     if json::get(&value, "contract_version").and_then(Value::as_u64) != Some(1) {
         return Err(format!(
-            "{}: the single file is contract_version 1; records written since ADR 0118 live in {}/, one file each",
+            "{}: the single file is contract_version 1; newer records live in {}/, one file each",
             log.legacy, log.dir
         ));
     }
@@ -350,7 +350,7 @@ pub fn write(
         let errors = crate::jsonschema::validate(&legacy_doc, &schema);
         if !errors.is_empty() {
             return Err(format!(
-                "{}: refusing to write an invalid document: {}. A record written before ADR 0118 keeps the fields it had; put a new edge or slug on a new record",
+                "{}: refusing to write an invalid document: {}. A numbered record in the older format keeps the fields it had; put a new edge or slug on a new record",
                 log.legacy,
                 errors.join("; ")
             ));
@@ -435,7 +435,7 @@ pub fn write_single(
 ) -> Result<(), String> {
     if crate::factory_io::symlink_metadata(root, log.dir)?.is_some() {
         return Err(format!(
-            "{}/ exists: this migration writes the single file only, and would fold the records added since ADR 0118 into it",
+            "{}/ exists: this migration writes the single file only, and would fold the records kept one file each into it",
             log.dir
         ));
     }

@@ -513,7 +513,7 @@ fn rewrite_references(
                     d.id,
                     fate,
                     if d.block == "links" {
-                        " — a stale link now needs a decision of its own to stay (ADR 0113 §4)"
+                        " — a stale link now needs a decision of its own to stay"
                     } else {
                         ""
                     }
@@ -942,7 +942,7 @@ pub fn plan(
                 crate::reconcile::link_decision(link, Some(&decisions_out))
             {
                 warnings.push(format!(
-                    "selection.yaml links entry {}: decision: {} chooses neither keep nor drop, so from ADR 0113 on it no longer keeps the link if the rules stop backing it; give it the choices (`--sorted` `{}: {{as: decision, choices: [keep, drop, …], chosen: [keep]}}`), or reopen it (`graphos-factory-core decisions reopen . --id {}`) and answer `graphos-factory-core decisions resolve . --id {} --chosen keep` or `--chosen drop`",
+                    "selection.yaml links entry {}: decision: {} chooses neither keep nor drop, so it no longer keeps the link if the rules stop backing it; give it the choices (`--sorted` `{}: {{as: decision, choices: [keep, drop, …], chosen: [keep]}}`), or reopen it (`graphos-factory-core decisions reopen . --id {}`) and answer `graphos-factory-core decisions resolve . --id {} --chosen keep` or `--chosen drop`",
                     link.key(),
                     id,
                     id,

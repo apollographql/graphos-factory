@@ -317,7 +317,7 @@ fn print_text(json: &Value) {
     );
     if count(json, "unmatched") > 0 {
         println!(
-            "validate: {} unmatched — a test asserts a request the spec does not describe (or a body is unreadable); fix the matcher, the reader, or document the endpoint through a pinned-source patch (ADR 0010); an accepted gap is waived with `graphos-factory-core codify --waive`",
+            "validate: {} unmatched — a test asserts a request the spec does not describe (or a body is unreadable); fix the matcher, the reader, or document the endpoint through a pinned-source patch; an accepted gap is waived with `graphos-factory-core codify --waive`",
             count(json, "unmatched")
         );
     }

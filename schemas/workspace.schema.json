@@ -28,7 +28,7 @@
     "directory": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*([-_][a-z0-9]+)*$",
-      "description": "The service id: kebab-case or snake_case, matching ^[a-z][a-z0-9_-]*$ (ADR 0108). Also the subgraph name and the schema filename <directory>.graphql. rover derives join__Graph from it by uppercasing and replacing hyphens with underscores, so file-system and file_system both give FILE_SYSTEM."
+      "description": "The service id: kebab-case or snake_case, matching ^[a-z][a-z0-9_-]*$. Also the subgraph name and the schema filename <directory>.graphql. rover derives join__Graph from it by uppercasing and replacing hyphens with underscores, so file-system and file_system both give FILE_SYSTEM."
     },
     "type_prefix": {
       "type": "string",
@@ -45,7 +45,7 @@
       "required": ["name", "version"],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "The target the workspace is for, as init --target wrote it: every command on the workspace runs against the registered target of this name, and a name no registered target carries is refused (ADR 0114)." },
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "The target the workspace is for, as init --target wrote it: every command on the workspace runs against the registered target of this name, and a name no registered target carries is refused." },
         "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
       }
     },
@@ -55,7 +55,7 @@
     },
     "connect_spec": {
       "enum": ["v0.3", "v0.4"],
-      "description": "Connect spec version linked by the schema (rest sources). v0.4 is the default for a new workspace (ADR 0049: composition plugin 2.15.x, Apollo Router >= 2.16 with no preview flag); v0.3 remains valid for workspaces created before it."
+      "description": "Connect spec version linked by the schema (rest sources). v0.4 is the default for a new workspace (composition plugin 2.15.x, Apollo Router >= 2.16 with no preview flag); v0.3 remains valid for workspaces created before it."
     },
     "federation_version": {
       "type": "string",
@@ -65,7 +65,7 @@
     "federation_spec_version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+$",
-      "description": "Optional. The federation spec version the schema's own `@link(url: \".../federation/vX.Y\")` declares (e.g. \"2.14\"), checked by `lint`'s federation-drift rule against the schema directly. Distinct from federation_version (the composition plugin pin, a separate axis -- see that field's own description). Absent means the schema links the plugin's own minor, as a new workspace does (plugin 2.15.2 linking federation/v2.15, ADR 0049); `lint` then compares the schema's spec version against federation_version itself. Set this explicitly whenever the linked spec is older than the plugin's minor (the pilots link v2.12 on plugin 2.15.2)."
+      "description": "Optional. The federation spec version the schema's own `@link(url: \".../federation/vX.Y\")` declares (e.g. \"2.14\"), checked by `lint`'s federation-drift rule against the schema directly. Distinct from federation_version (the composition plugin pin, a separate axis -- see that field's own description). Absent means the schema links the plugin's own minor, as a new workspace does (plugin 2.15.2 linking federation/v2.15); `lint` then compares the schema's spec version against federation_version itself. Set this explicitly whenever the linked spec is older than the plugin's minor (the pilots link v2.12 on plugin 2.15.2)."
     },
     "intake": {
       "enum": ["spec", "discovered", "mixed"],
@@ -88,11 +88,11 @@
           "description": "Absent or true: the sparse-fieldsets rule applies. false turns it off for a source whose parameter of that name means something else (the fields a search looks in, Google's `items(id)` partial-response syntax): lint does not check the argument and scaffold writes no omitted or narrowed case."
         }
       },
-      "description": "Optional. How the source's sparse fieldsets are spelled (ADR 0045). A selected GET whose inventory operation has this string query parameter declares it as a `String` argument whose default is the fields list its connector maps, and forwards it; lint's sparse-fieldsets rule checks both."
+      "description": "Optional. How the source's sparse fieldsets are spelled. A selected GET whose inventory operation has this string query parameter declares it as a `String` argument whose default is the fields list its connector maps, and forwards it; lint's sparse-fieldsets rule checks both."
     },
     "context_mode": {
       "enum": ["generic", "specialized", "undecided"],
-      "description": "The customer-context assessment result (ADR 0022). 'generic' wraps the documented API and needs no companion file; 'specialized' exposes customer-defined fields and requires a .factory/context.yaml recording the governing scope; 'undecided' blocks authoring until the scope is resolved. Absent reads as generic: nothing blocks on the marker itself, only on 'undecided' and on the requirements a context.yaml declares (ADR 0081)."
+      "description": "The customer-context assessment result. 'generic' wraps the documented API and needs no companion file; 'specialized' exposes customer-defined fields and requires a .factory/context.yaml recording the governing scope; 'undecided' blocks authoring until the scope is resolved. Absent reads as generic: nothing blocks on the marker itself, only on 'undecided' and on the requirements a context.yaml declares."
     }
   }
 }

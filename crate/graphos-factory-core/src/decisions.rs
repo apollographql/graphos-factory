@@ -1014,7 +1014,7 @@ pub fn link(
         return Err(ReopenRefusal {
             code: "old-record",
             message: format!(
-                "{} was recorded before ADR 0118 and keeps the fields it has; put the edge on the newer record instead, which may name {}",
+                "{} is a numbered record in the older format and keeps the fields it has; put the edge on the newer record instead, which may name {}",
                 id, id
             ),
         });

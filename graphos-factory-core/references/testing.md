@@ -16,10 +16,10 @@ checkmarks to distrust.
 | compose | `scripts/compose.sh` | invalid SDL, unresolved selection fields, connect-spec violations | anything about runtime values |
 | connector unit | `scripts/unit.sh` | outbound request shape for scalar-argument operations | **every write** (below), object-valued `$args`, whether the API agrees |
 | WireMock e2e | `scripts/e2e.sh` | the only layer where a real router parses real documents and sends real requests | whatever the fixture does not assert |
-| write-body proof | in-process in `graphos-factory-core evidence`; standalone `graphos-factory-core serialization` | a body-sending write whose argument, fixed body value, omission or explicit null no executed e2e case demands at its own wire location; a write with no arguments; reports write gaps and read gaps apart (non-gating, ADR 0079) | anything the e2e layer does not execute: it reads that layer's per-case log and is only as strong as it |
+| write-body proof | in-process in `graphos-factory-core evidence`; standalone `graphos-factory-core serialization` | a body-sending write whose argument, fixed body value, omission or explicit null no executed e2e case demands at its own wire location; a write with no arguments; reports write gaps and read gaps apart (non-gating) | anything the e2e layer does not execute: it reads that layer's per-case log and is only as strong as it |
 | conformance | `graphos-factory-core validate` | fixture and request bodies vs. the spec or the inferred schema | anything self-consistently wrong in a wrong spec |
 | lint | `graphos-factory-core lint` | coverage, namespacing, the target's contract, opaque-JSON policy, a decision with no alternative (`decision-without-alternative`) | correctness of what is covered |
-| json-accounting | `graphos-factory-core spans json-accounting --json --check` | a response field the SDL still types as the workspace's JSON scalar with no resolved `json_reasons` entry, or one whose recorded reason no longer holds against `inventory.json` (non-gating, ADR 0073) | whether the reason is the right call: it re-checks the predicate, not the judgement |
+| json-accounting | `graphos-factory-core spans json-accounting --json --check` | a response field the SDL still types as the workspace's JSON scalar with no resolved `json_reasons` entry, or one whose recorded reason no longer holds against `inventory.json` (non-gating) | whether the reason is the right call: it re-checks the predicate, not the judgement |
 | live | `scripts/live.sh` | spec-vs-reality, silent nulls | runs only with a credential (or against a keyless sandbox); a case chains ids only from an earlier case in the same run |
 
 compose, unit, e2e and live run rover's supergraph composition plugin, and
@@ -63,8 +63,8 @@ glob, matched against whichever name the layer actually lays cases out by:
   counts — one entry asserts several things (method, URL, headers, body,
   response mapping), and rover's "N passed" tallies those, not entries; a
   suite of 67 entries can report 402 passed.
-- `e2e.sh` matches a case's file basename under `tests/cases/` (the ADR
-  0014 three-files-per-case layout), hyphens and underscores
+- `e2e.sh` matches a case's file basename under `tests/cases/` (the
+  three-files-per-case layout), hyphens and underscores
   interchangeable — the same normalisation the mapping classifier below
   already applies.
 
@@ -130,7 +130,7 @@ A case-scoped stub may also carry `"metadata": { "x-required": true }`:
 `e2e.sh` then fails the case, naming the file, unless that stub answered at
 least one of the case's requests. "Some stub matched" cannot tell a case
 whose connector ran from one the planner answered another way. `scaffold`
-sets it on a `$batch` case's lookup (ADR 0071), whose planner resolves the
+sets it on a `$batch` case's lookup, whose planner resolves the
 entity's fields locally, and never calls the lookup, when the root
 connector already maps them.
 
@@ -146,7 +146,7 @@ prefer, never by which case is running. `graphos-factory-core lint`'s
 `fixture-collision` rule (an error, not a warning — it means a test proves
 less than it looks like it does) catches the exact-duplicate case: two
 stubs whose whole `request` object is structurally identical, naming both
-files. `fixture-overlap` (an error too, ADR 0115) catches the *partial*
+files. `fixture-overlap` (an error too) catches the *partial*
 overlap: a stub whose matcher constrains a subset of what a sibling's does
 (fewer query parameters or headers, fewer body patterns, the rest equal), so
 it answers every request the sibling was written for. A scaffolded
@@ -264,7 +264,7 @@ target when the new plan writes none (the note says so), so an entry can
 leave the suite; a hand-written entry stays. The file is rewritten only when
 an entry went in or came out.
 
-### Error cases (ADR 0077)
+### Error cases
 
 ```
 graphos-factory-core scaffold . --op KEY --status 404          # one documented status
@@ -400,13 +400,13 @@ Stub bodies answer an **expansion boundary** the way the source does:
   itself when it is unset, so a layer runs on the binary that was invoked.
   Evidence records exit 78 as `fail`. Fix it with `bootstrap.sh` (`--build`
   in a checkout) or `GRAPHOS_FACTORY_CORE_BIN`; read the `runs` line in a layer's
-  log before you trust its output (ADR 0087).
+  log before you trust its output.
 
 - **A redacted error snapshot proves no status.** Without
   `include_subgraph_errors` in `tests/router.yaml`, every subgraph error
   renders as `"Subgraph errors redacted"`, so a 401 case and a 404 case
   snapshot alike. Swapping the two stubs' statuses still passes the snapshot
-  diff (omni, ADR 0077). `# expect-upstream-status: CODE` is what proves the
+  diff (omni). `# expect-upstream-status: CODE` is what proves the
   operation's own request was served the status it names.
 
 - **Every e2e case reports `dead stubs?` at once.** Check the
@@ -469,7 +469,7 @@ Stub bodies answer an **expansion boundary** the way the source does:
   subject never occurs asserts over an empty set.
 - **Two defences, one test: delete each one separately.** When a guard is
   layered — `.factory` custody is an `lstat` per component *and* `O_NOFOLLOW`
-  on the open (ADR 0025) — reverting one layer leaves the tests green,
+  on the open — reverting one layer leaves the tests green,
   because the other layer catches the case. That reads as "this test does not
   cover the change" and tempts you to add an assertion that is already true.
   Delete each layer on its own and record what goes red for each: the
@@ -513,7 +513,7 @@ request (dead stubs?)`, with no hint that the key is wrong or which half.
 - **A stack overflow in the binary is a bug; never raise limits to get past
   it.** `source-coverage` aborted with `thread 'main' has overflowed its
   stack` on HubSpot's Lists operations (a `oneOf` of seven `$ref`s that
-  each hold the array again; ADR 0102). Raising `ulimit -s` or
+  each hold the array again). Raising `ulimit -s` or
   `RUST_MIN_STACK` did not finish the walk: the recursion is unbounded, and
   one such run grew past 90 GB before it was killed. Record the operations
   as "not verified by that layer", report the crash, and fix the walk. Run a
@@ -562,7 +562,7 @@ evidence needs to see.
 A relationship field (connectors-language.md § Relationship fields) has no
 evidence row, so it is accounted for by name: a live case whose document
 selects it on its host type, or an `exclusions:` entry `field:
-"<Type>.<field>"` with its reason (ADR 0106). Each entry names exactly one
+"<Type>.<field>"` with its reason. Each entry names exactly one
 of `operation:` or `field:`. `live.sh` prints a field exclusion as
 `EXCLUDED FIELD: <Type>.<field> — <reason>`; evidence keeps it among the
 live layer's `findings`, never as a status, and its report names the field
@@ -602,8 +602,8 @@ environment wins over it, and values are never printed. Nothing ignores it
 for you: before writing one, add `smoke.env` to the repository's
 `.gitignore` and confirm `git check-ignore smoke.env` matches, so a
 credential is never committed. It is loaded inside
-the live process **only**. The unit render ignores `<SERVICE>_BASE_URL` (ADR
-0055), but compose and e2e render with every override, so a real value
+the live process **only**. The unit render ignores `<SERVICE>_BASE_URL`,
+but compose and e2e render with every override, so a real value
 exported into a whole `graphos-factory-core evidence` run would still change what
 those layers test. A git worktree has
 its own top — point `GRAPHOS_FACTORY_CORE_LIVE_ENV` at the main checkout's file.
@@ -638,7 +638,7 @@ Learned on the pagerduty pilot (rover 0.40.0); each cost a run to find.
   entry by hand, and one e2e case selecting the parent root field with the
   nested field inside it, served by a WireMock mapping for the by-id GET
   keyed on the parent stub's foreign-key value. Lint's `link-untested`
-  (ADR 0094) warns on a field missing either: the unit entry is found by
+  warns on a field missing either: the unit entry is found by
   the `target:` of a `tests[]` entry, each suite read as YAML (a comment or
   a block scalar's text does not count, and with no suite the entry is
   missing); the case by parsing each `tests/cases/*.graphql` against the
@@ -647,13 +647,13 @@ Learned on the pagerduty pilot (rover 0.40.0); each cost a run to find.
   fragment, a literal `@skip(if: true)` / `@include(if: false)` or a
   same-named field on another type does not). It does not check that a
   mapping serves the by-id GET. The null-parent case is
-  `link-null-untested`'s (ADR 0106): with a nullable fk, some mapping must
+  `link-null-untested`'s: with a nullable fk, some mapping must
   answer `GET` on the empty-segment path (`"urlPath": "/owners/"`) while
   serving a case that selects the field. A confirmed link with neither
   test, or with no null-parent case, is not validated; say so.
 - **`$this` reaches only the request side, and a null `$this` value is not
-  what the router sends** (rover 0.41.0, measured on AppWorld Spotify,
-  ADR 0084). `variables.$this: { albumId: 7123 }` builds the URI, but
+  what the router sends** (rover 0.41.0, measured on AppWorld Spotify).
+  `variables.$this: { albumId: 7123 }` builds the URI, but
   `isSuccess` and the selection see no `$this` (`Property .albumId not
   found in object`, location `IsSuccess` / `Selection`) — which is why the
   null guard reads `$($this.<fk> ?! 0)`. `albumId: null` renders
@@ -690,14 +690,14 @@ looks like it does:
 |---|---|---|
 | `unit-no-credential` | every unit entry that asserts the request also asserts the credential header (the `@source` header carrying `{{AUTH_EXPR}}`) | the one header every request must carry |
 | `unit-no-response` | every operation with unit entries has at least one asserting `connectorResponse` | request shape proven, mapping back not |
-| `failure-case-missing` (warning, ADR 0072; one finding per operation listing its open statuses, per-status detail in `--json`) | every non-2xx status the inventory documents for a selected operation has an e2e case calling its root field behind the case's own stub answering that status to the operation's own request (its method and path template; a nested lookup answering it does not count) (`4XX` any 4xx, `default` any non-2xx); unit entries do not count, since no suite sets a response status | an `errors` mapping that maps a 404 nobody returns is untested, however right it reads |
-| `entity-without-lookup` (error, ADR 0076) | each resolvable `@key` of a type is served by a selected operation that returns the type and takes that key (a path/query parameter named for it, a by-id last path segment ending with it, or a body property on a read), or by a bulk lookup batch find rates `batchable` on that key; a `resolvable: false` key needs none | nothing can resolve a reference by that key |
-| `entity-key-not-embedded` (error, ADR 0076) | wherever a connector's selection embeds a `@key` type, what it builds carries every field of at least one key, read through the selection (`pet { id: pet_id }`, `owner: user { … }`, `pet: { id: petId }`) at the wire path it reaches; a spread, method chain or `$this` is not judged | the router cannot turn that embedding into a reference |
-| `entity-without-consumer` (warning, ADR 0076) | some root field or field of another type returns the `@key` type | the key serves no reference in this subgraph |
-| `entity-field-unresolved` (warning, ADR 0076) | every field of a `@key` type is mapped by a connector selection that reaches the type, or has its own `@connect`; not checked on a `resolvable: false` stub | a resolved reference comes back without it |
+| `failure-case-missing` (warning; one finding per operation listing its open statuses, per-status detail in `--json`) | every non-2xx status the inventory documents for a selected operation has an e2e case calling its root field behind the case's own stub answering that status to the operation's own request (its method and path template; a nested lookup answering it does not count) (`4XX` any 4xx, `default` any non-2xx); unit entries do not count, since no suite sets a response status | an `errors` mapping that maps a 404 nobody returns is untested, however right it reads |
+| `entity-without-lookup` (error) | each resolvable `@key` of a type is served by a selected operation that returns the type and takes that key (a path/query parameter named for it, a by-id last path segment ending with it, or a body property on a read), or by a bulk lookup batch find rates `batchable` on that key; a `resolvable: false` key needs none | nothing can resolve a reference by that key |
+| `entity-key-not-embedded` (error) | wherever a connector's selection embeds a `@key` type, what it builds carries every field of at least one key, read through the selection (`pet { id: pet_id }`, `owner: user { … }`, `pet: { id: petId }`) at the wire path it reaches; a spread, method chain or `$this` is not judged | the router cannot turn that embedding into a reference |
+| `entity-without-consumer` (warning) | some root field or field of another type returns the `@key` type | the key serves no reference in this subgraph |
+| `entity-field-unresolved` (warning) | every field of a `@key` type is mapped by a connector selection that reaches the type, or has its own `@connect`; not checked on a `resolvable: false` stub | a resolved reference comes back without it |
 
-**`graphos-factory-core serialization`** (ADR 0079), wired as the `write_body_proof`
-evidence layer next to `connector_unit` and `wiremock_e2e` (ADR 0079 Step 2),
+**`graphos-factory-core serialization`**, wired as the `write_body_proof`
+evidence layer next to `connector_unit` and `wiremock_e2e`,
 replaced four earlier lint rules — `list-arg-unproven`, `mutation-cases`,
 `loose-write-body`, `unit-no-body` — that only sampled the test *shape*
 (does a case file pass every argument, is the stub's matcher exact) rather
@@ -734,7 +734,7 @@ connector reshapes (a date, a casing) is not found and stays
 covered. `graphos-factory-core serialization --json` lists each argument's
 `placements` (`static` or `executed`, with the proving case).
 
-Same-run evidence contract (ADR 0079 Step 2): the layer takes the CURRENT
+Same-run evidence contract: the layer takes the CURRENT
 `evidence` run's own `wiremock_e2e` status and log — built earlier in the
 same invocation — never `.factory/evidence/latest.json` on disk, which
 mid-run still holds the *previous* run's file. Its per-case verdicts
@@ -743,16 +743,16 @@ evidence-layer entry, additive to the existing integer `cases`. Run
 `e2e.sh` (or `evidence`) first on a pilot, which commits no logs, or every
 case reads not recorded.
 
-Two more read the schema against the spec rather than the tests (ADR 0016):
+Two more read the schema against the spec rather than the tests:
 
 | Rule | What it wants | Why |
 |---|---|---|
 | `field-casing` | no snake_case field on any `type`, `interface` or `input`, and no root field whose name after the prefix is snake_case, unless a doc comment on the field says why the wire name is kept | GraphQL fields are camelCase; a type's rename belongs in the selection (`fooBar: foo_bar`), a root field's in `selection.yaml`'s `graphql.name`, and a silent exception is indistinguishable from an oversight |
 | `wire-enum-drift` | an enum-typed argument declares no value the spec does not list for the parameter or body key its slot feeds; an enum-typed selected leaf declares every value the spec lists for that property — unless the slot's own expression maps it with `->match` | the router sends an argument's enum value and hands a payload's back as spelled; `RED` for a wire `red` fails at runtime, and a payload `pending` the enum lacks fails coercion; an enum value the API never returns is harmless |
-| `unknown-tag` (warning, ADR 0072) | every `@tag(name: …)` is in the target's tag vocabulary (`Target.tag_vocabulary`; no vocabulary, no rule) | no tag-based policy reads a name outside it, so the field looks tagged and is not |
-| `error-path-unresolved` (ADR 0043) | every `$.` path in a connector `errors` block — the message and the extensions, each side of a `??` chain separately, and each `->first`/`->last` step into an array item — must resolve in at least one error body shape the inventory documents (`errors[].shape_ref` in `.factory/inventory.json`) for the operations the block covers: every operation on the source, for an `@source` block; the one operation, for a per-`@connect` block | a path guessed from another API's convention (`.detail` is FastAPI's, not this API's) silently reads nothing off a documented `{message}` or `{error: {message}}` body and the caller gets `null`; silent when no error shape is documented at all, and a free-form body counts as resolving |
+| `unknown-tag` (warning) | every `@tag(name: …)` is in the target's tag vocabulary (`Target.tag_vocabulary`; no vocabulary, no rule) | no tag-based policy reads a name outside it, so the field looks tagged and is not |
+| `error-path-unresolved` | every `$.` path in a connector `errors` block — the message and the extensions, each side of a `??` chain separately, and each `->first`/`->last` step into an array item — must resolve in at least one error body shape the inventory documents (`errors[].shape_ref` in `.factory/inventory.json`) for the operations the block covers: every operation on the source, for an `@source` block; the one operation, for a per-`@connect` block | a path guessed from another API's convention (`.detail` is FastAPI's, not this API's) silently reads nothing off a documented `{message}` or `{error: {message}}` body and the caller gets `null`; silent when no error shape is documented at all, and a free-form body counts as resolving |
 
-A third reads the same argument and leaf slots from the other side (ADR 0041)
+A third reads the same argument and leaf slots from the other side
 and is a warning, because the schema is less descriptive than the source
 rather than wrong:
 
@@ -766,37 +766,37 @@ entry `key: $args.arg`, a `{$args.arg}` in the HTTP path, or a flat `body` of
 `key: $args.arg` entries. Entries are separated by **whitespace, and a
 newline is whitespace**: `queryParams: "a: $args.a b: $args.b"` on one line is
 both pairs, and a one-line `body` carrying several pairs is a flat body,
-exactly as the same pairs written one per line (ADR 0042). Until that ADR the
+exactly as the same pairs written one per line. Earlier the
 reading was line-oriented — a one-line `queryParams` yielded its first pair
 only and a one-line multi-pair `body` was not flat at all — and the AppWorld
 snapshot `appworld-0b51a5f3-20260915`, which writes all 275 of its blocks
 that way (197 with two or more pairs), had its two G5 slots in exactly that
-blind spot (ADR 0041). A `->match` or `$(…)` on one pair skips that slot
+blind spot. A `->match` or `$(…)` on one pair skips that slot
 alone, whatever shares its line. What is still not read, on one line as on
 many: a body that is not a pure list of pairs — a nested object, a literal,
 a method, a `$args.x.y` path, a bare `$args.input`, or pairs separated by
 commas (the mapping language has none) — is not flat. `scaffold` evaluates
-one of those itself, the `key: $args.x { wire: gql … }` sub-selection (ADR
-0051), and says so in its notes for the rest. One pair per line stays the house style, and every pilot
+one of those itself, the `key: $args.x { wire: gql … }` sub-selection,
+and says so in its notes for the rest. One pair per line stays the house style, and every pilot
 writes it; a one-line block is no longer a way to lose a rule.
 
-Five more enforce pagination and copy-state documentation in the schema (ADR 0029). They fall into two categories: **generation defects** (the agent should have written it) and **source-contract gaps** (the source does not document it, and the schema should say so):
+Five more enforce pagination and copy-state documentation in the schema. They fall into two categories: **generation defects** (the agent should have written it) and **source-contract gaps** (the source does not document it, and the schema should say so):
 
 | Rule | Category | What it wants | Why |
 |---|---|---|---|
-| `pagination-bounds-undocumented` | generation defect | when the inventory declares `default` and/or `maximum` for a pagination size param, the schema arg's doc comment must state the number; for a bound outside `Int` (int64's `9223372036854775807`), `no practical maximum` / `no practical default` satisfies it instead (ADR 0065) | the agent already knows these values; omitting them from the schema is an oversight, not a source gap |
+| `pagination-bounds-undocumented` | generation defect | when the inventory declares `default` and/or `maximum` for a pagination size param, the schema arg's doc comment must state the number; for a bound outside `Int` (int64's `9223372036854775807`), `no practical maximum` / `no practical default` satisfies it instead | the agent already knows these values; omitting them from the schema is an oversight, not a source gap |
 | `pagination-bounds-unknown` | source-contract gap | when the inventory has **neither** `default` **nor** `maximum` for a size param, the arg doc comment must state "no documented maximum" or similar | the source does not constrain page size; silence is indistinguishable from the agent forgetting |
 | `page-limit-not-int` | generation defect | when the inventory says a size param is `integer` or `number`, the schema arg type must be `Int` | the agent chose a non-numeric type (`String`, `Float`) despite the spec saying integer |
 | `list-completion-missing` | generation defect | a paginated operation's root-field doc comment must contain a keyword indicating pagination (`page`, `iterate`, `collection`, `total`, `cursor`, `complete`) | the schema describes one page as if it were the whole collection; a consumer needs to know it must iterate |
 | `copy-state-undocumented` | advisory heuristic | a mutation whose name contains `copy`, `clone`, or `duplicate` should have a description containing a preservation keyword (`carry over`, `preserve`, `omitted`, `default`) | heuristic: a copy operation that does not document which fields carry over from the source is ambiguous; false positives are possible, hence advisory |
 
-Those five are all warnings. A pilot is expected to be clean of the ADR 0016
-rules; the pilots' schemas predate the ADR 0029 guidance and still carry its
+Those five are all warnings. A pilot is expected to be clean of the casing and
+wire-vocabulary rules; the pilots' schemas predate the pagination guidance and still carry its
 `pagination-bounds-unknown` warnings — a new service should be clean of all of
 them.
 
-Two things to know about `list-completion-missing` (ADR 0032). It reads the
-root field's **own** doc comment: until ADR 0032 it read from the first `"""`
+Two things to know about `list-completion-missing`. It reads the
+root field's **own** doc comment: an earlier version read from the first `"""`
 in the file, so a block-doc root field was silently exempt and only a
 single-line description could ever trip the rule. And it matches its keywords
 anywhere in the description, so the `Returns:` line that
@@ -807,7 +807,7 @@ rule is complaining. `copy-state-undocumented` reads the text the same way and
 had the same blind spot; both now carry a block-doc firing/compliant test pair
 in `crate/tests/integration/lint.rs`.
 
-Two check that a description exists at all (ADR 0062), for the default-on
+Two check that a description exists at all, for the default-on
 halves of [schema-authoring.md](schema-authoring.md) § Descriptions and
 § Argument constraints. Each finding carries the text to write, so the fix is
 a copy.
@@ -815,17 +815,17 @@ a copy.
 | Rule | Category | What it wants | Why |
 |---|---|---|---|
 | `undocumented-root-field` | generation defect (**error**) | a selected operation's root field has a doc comment whenever there is text to give it: the selection's `graphql.description`, else the inventory operation's `summary`, else its `description` (Google discovery specs have no summaries) | the doc comment is what an MCP client shows a model choosing between tools; one Drive build shipped 26 root fields with none while the inventory held the text for every one |
-| `argument-constraints-undocumented` | generation defect (warning) | a root-field argument has a doc comment whenever the source parameter or body property it reaches (a `queryParams` key, a `{$args.x}` path segment aligned with the inventory path, a header whose value is the argument, a body key flat or nested in object literals, ADR 0083) carries `default`, `minimum`, `maximum` or `enum`; the message spells the ADR 0031 clause. The page-size and page-index parameters are `pagination-bounds-*`'s and are skipped | the caller — usually another agent — otherwise guesses or probes; a warning because it reads only a missing comment, not one that omits the clause |
-| `argument-constraints-undocumented`, omission half (ADR 0066, 0083, 0095) | generation defect (warning; `source-coverage --check` fails on the same sentence, ADR 0095, and a `behaviour` waiver — on a resolved decision or a current finding — clears both) | an optional (no `!`) argument's doc comment carries its source description's omission sentence — the first sentence with a default (`by default`, `defaults to`, `default is`, …) or a condition on absence (`if not passed`, `If this parameter is not provided`, `If no card is given`, `when unset`, `unless specified`, `Omit to`, …; the full list is schema-authoring.md § Argument constraints) that names no other parameter or body property of the operation, nor a body key beside it — as a whitespace-normalised, case-insensitive substring without its final period; fires with or without a doc comment and quotes the sentence. Same skips as above | the first-sentence trim (ADR 0040) dropped Venmo's "If not passed, Venmo balance will be used."; agents that did not know it topped up the balance instead of paying by card and failed 7 of 7, where direct payments passed 26 of 26 |
-| `argument-required-optional-in-source` (ADR 0096) | generation defect (**error**) | an argument is not `!` when its source parameter, or its body key's enclosing object, is optional (the inventory says `required: false`, or omits the key from the object's `required` list); a resolved `behaviour` decision naming the operation and `location:name` clears it, and an inventory that says nothing about requiredness is quiet | `!` hides the source's omission behaviour: the caller cannot leave the argument out, and it is the cheapest way past `source-coverage`'s behaviour gate (ADR 0095) |
+| `argument-constraints-undocumented` | generation defect (warning) | a root-field argument has a doc comment whenever the source parameter or body property it reaches (a `queryParams` key, a `{$args.x}` path segment aligned with the inventory path, a header whose value is the argument, a body key flat or nested in object literals) carries `default`, `minimum`, `maximum` or `enum`; the message spells the constraint clause (schema-authoring.md § Argument constraints). The page-size and page-index parameters are `pagination-bounds-*`'s and are skipped | the caller — usually another agent — otherwise guesses or probes; a warning because it reads only a missing comment, not one that omits the clause |
+| `argument-constraints-undocumented`, omission half | generation defect (warning; `source-coverage --check` fails on the same sentence, and a `behaviour` waiver — on a resolved decision or a current finding — clears both) | an optional (no `!`) argument's doc comment carries its source description's omission sentence — the first sentence with a default (`by default`, `defaults to`, `default is`, …) or a condition on absence (`if not passed`, `If this parameter is not provided`, `If no card is given`, `when unset`, `unless specified`, `Omit to`, …; the full list is schema-authoring.md § Argument constraints) that names no other parameter or body property of the operation, nor a body key beside it — as a whitespace-normalised, case-insensitive substring without its final period; fires with or without a doc comment and quotes the sentence. Same skips as above | the first-sentence trim dropped Venmo's "If not passed, Venmo balance will be used."; agents that did not know it topped up the balance instead of paying by card and failed 7 of 7, where direct payments passed 26 of 26 |
+| `argument-required-optional-in-source` | generation defect (**error**) | an argument is not `!` when its source parameter, or its body key's enclosing object, is optional (the inventory says `required: false`, or omits the key from the object's `required` list); a resolved `behaviour` decision naming the operation and `location:name` clears it, and an inventory that says nothing about requiredness is quiet | `!` hides the source's omission behaviour: the caller cannot leave the argument out, and it is the cheapest way past `source-coverage`'s behaviour gate |
 
 When a root field has no doc comment at all and there is vendor text,
 `list-completion-missing` and `copy-state-undocumented` stay quiet on it:
 `undocumented-root-field` is the one finding. The source-sentence half of an
-argument's doc comment is opt-in (ADR 0040) and has no machine-readable
+argument's doc comment is opt-in and has no machine-readable
 marker, so nothing checks it.
 
-One more reads the Returns line itself (ADR 0067), and is a warning: the
+One more reads the Returns line itself, and is a warning: the
 line is prose for the consuming agent, and a wrong one misleads rather than
 breaks.
 
@@ -834,21 +834,21 @@ breaks.
 | `returns-line-nesting` | in a selected root field's `Returns:`, `Returns a list of items with:` or ``Each item in `x` has:`` line, every listed name is a field of the type it is listed under (the SDL return type, list and non-null unwrapped; the item type of `x`); an object-typed first-level entry is braced (the envelope's payload field in the first line excepted); a second-level object entry is braced exactly when its type has at most 6 fields, every one a scalar, enum or opaque-JSON scalar. Not checked: order, the 14 and 6 caps, `(+N more)`; silent when the doc comment has no Returns line | a bare object name reads as a leaf and the agent selects it bare (schema-authoring.md § Returned field names); 11 bare-selection errors on the 25 Sep AppWorld bundle came from second-level names the one-level rule left bare |
 
 Another reads a root field's description for the service's own credential
-rule (ADR 0064), and is a warning. It applies only to a service that mints its
+rule, and is a warning. It applies only to a service that mints its
 credential through a selected operation.
 
 | Rule | Category | What it wants | Why |
 |---|---|---|---|
-| `credential-source-undocumented` (ADR 0064) | generation defect | when two or more selected root fields declare an argument with the same credential name (`access_token`, `accessToken`, `token`, `api_key`, `apiKey`, `auth_token`, `authToken`, `bearer_token`, `session_token`) and a selected root field's return type (list and non-null removed) declares a field of that name or its camelCase form, at least one such minting root's doc comment names the argument **before** its Returns line. One finding per name, at the first minting root | the composed supergraph keeps one schema description, so a service's auth rule written there, or in a `#` comment, never reaches the consumer; the Returns line names the credential as a result field, which says nothing about where it goes next. Silent when no root returns the credential (it lives on `@source`), and on all three pilots, whose schemas declare none of these names |
+| `credential-source-undocumented` | generation defect | when two or more selected root fields declare an argument with the same credential name (`access_token`, `accessToken`, `token`, `api_key`, `apiKey`, `auth_token`, `authToken`, `bearer_token`, `session_token`) and a selected root field's return type (list and non-null removed) declares a field of that name or its camelCase form, at least one such minting root's doc comment names the argument **before** its Returns line. One finding per name, at the first minting root | the composed supergraph keeps one schema description, so a service's auth rule written there, or in a `#` comment, never reaches the consumer; the Returns line names the credential as a result field, which says nothing about where it goes next. Silent when no root returns the credential (it lives on `@source`), and on all three pilots, whose schemas declare none of these names |
 
-One more reads the schema against the spec's declared **numeric range** (ADR
-0030), and is an **error** rather than a warning: the value is wrong at
+One more reads the schema against the spec's declared **numeric range**,
+and is an **error** rather than a warning: the value is wrong at
 runtime, not merely undocumented, and it landed together with the pilot fix it
 demands.
 
 | Rule | Category | What it wants | Why |
 |---|---|---|---|
-| `int-overflow` | correctness bug | a selected operation's response leaf or argument typed `Int` must not be backed by a source property or parameter the spec declares `format: int64`, `uint64` or `uint32` (unsigned, so its upper half is past 2^31), or whose `minimum`/`maximum` falls outside [-2147483648, 2147483647]. That includes one made exclusive by a boolean `exclusiveMinimum`/`exclusiveMaximum` (OpenAPI 3.0, Swagger 2.0), a numeric exclusive bound (3.1), and a `default` outside `Int`, whose message names the default (ADR 0065). An array's `items` shape is read, so `[Int]` over int64 items is a finding too. An argument's out-of-range default clears when its doc comment carries `default: unbounded` (schema-authoring.md § Argument constraints), because the router never sends it. When the doc comment states the number (`default 9223372036854775807`, the spelling before ADR 0065), the finding stays an error, quotes that clause and gives the replacement with the number filled in; if `default: unbounded` is already there too, it says to delete the numeric clause, and the finding does not clear until it is gone (ADR 0093). `default: no upper bound` is treated the same way, and every legacy clause in the doc comment is named (ADR 0104). A leaf's default and any bound do not clear. Exempt: an `ID`-typed slot, a leaf the connector already maps (any `->method`), and a pagination `size_param` (`page-limit-not-int` owns it) | GraphQL `Int` is signed 32-bit. Past 2^31 the router nulls the field and reports a coercion error instead of returning the number — and no offline layer sees it, because the recorded fixtures all carry small values |
+| `int-overflow` | correctness bug | a selected operation's response leaf or argument typed `Int` must not be backed by a source property or parameter the spec declares `format: int64`, `uint64` or `uint32` (unsigned, so its upper half is past 2^31), or whose `minimum`/`maximum` falls outside [-2147483648, 2147483647]. That includes one made exclusive by a boolean `exclusiveMinimum`/`exclusiveMaximum` (OpenAPI 3.0, Swagger 2.0), a numeric exclusive bound (3.1), and a `default` outside `Int`, whose message names the default. An array's `items` shape is read, so `[Int]` over int64 items is a finding too. An argument's out-of-range default clears when its doc comment carries `default: unbounded` (schema-authoring.md § Argument constraints), because the router never sends it. When the doc comment states the number (`default 9223372036854775807`, the older spelling), the finding stays an error, quotes that clause and gives the replacement with the number filled in; if `default: unbounded` is already there too, it says to delete the numeric clause, and the finding does not clear until it is gone. `default: no upper bound` is treated the same way, and every legacy clause in the doc comment is named. A leaf's default and any bound do not clear. Exempt: an `ID`-typed slot, a leaf the connector already maps (any `->method`), and a pagination `size_param` (`page-limit-not-int` owns it) | GraphQL `Int` is signed 32-bit. Past 2^31 the router nulls the field and reports a coercion error instead of returning the number — and no offline layer sees it, because the recorded fixtures all carry small values |
 
 Declared bounds beat the format hint in both directions: an `int64` property
 whose `minimum` and `maximum` both sit inside `Int` is not a finding, and a
@@ -879,8 +879,7 @@ carries a null:
   `validate` report `23 bodies conform, 2 do not` and exit 1. That is why the
   null probe lives in `.github/scripts/`, on a workspace nobody validates.
 
-One more is an **error** because it reads the request the connector sends
-(ADR 0045):
+One more is an **error** because it reads the request the connector sends:
 
 | Rule | What it wants | Why |
 |---|---|---|
@@ -889,17 +888,17 @@ One more is an **error** because it reads the request the connector sends
 The wider rule that `pagination-bounds-undocumented` and
 `pagination-bounds-unknown` specialise — every argument whose inventory entry
 carries `default`, `minimum`, `maximum` or `enum` documents it, and no
-argument carries an executable `= literal` default (ADR 0031,
-schema-authoring.md § Argument constraints) — has no rule id of its own. Those
+argument carries an executable `= literal` default
+(schema-authoring.md § Argument constraints) — has no rule id of its own. Those
 two check a page-size argument's doc comment and nothing else. The only rule
 that reads an SDL `= literal` is `sparse-fieldsets`, and only on the one
-argument it governs, whose default is the exception to the ban (ADR 0045).
+argument it governs, whose default is the exception to the ban.
 Review both halves by reading the schema. (The
-other three ADR 0029 rules are not specialisations of it:
+other three pagination and copy-state rules are not specialisations of it:
 `list-completion-missing` and `copy-state-undocumented` read descriptions, and
 `page-limit-not-int` reads an argument's type.)
 
-One more treats a name as evidence rather than reading behavior (ADR 0078):
+One more treats a name as evidence rather than reading behavior:
 
 | Rule | What it wants | Why |
 |---|---|---|
@@ -908,8 +907,8 @@ One more treats a name as evidence rather than reading behavior (ADR 0078):
 It is a warning, not an error, and inspects **names**, never values or the
 spec's declared format: measured across the three pilots and 25 other
 workspaces, zero response properties declare
-`format: password`, so that half of ADR 0078's stated vocabulary is not wired
-up — see the ADR's Consequences. Only object-type fields are read:
+`format: password`, so the rule does not read `format` at all: a response
+field declared `format: password` under a harmless name is yours to catch. Only object-type fields are read:
 `Query`/`Mutation`'s own "fields" are operation names, not response data, and
 an `input` declaration's fields are arguments — so a create mutation's own
 `password` argument never fires on its own, and fires only if a response type
@@ -943,7 +942,7 @@ describe. Fix the matcher (a wrong path), the reader (a base path it did not
 strip — `validate` strips the spec's server paths and `template.yaml`'s
 `BASE_URL.test_default` path from unit-suite URLs), or the spec: an endpoint
 the vendor exposes but does not document is added through a pinned-source
-patch (`codify --source`, ADR 0010), which also makes the inventory and the
+patch (`codify --source`), which also makes the inventory and the
 selection see it. Silence was the Mailchimp finding: a base URL with a path
 left every unit body `unchecked` and the layer looked green.
 
@@ -963,7 +962,7 @@ cases. A unit entry declares by its `target`:
 `entity: true` entry's root field returns. Without a declaration the body is
 `unmatched`, its reason naming the candidates; it is never judged against
 whichever operation came first, which is how a Campaign body with a
-malformed `daily_budget` used to pass against Ad's shape (ADR 0044).
+malformed `daily_budget` used to pass against Ad's shape.
 
 A stub tagged into a case for one of its **nested** requests
 (`ad_campaign.json`, `x-cases: ["ad"]`, answering the Campaign fetch beneath
@@ -980,8 +979,8 @@ unmatched --reason R`. The `unmatched` reason says so.
 implied. `graphos-factory-core codify --waive TARGET --status unchecked|unmatched
 --reason R [--context TEXT] [--decision D-id] [--until TEXT] [--expires YYYY-MM-DD]` writes
 a `waivers:` entry in `selection.yaml` and no decision: `reason` carries the
-why, `context` the prose, and `--decision` only attaches a real decision
-(ADR 0113); TARGET is one body
+why, `context` the prose, and `--decision` only attaches a real decision;
+TARGET is one body
 (`tests/fixtures/mappings/<case>.json` or
 `tests/<suite>.connector.yaml#<entry name>`) or an operation key (every such
 body of that operation). It refuses a gap `validate` does not currently
@@ -993,7 +992,7 @@ expired (`waiver-expired`). A waiver is the right answer for an error body
 the vendor does not document and the fixture recorded live; it is never the
 answer to a body the oracle *rejected* — that is a fix or a spec patch.
 
-**The decision log's own rules (ADR 0113).** `override-undecided` and
+**The decision log's own rules.** `override-undecided` and
 `waiver-undecided` are retired: an override's or waiver's `decision:` is
 optional, and `reason` is the required field that carries the why. One rule
 arrives, `decision-without-alternative` (a warning): a `decisions.json`

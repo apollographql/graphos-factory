@@ -31,7 +31,7 @@ accepts kebab- or snake-case words (`^[a-z][a-z0-9_-]*$`), and the choice
 changes nothing else: the rule snake-cases either form first, so
 `widget_co` still derives `widget_co`, `Widget_Co_` and `widget_co_`, and
 rover gives the same `WIDGET_CO`. A snake_case directory is not a licence
-for a CamelCase type prefix (ADR 0108).
+for a CamelCase type prefix.
 
 **Multi-word names use snake_case, never camelCase.** `rover supergraph
 compose` derives the `join__Graph` enum value from the subgraph name by
@@ -94,7 +94,7 @@ Two exceptions worth taking deliberately:
   (`wire-enum-drift`): an enum value the spec does not list for the
   parameter or property it maps to, or a listed value the enum lacks, is a
   warning unless the connector translates it with `->match`. The converse is
-  checked too (`closed-enum-as-string`, ADR 0041): a `String` argument or
+  checked too (`closed-enum-as-string`): a `String` argument or
   field over a spec vocabulary of two or more values, every one a valid
   GraphQL name — declared at every spec property a selected operation
   reaches the field through — is a warning until it is an enum in wire
