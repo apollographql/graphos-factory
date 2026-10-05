@@ -12,7 +12,7 @@
 # Every selected operation is a case below; nothing is excluded. The one
 # relationship field, Gitea_RepositoryMeta.ownerUser, has its own case.
 #
-# Every int64-backed counter is a String in the schema (D-0011, ADR 0030), so
+# Every int64-backed counter is a String in the schema (D-0011), so
 # a numeric predicate pipes it through `tonumber` first. Comparing a JSON
 # string with `>=` is not an error in jq — it compares as a string and is true
 # for every value the API will ever send, which is a green run proving

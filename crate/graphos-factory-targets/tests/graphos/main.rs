@@ -102,7 +102,17 @@ fn the_target_has_the_cores_two_placeholders_and_one_command() {
     assert!(TARGET.compose.federation_spec_version.is_none());
     assert_eq!(
         TARGET.compose.link_imports,
-        &["@key", "@shareable", "@requires", "@provides", "@external"]
+        &[
+            "@key",
+            "@shareable",
+            "@requires",
+            "@provides",
+            "@external",
+            "@tag",
+            "@inaccessible",
+            "@listSize",
+            "@cost"
+        ]
     );
     assert_eq!(
         TARGET.overridden_rules(),
@@ -268,6 +278,93 @@ fn federation_drift_holds_applied_directives_to_the_link() {
         drift[0]["message"],
         "the schema applies @shareable but the federation @link does not import it"
     );
+}
+
+/// `@tag` is permitted, for GraphOS Contracts, and held to the link like
+/// the rest: applied without the import it is drift, imported it is not.
+/// The name is the user's; the target checks none (ADR 0123).
+#[test]
+fn federation_drift_holds_tag_to_the_link() {
+    let ws = copy_of(&graphos_pilot());
+    let schema = ws.path().join("gitea.graphql");
+    let sdl = std::fs::read_to_string(&schema).unwrap();
+    // The pilot neither imports nor applies `@tag`.
+    assert!(sdl.contains("import: [\"@key\"])"), "{}", sdl);
+    assert!(!sdl.contains("@tag"));
+    let tagged = sdl.replacen(
+        "type Gitea_User {",
+        "type Gitea_User @tag(name: \"partner\") {",
+        1,
+    );
+    assert_ne!(tagged, sdl);
+    std::fs::write(&schema, &tagged).unwrap();
+    let report = lint_json(ws.path());
+    let drift = findings(&report, "federation-drift");
+    assert_eq!(drift.len(), 1, "{}", report);
+    assert_eq!(
+        drift[0]["message"],
+        "the schema applies @tag but the federation @link does not import it"
+    );
+    // No tag vocabulary: the name is not checked.
+    assert!(findings(&report, "unknown-tag").is_empty(), "{}", report);
+
+    let imported = tagged.replacen("import: [\"@key\"])", "import: [\"@key\", \"@tag\"])", 1);
+    assert_ne!(imported, tagged);
+    std::fs::write(&schema, imported).unwrap();
+    let report = lint_json(ws.path());
+    assert!(
+        findings(&report, "federation-drift").is_empty(),
+        "{}",
+        report
+    );
+    assert!(findings(&report, "unknown-tag").is_empty(), "{}", report);
+}
+
+/// `@inaccessible`, `@listSize` and `@cost` are importable too (`SKILL.md`),
+/// so each applied without its import is one `federation-drift` finding
+/// and imported is none.
+#[test]
+fn federation_drift_holds_the_other_importable_directives_to_the_link() {
+    for (directive, application) in [
+        ("@inaccessible", "type Gitea_User @inaccessible {"),
+        ("@listSize", "type Gitea_User @listSize(assumedSize: 10) {"),
+        ("@cost", "type Gitea_User @cost(weight: 2) {"),
+    ] {
+        let ws = copy_of(&graphos_pilot());
+        let schema = ws.path().join("gitea.graphql");
+        let sdl = std::fs::read_to_string(&schema).unwrap();
+        assert!(!sdl.contains(directive), "{}", sdl);
+        let applied = sdl.replacen("type Gitea_User {", application, 1);
+        assert_ne!(applied, sdl);
+        std::fs::write(&schema, &applied).unwrap();
+        let report = lint_json(ws.path());
+        let drift = findings(&report, "federation-drift");
+        assert_eq!(drift.len(), 1, "{}: {}", directive, report);
+        assert_eq!(
+            drift[0]["message"],
+            format!(
+                "the schema applies {} but the federation @link does not import it",
+                directive
+            ),
+            "{}",
+            report
+        );
+
+        let imported = applied.replacen(
+            "import: [\"@key\"])",
+            &format!("import: [\"@key\", \"{}\"])", directive),
+            1,
+        );
+        assert_ne!(imported, applied);
+        std::fs::write(&schema, imported).unwrap();
+        let report = lint_json(ws.path());
+        assert!(
+            findings(&report, "federation-drift").is_empty(),
+            "{}: {}",
+            directive,
+            report
+        );
+    }
 }
 
 fn script(dir: &Path, name: &str, body: &str) {

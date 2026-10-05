@@ -43,8 +43,8 @@ the skill's `references/lessons.md` instead.
   cut-down projection. Do not assert `active` across operations.
 - **`is_private`'s spec description reads `pubic`** (`show only pubic,
   private or all repositories (defaults to all)`). An upstream typo in
-  `swagger.json`, published verbatim on `gitea_searchRepos(isPrivate:)` under
-  ADR 0040; the correction is a `codify --source` patch recorded in
+  `swagger.json`, published verbatim on `gitea_searchRepos(isPrivate:)` as
+  its one-sentence description; the correction is a `codify --source` patch recorded in
   `sources.lock.yaml`, not a schema edit.
 
 ## Testing gotchas
@@ -67,11 +67,11 @@ the skill's `references/lessons.md` instead.
   `get:/packages/{owner}` (`list_context: true`), the owner's package list.
   The owner's record is `get:/users/{username}`, which Gitea answers for a
   user or an organisation; the `links:` entry names that one. Since crate
-  0.5.51 (ADR 0085) there is no fact at all: Gitea's User spells the key
+  0.5.51 there is no fact at all: Gitea's User spells the key
   `login`, so `inventory links` refuses `get:/users/{username}` and lists 0
   candidates. The entry is a judgement (D-0018); lint and reconcile accept it.
 - `RepositoryMeta.owner` is not in the spec's `required`, so the field is
-  nullable and `ownerUser` carries the ADR 0084 null guard. The null-parent
+  nullable and `ownerUser` carries the null guard `links apply` prints. The null-parent
   e2e case `list_issues_repository_owner_null` is hand-built: the seed never
   returns an owner-less repository. Its parent stub omits `owner` rather
   than sending `null` — the spec allows no null string, and conformance

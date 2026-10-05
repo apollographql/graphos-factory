@@ -38,10 +38,32 @@ pub const PLACEHOLDERS: &[&str] = &["BASE_URL", "AUTH_EXPR"];
 /// schema may import from the Federation `@link`. `federation-drift`
 /// reports one the schema applies without importing; an unused import is
 /// not drift (`ComposeConfig::link_imports`).
-pub const LINK_IMPORTS: &[&str] = &["@key", "@shareable", "@requires", "@provides", "@external"];
+///
+/// `@tag` is here because GraphOS Contracts filter on it, so a subgraph in
+/// a supergraph that uses contracts may apply it. Which names it carries is
+/// the user's (their contracts' filters), never this target's: the target
+/// has no tag vocabulary, and `unknown-tag` never fires (ADR 0123).
+///
+/// `@inaccessible`, `@listSize` and `@cost` are here because `SKILL.md`
+/// lists them as importable and the federation-guidance branch measured
+/// each to compose and serve; carrying them makes `federation-drift` check
+/// what `SKILL.md` allows.
+pub const LINK_IMPORTS: &[&str] = &[
+    "@key",
+    "@shareable",
+    "@requires",
+    "@provides",
+    "@external",
+    "@tag",
+    "@inaccessible",
+    "@listSize",
+    "@cost",
+];
 
-/// Why `supergraph_check` does not run yet.
-pub const SUPERGRAPH_CHECK_REASON: &str = "not built: composing against the user's supergraph is decided in the next pass (skills/graphos-factory/references/verification.md)";
+/// Why `supergraph_check` does not run, in words for the user who reads
+/// the evidence: what was checked instead and the command that checks the
+/// rest with their own credentials.
+pub const SUPERGRAPH_CHECK_REASON: &str = "not run: this subgraph was composed alone, not with your supergraph; run `rover subgraph check <graph>@<variant> --name <directory> --schema <rendered schema>` with your own credentials (skills/graphos-factory/references/verification.md)";
 
 fn export_flags(_: Option<&str>) -> Option<&'static Flags> {
     Some(&export::FLAGS)

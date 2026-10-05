@@ -1,9 +1,9 @@
-# The null-parent case for Gitea_RepositoryMeta.ownerUser (ADR 0084): the
+# The null-parent case for Gitea_RepositoryMeta.ownerUser: the
 # parent stub (list_issues_repository_owner_null.json) returns issue #2 with
 # repository.owner = "fixture" beside issue #3 whose repository carries no owner
 # (absent, which the spec allows; owner reads null).
 # The guarded connector resolves #2 through user.json. For #3 the router still
-# sends GET /users/ (ADR 0084: the guard maps the answer, it does not skip the
+# sends GET /users/ (the guard maps the answer, it does not skip the
 # request); user_empty_segment.json answers it the way Gitea does (404), and the
 # guard turns that into a null ownerUser.
 query {

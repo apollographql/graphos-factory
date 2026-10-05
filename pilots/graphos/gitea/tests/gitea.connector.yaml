@@ -806,7 +806,7 @@ tests:
           "website": ""
         }
 
-  # ── Relationship fields (ADR 0069; hand-written until Phase 7as (c)/(d)) ──
+  # ── Relationship fields (hand-written: scaffold does not draft link-field tests yet) ──
 
   # Gitea_RepositoryMeta.ownerUser reads the host's `owner` login through
   # $this and sends the source-level token, exactly as Query.gitea_user does

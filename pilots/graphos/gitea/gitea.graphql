@@ -4,13 +4,13 @@
 # real Gitea instance from the static binary, seeds it, and exercises every
 # operation below against it. This file is the artifact: edit it directly.
 # Selection lives in .factory/selection.yaml, the reasoning in
-# .factory/decisions.md (D-nnnn references below).
+# .factory/decisions.json (D-nnnn references below).
 #
 # Auth: Authorization: token <access token>. BASE_URL carries the /api/v1
 # path (the Swagger basePath), e.g. http://127.0.0.1:3000/api/v1.
 
 extend schema
-  @link(url: "https://specs.apollo.dev/federation/v2.12", import: ["@key", "@tag"])
+  @link(url: "https://specs.apollo.dev/federation/v2.12", import: ["@key"])
   @link(url: "https://specs.apollo.dev/connect/v0.4", import: ["@source", "@connect"])
 
 @source(
@@ -21,7 +21,7 @@ extend schema
       { name: "Authorization", value: "token {{AUTH_EXPR}}" }
       { name: "Accept", value: "application/json" }
       { name: "Content-Type", value: "application/json" }
-      { name: "User-Agent", value: "Apollo Connector Factory" }
+      { name: "User-Agent", value: "graphos-factory" }
     ]
   }
   # Gitea error bodies are `{ message, url, errors }` (D-0004); `errors` is
@@ -1009,7 +1009,6 @@ type Mutation {
     "Create the issue already closed."
     closed: Boolean
   ): Gitea_Issue
-    @tag(name: "write")
     @connect(
       source: "gitea"
       http: {

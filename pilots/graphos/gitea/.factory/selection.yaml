@@ -167,7 +167,6 @@ operations:
       confirmed: true
     include: true
     graphql: { root: mutation, name: createIssue }   # a genuine write (D-0007)
-    tags: [write]
     fields:
       rename:
         "html_url": htmlUrl
@@ -708,13 +707,13 @@ waivers:
     until: "Gitea documents the validationError response body"
   - where: tests/fixtures/mappings/user_empty_segment.json
     status: unmatched
-    reason: "The empty-segment GET /users/ the router sends for a null owner; the null guard maps the answer to a null ownerUser but does not skip the request (ADR 0084). No operation describes it. The body is what the seeded Gitea 1.25.0 answered with curl on 2026-09-30 (404, text/plain) (D-0018)."
+    reason: "The empty-segment GET /users/ the router sends for a null owner; the null guard maps the answer to a null ownerUser but does not skip the request. No operation describes it. The body is what the seeded Gitea 1.25.0 answered with curl on 2026-09-30 (404, text/plain) (D-0018)."
     decision: D-0018
     until: "never: a null owner always sends this request, and no spec operation describes an empty segment"
-# ── Relationship fields (ADR 0069) ────────────────────────────────────────
+# ── Relationship fields ───────────────────────────────────────────────────
 # RepositoryMeta.owner is the owner's login; the inventory's fact matched it
 # to get:/packages/{owner} (a list route), so the entry names the by-id read
-# it actually keys (D-0017). Since ADR 0085 no fact backs it at all: Gitea's
+# it actually keys (D-0017). No fact backs it any more: Gitea's
 # User spells the key `login`, so inventory links refuses get:/users/{username}.
 # The entry is a judgement, kept with a null guard (D-0018).
 links:
@@ -725,7 +724,7 @@ links:
     field: ownerUser
     include: true
     confirmed: true
-    reason: "owner is the login GET /users/{username} keys; the user it returns has login == owner (live case). No fact backs it since ADR 0085, whose rule looks for `username` in a response that spells it `login` (D-0017, D-0018)."
+    reason: "owner is the login GET /users/{username} keys; the user it returns has login == owner (live case). No fact backs it: inventory links looks for `username` in a response that spells it `login` (D-0017, D-0018)."
     decision: D-0018
   - shape: Organization
     path: username

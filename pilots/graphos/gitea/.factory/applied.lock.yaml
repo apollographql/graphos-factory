@@ -1,9 +1,9 @@
 contract_version: 1
 schema: gitea.graphql
-written_at: "2026-10-02T17:03:58.531Z"
-written_by: "graphos-factory 0.9.0"
+written_at: "2026-10-05T19:49:56.845Z"
+written_by: "graphos-factory 0.9.2"
 spans:
-  header: "0f818c1ab954a2b50e2100265b4e1fb3d0bb2f8e3af2f8550cb8737903fa4011"
+  header: "5b71af0eb465c1eb5df9ff11d3dff3a9a2b287a672776ee16f0eec06733d2d58"
   "type:Gitea_StateType": bb2fb1e52a791d33507892cf633159ace99b299cfb3e0280354e3aebf2ba2d62
   "type:Gitea_ObjectFormatName": "00b0b375c4a99a0815153d842044cbd52bcc33cf5f00e820df7ffb612a18b862"
   "type:Gitea_User": "84a8fb4f3f6a6f6aecf7479340d25210ea911075aa455a08fcc272a875be71b5"
@@ -25,23 +25,23 @@ spans:
   "get:/repos/{owner}/{repo}/issues/{index}": "52cdcbe63e30e611c1b7d9cead2dc0e29d0e9f208c82d14190b6155602411d06"
   "get:/user": a75472b353c8a87ffcc458bd1e07cf3345af31817bfda00ef3ad8876c4b6af64
   "get:/users/{username}": "213dc30ebcefdfc7d53ebc579f07c4f60fd838478b1ddf2af6d018eaa242b940"
-  "post:/repos/{owner}/{repo}/issues": "83f8b5e185d005ef1cb7b1726616e56c151a93f327c37320026419eddffef3d5"
+  "post:/repos/{owner}/{repo}/issues": "582ddd9a7d7d812f576eeb001a62c5d678467d88234244dd35af8413cde1d39f"
 inventory: "6fffbae906dbb8237b89a8207e70a6d3a88293053070a541ec5a40d27fa61241"
 sources:
   swagger.json: a876b780af2cab2507d51b186bd724ed72fe22f361a76f1b2650de7d56b1afd8
 provenance:
-  recorded_at: "2026-10-02T17:03:58.603Z"
+  recorded_at: "2026-10-05T19:49:56.912Z"
   skill:
-    revision: "983514c72d56533a56f70cbcc785a75ba5497c08"
+    revision: d36c231ace46af7d4cb17b0f12118ebef91dc4d5
     dirty: false
     source: "--skill-dir"
   authoring_agent:
-    model: claude-opus-5-5
+    model: claude-fable-5-1
     attested: true
   binary:
     name: graphos-factory
-    version: "0.9.0"
-    revision: "983514c72d56533a56f70cbcc785a75ba5497c08"
+    version: "0.9.2"
+    revision: d36c231ace46af7d4cb17b0f12118ebef91dc4d5
     dirty: false
     rustc: "rustc 1.97.1 (8bab26f4f 2026-07-14)"
     target: aarch64-apple-darwin
@@ -53,8 +53,8 @@ provenance:
     wiremock_pin: "3.13.2"
   inputs:
     ".factory/decisions.json":
-      sha256: c7f58f3f9950c8031f3c0f6b34088030d43d80a9f3a5eedae5ece7c78f2e0056
-      bytes: 44240
+      sha256: b3ebcca1d5b4ec40a7742f8d0167413f1494d6aa3a53d41a5539a1b44af25ff7
+      bytes: 44702
     ".factory/findings.json":
       sha256: "3c773e639e83810e41b58b80c3a9fe4d2513791fdc0aaab2191eb099051b557f"
       bytes: 1314
@@ -62,11 +62,11 @@ provenance:
       sha256: "9761bd91d63af6ff8c95be766934e73e4bd1b879f5c0489f9ce51c00753e60a4"
       bytes: 1127955
     ".factory/memory.md":
-      sha256: fa2a2ba71f6900a6db966a056b2d3c2070db4b8be36b4318b40365504804eb21
-      bytes: 4788
+      sha256: "8be6dd7fa578bc1e1d6e514c2204c764b160ea0161413df2c0946182d0dc25e9"
+      bytes: 4806
     ".factory/selection.yaml":
-      sha256: "42d58e4df1774cc4ab084c29eb04b85d5c7b8bc3654e35ecdf793cb24d6fd642"
-      bytes: 54425
+      sha256: "10e47ca30596ddfd7d000d3bc9758c251dad47c542256149df890172595c6eef"
+      bytes: 54395
     ".factory/sources.lock.yaml":
       sha256: ea83b9d901dfefa74ce4f43bf556ceb42a3b4944bcc22136365d949c362d12aa
       bytes: 2826
@@ -81,11 +81,11 @@ provenance:
       bytes: 816821
   outputs:
     README.md:
-      sha256: "4e88c55c67b8eb36e27a4a9348643fb420240f5a58e4ae2bf4a1bf4665729ac4"
-      bytes: 8702
+      sha256: ad1b584b037c5ea7b22aa4af848a26d5330000ec1c61b70e0e849c30e647e54a
+      bytes: 8646
     gitea.graphql:
-      sha256: "3b1ada72bae00a2cdc86c406f4a263b0a5958bf7fb9a4464e9f87799759fb5b6"
-      bytes: 34937
+      sha256: "7561193915b73cdb38765d8a918997a41c982c96ff3fd9728de5d9e8258b4bee"
+      bytes: 34898
     supergraph.yaml:
       sha256: df02a87032386bb3230810120dd352ffa6a86851edd27e7c4f128e6d48ce72d5
       bytes: 120
@@ -180,8 +180,8 @@ provenance:
       sha256: "392c956bba11537a5bd3cf1b12c09fc336a80d802c9bb8273dea726f10524c6b"
       bytes: 569
     tests/cases/list_issues_repository_owner_null.graphql:
-      sha256: cf77bb59c195e05e77659ef4401e29ff9f041953452b8db8b5fd5b66d4ad2c3a
-      bytes: 798
+      sha256: f98d74618524bfe47b6f5712e942604dc82f2a354e69922378c2fe2d430dc92d
+      bytes: 777
     tests/cases/repo.expected.json:
       sha256: c8d23af1eb79bafe71d6c67865d8d07650cc68a9622c45af04399574ee261dee
       bytes: 2333
@@ -291,11 +291,11 @@ provenance:
       sha256: "31c0872ccffe277598cdc821893444db79e656b15df3e8d16502ef7a026087ea"
       bytes: 320
     tests/gitea.connector.yaml:
-      sha256: db23c2c497b972487e88311f2cf2d6b45398d3f432187b08d8b736854216ceb6
-      bytes: 47324
+      sha256: fdd3259877c55b0537e3c5e8315c7448c823b920837fad26c803f1687a51312a
+      bytes: 47336
     tests/live.yaml:
-      sha256: "44c4eac7b0b0ba02c9860adaa1c0f8bfc1806f0bd7fe1f10dd997ea66cde6b11"
-      bytes: 3741
+      sha256: "5d9426f99c8fe7db3cde3ddd0d8fff4326ec0a34f67a4d9d62e18bca0a60f834"
+      bytes: 3731
     tests/live/create_issue.graphql:
       sha256: "1f7dc5471efae1b10957264006f735f8508d3a939ef6a4463f04ee96df502eb6"
       bytes: 249

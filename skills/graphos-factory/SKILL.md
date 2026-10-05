@@ -38,18 +38,19 @@ delta and edit only what changed. Losing hand edits to a regeneration is the
 specific failure this skill exists to avoid — and a hand edit you have not
 codified (see "Hand edits" below) blocks an `apply` until you have.
 
-**This target's contract** is the subgraph's place in the user's supergraph,
-and most of it is not decided yet: two of the references under `references/`
-are placeholders that state the open questions. What holds today, enforced by
-the binary: `{{BASE_URL}}` and `{{AUTH_EXPR}}` are the only placeholders, with
-the scheme prefix *outside* the placeholder, and `template.yaml` gives each a
-local test value (kept: `export` renders them with the production values,
-[`export-graphos.md`](references/export-graphos.md)); the Federation directives the schema may
-import are `@key`, `@shareable`, `@requires`, `@provides` and `@external`
+**This target's contract** is the subgraph's place in the user's supergraph;
+what the references leave open is listed under their "Open" headings. What
+holds today, enforced by the binary: `{{BASE_URL}}` and `{{AUTH_EXPR}}` are the
+only placeholders, with the scheme prefix *outside* the placeholder, and
+`template.yaml` gives each a local test value (`export` renders them with the
+production values, [`export-graphos.md`](references/export-graphos.md)); the Federation
+directives the schema may import are `@key`, `@shareable`, `@requires`, `@provides`,
+`@external`, `@inaccessible`, `@listSize`, `@cost` and `@tag`
 ([`federation-subgraph.md`](references/federation-subgraph.md)); one `@source` is the shape the
-layers model, and a second is a lint warning (unmodelled, not forbidden), not
-an error. **No tag vocabulary is enforced for this target**: `unknown-tag`
-never fires, and a `@tag` means whatever the user's supergraph uses it for.
+layers model, and a second is a lint warning (unmodelled, not forbidden). **`@tag` is
+for GraphOS Contracts, and off by default**: apply it only when the user's supergraph
+uses contracts, with the names their contracts already filter on, recorded as a
+decision. Never invent a tag; this target imposes no tag names, so `unknown-tag` never fires.
 
 <!-- core:begin -->
 ## Before anything else
@@ -320,12 +321,11 @@ repository's CI re-runs only the offline checks (`lint`, `validate`, `reconcile`
   `sources.lock.yaml` with the reason; add the live evidence as `verified`.
 <!-- core:end -->
 
-- **The subgraph is checked alone until `supergraph_check` is built.** Compose,
-  unit, e2e, conformance and live prove the subgraph by itself. Whether it
-  composes with the user's other subgraphs (a shared type, a conflicting
-  field, an entity another subgraph owns) is unverified: say so in every
-  report, and record any entity or `@shareable` choice you make as a decision
-  so the next pass can check it (references/federation-subgraph.md).
+- **The subgraph is checked alone: `supergraph_check` is `not_run`.** Compose,
+  unit, e2e, conformance and live prove the subgraph by itself; whether it
+  composes with the user's other subgraphs is unverified until they run
+  `rover subgraph check` (references/verification.md). Say so in every report,
+  and record any entity or `@shareable` choice as a decision (references/federation-subgraph.md).
 
 <!-- core:begin -->
 ## Discover, then select, then apply
@@ -447,6 +447,6 @@ references/export-graphos.md: `export`, then rover, which the user runs.
 - [`testing.md`](../../graphos-factory-core/references/testing.md) — the eight layers, what each is blind to, and the traps
 - [`selection-review.md`](../../graphos-factory-core/references/selection-review.md) — the `selection review` contract a UI or a headless agent uses to propose a selection change
 - [`lessons.md`](../../graphos-factory-core/references/lessons.md) — cross-subgraph memory; append when you learn something vendor-independent
-- [`federation-subgraph.md`](references/federation-subgraph.md) — **placeholder for the next pass**: entities by default, `@shareable` / `@external` / `@requires` / `@provides`, relationship fields whose target lives in another subgraph, more than one source
+- [`federation-subgraph.md`](references/federation-subgraph.md) — versions from the user's graph, the directives a connector subgraph may carry and may not, `@tag` and contracts, what is still open
 - [`export-graphos.md`](references/export-graphos.md) — when to export, the command and its gate, what the user runs (rover, the router), and what an export does not verify
-- [`verification.md`](references/verification.md) — **placeholder for the next pass**: the target's lint rules and the `supergraph_check` evidence layer (`not_run` until built)
+- [`verification.md`](references/verification.md) — what the layers prove, why `supergraph_check` is `not_run`, and the `rover subgraph check` hand-off

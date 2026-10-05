@@ -195,15 +195,6 @@
       "affects": [
         "post:/repos/{owner}/{repo}/issues"
       ],
-      "resolution": {
-        "note": "Alternatives: an input object mirroring the body (rejected: flat arguments keep the write expressible in `rover connector test`, D-0009 of the pagerduty pilot). Amended 2026-09-30 (D-0019 to D-0025): the constructor does not drop null arguments; the router sends an explicit null as JSON null (measured by create_issue_nulls). What drops a null is `$args.x?` on the body member, which also drops an absent argument and nothing else -- an empty string, empty list, false and zero go through. The minimal call sends {title} alone only because absent arguments are left out.",
-        "decision": "`gitea_createIssue(owner!, repo!, title!, body, assignees: [String!], labels: [ID!], milestone: ID, dueDate, ref, closed)` → `Gitea_Issue`, tagged `write`. The body maps each argument by name; the constructor drops null arguments, so the minimal call sends `{title}` alone (asserted at unit and e2e). `assignee` is not exposed.",
-        "by": "agent",
-        "at": "2026-09-30",
-        "chosen": [
-          "flat"
-        ]
-      },
       "question": "How is createIssue exposed?",
       "choices": [
         {
@@ -214,7 +205,16 @@
           "id": "input-object",
           "label": "A Mutation taking an input object mirroring the body"
         }
-      ]
+      ],
+      "resolution": {
+        "chosen": [
+          "flat"
+        ],
+        "note": "Alternatives: an input object mirroring the body (rejected: flat arguments keep the write expressible in `rover connector test`, D-0009 of the pagerduty pilot). Amended 2026-09-30 (D-0019 to D-0025): the constructor does not drop null arguments; the router sends an explicit null as JSON null (measured by create_issue_nulls). What drops a null is `$args.x?` on the body member, which also drops an absent argument and nothing else -- an empty string, empty list, false and zero go through. The minimal call sends {title} alone only because absent arguments are left out. Amended 2026-10-05 (reopened and resolved again): the mutation no longer carries `@tag(name: \"write\")`, and selection.yaml no longer lists `tags: [write]`. This target applies `@tag` only when the user's supergraph uses GraphOS Contracts, with the names those contracts already filter on, and this pilot's supergraph has none; the `flat` choice's label still reads 'tagged write' as it was offered on 2026-09-10. The shape (flat scalar arguments) is unchanged.",
+        "decision": "`gitea_createIssue(owner!, repo!, title!, body, assignees: [String!], labels: [ID!], milestone: ID, dueDate, ref, closed)` → `Gitea_Issue`, with no `@tag`. The body maps each argument by name; the constructor drops null arguments, so the minimal call sends `{title}` alone (asserted at unit and e2e). `assignee` is not exposed.",
+        "by": "user",
+        "at": "2026-10-05"
+      }
     },
     {
       "id": "D-0008",

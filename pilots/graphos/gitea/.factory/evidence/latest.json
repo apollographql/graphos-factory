@@ -1,13 +1,13 @@
 {
   "contract_version": 2,
-  "commit": "c5fa5712-dirty",
-  "run_at": "2026-10-01T23:13:19.316Z",
+  "commit": "009dae2e-dirty",
+  "run_at": "2026-10-05T19:35:21.804Z",
   "toolchain": {
     "rover": "0.41.0",
     "federation": "2.15.2",
     "connect_spec": "v0.4",
     "wiremock": "3.13.2",
-    "service_factory": "0.7.0",
+    "service_factory": "0.9.2",
     "router": "2.17.0",
     "java": "26.0.2.1"
   },
@@ -16,17 +16,17 @@
       "status": "pass",
       "command": "compose.sh pilots/graphos/gitea",
       "exit_code": 0,
-      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/compose.log",
+      "log": ".factory/evidence/runs/2026-10-05T19-35-21-804Z/compose.log",
       "findings": [
         "compose: Rover 0.41.0, federation 2.15.2, connect v0.4",
-        "compose: pass —      546 lines of supergraph SDL"
+        "compose: pass —      544 lines of supergraph SDL"
       ]
     },
     "connector_unit": {
       "status": "pass",
       "command": "unit.sh pilots/graphos/gitea",
       "exit_code": 0,
-      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/unit.log",
+      "log": ".factory/evidence/runs/2026-10-05T19-35-21-804Z/unit.log",
       "findings": [
         "TEST RESULTS: SUCCESSFUL 51  passed; 0 failed; 0 skipped"
       ],
@@ -37,7 +37,7 @@
       "status": "pass",
       "command": "e2e.sh pilots/graphos/gitea",
       "exit_code": 0,
-      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/e2e.log",
+      "log": ".factory/evidence/runs/2026-10-05T19-35-21-804Z/e2e.log",
       "findings": [
         "e2e: 22 passed, 0 failed"
       ],
@@ -144,9 +144,9 @@
     },
     "write_body_proof": {
       "status": "pass",
-      "command": "factory serialization (in-process, same-run)",
+      "command": "graphos-factory serialization (in-process, same-run)",
       "exit_code": 0,
-      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/serialization.log",
+      "log": ".factory/evidence/runs/2026-10-05T19-35-21-804Z/serialization.log",
       "findings": [
         "pass  47 of 47 required outbound assertion(s) executed and proven",
         "pass  2 of 2 required outbound assertion(s) executed and proven",
@@ -160,9 +160,9 @@
     },
     "conformance": {
       "status": "pass",
-      "command": "factory validate pilots/graphos/gitea --json",
+      "command": "graphos-factory validate pilots/graphos/gitea --json",
       "exit_code": 0,
-      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/conformance.log",
+      "log": ".factory/evidence/runs/2026-10-05T19-35-21-804Z/conformance.log",
       "findings": [
         "31 bodies conform, 0 do not, 8 unchecked, 3 waived"
       ],
@@ -172,9 +172,9 @@
     },
     "lint": {
       "status": "pass",
-      "command": "factory lint pilots/graphos/gitea --json --skip-evidence",
+      "command": "graphos-factory lint pilots/graphos/gitea --json --skip-evidence",
       "exit_code": 0,
-      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/lint.log",
+      "log": ".factory/evidence/runs/2026-10-05T19-35-21-804Z/lint.log",
       "findings": [
         "warn [pagination-bounds-unknown] get:/repos/search: `limit` has no documented default or maximum in the source; state 'no documented maximum' in the argument doc comment (schema-authoring.md)",
         "warn [pagination-bounds-unknown] get:/repos/{owner}/{repo}/issues: `limit` has no documented default or maximum in the source; state 'no documented maximum' in the argument doc comment (schema-authoring.md)"
@@ -182,9 +182,9 @@
     },
     "json_accounting": {
       "status": "pass",
-      "command": "factory spans json-accounting pilots/graphos/gitea --json --check",
+      "command": "graphos-factory spans json-accounting pilots/graphos/gitea --json --check",
       "exit_code": 0,
-      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/json_accounting.log",
+      "log": ".factory/evidence/runs/2026-10-05T19-35-21-804Z/json_accounting.log",
       "findings": [],
       "counts": {
         "total_fields": 140,
@@ -201,7 +201,7 @@
       "status": "not_run",
       "command": "live.sh pilots/graphos/gitea",
       "exit_code": 3,
-      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/live.log",
+      "log": ".factory/evidence/runs/2026-10-05T19-35-21-804Z/live.log",
       "findings": [
         "live: GITEA_TOKEN is not set — skipping live smoke (not_run)"
       ],
@@ -261,8 +261,8 @@
   "target_evidence_layers": {
     "supergraph_check": {
       "status": "not_run",
-      "reason": "not built: composing against the user's supergraph is decided in the next pass (skills/connector-factory/references/verification.md)",
-      "target": "connector-factory"
+      "reason": "not run: this subgraph was composed alone, not with your supergraph; run `rover subgraph check <graph>@<variant> --name <directory> --schema <rendered schema>` with your own credentials (skills/graphos-factory/references/verification.md)",
+      "target": "graphos-factory"
     }
   }
 }

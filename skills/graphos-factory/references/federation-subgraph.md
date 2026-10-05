@@ -64,9 +64,10 @@ and you have recorded the answer as a decision. Never add one speculatively,
 
 Every directive the schema applies must be in the federation `@link`'s
 `import` list. Compose rejects one that is not ("add "@inaccessible" to the
-`import` argument of the @link"). Lint's `federation-drift` checks the import
-only for `@key`, `@shareable`, `@requires`, `@provides` and `@external`; for
-any other directive the compose layer is the check.
+`import` argument of the @link"). Lint's `federation-drift` checks the import for the nine directives this
+target allows (`@key`, `@shareable`, `@requires`, `@provides`, `@external`,
+`@tag`, `@inaccessible`, `@listSize`, `@cost`); for any other directive the
+compose layer is the check.
 
 Measured at `federation_version` 2.15.2 with Apollo Router 2.17.0 and no
 license: `@inaccessible`, `@listSize` and `@cost` compose, and the router
@@ -137,6 +138,20 @@ features not available for your license").
 The connector-side list is Apollo's
 [limitations](https://www.apollographql.com/docs/graphos/connectors/reference/limitations).
 
+## `@tag` and contracts
+
+`@tag` is permitted, and off by default: it exists for
+[GraphOS Contracts](https://www.apollographql.com/docs/graphos/platform/schema-management/delivery/contracts/overview),
+which include or exclude types and fields by tag name. Apply it only when
+the user's supergraph uses contracts, with the names their contracts
+already filter on, and record that as a decision. Never invent a tag: this
+target imposes no tag names, so `unknown-tag` never fires, and a schema
+that applies `@tag` imports it in the federation `@link` like any other
+directive (`federation-drift` reports one applied without the import). The
+choice is recorded in `selection.yaml` as the operation's `tags:` list,
+and `reconcile` checks that list against the field's `@tag(name:)`
+directives, so the two change together.
+
 ## Open
 
 These are not answered yet. Do not promise them to the user and do not fake
@@ -166,6 +181,5 @@ them.
   unmodelled, not forbidden. Modelling it would change the workspace's
   single `source` entry, the per-source variables and credential, and the
   fixtures that name a source.
-- **The import list and the federation version.** Whether lint should check
-  imports beyond the five above, and whether the pin should follow the
-  user's graph instead of `init`'s default.
+- **The federation version.** Whether the pin should follow the user's
+  graph instead of `init`'s default.

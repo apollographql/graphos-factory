@@ -30,7 +30,7 @@ knows, so `tests/live.yaml` asserts values, not just shape (D-0001, D-0008).
 | `gitea_currentUser` | `GET /user` |
 | `gitea_user(username)` | `GET /users/{username}` |
 
-| Mutation (`@tag(name: "write")`) | Source |
+| Mutation | Source |
 |---|---|
 | `gitea_createIssue(owner, repo, title, body, assignees, labels, milestone, dueDate, ref, closed)` | `POST /repos/{owner}/{repo}/issues` |
 
@@ -93,16 +93,16 @@ knows, so `tests/live.yaml` asserts values, not just shape (D-0001, D-0008).
   `type` (curated doc comments kept); `createIssue`'s `labels` and
   `milestone`, whose source text only restates `[ID!]` and `ID`; and `title`,
   `body`, `assignees` and `ref`, which have no source text.
-- **One relationship field** (D-0017, ADR 0089):
+- **One relationship field** (D-0017):
   `Gitea_RepositoryMeta.ownerUser` follows an issue's `repository.owner`
   login to `GET /users/{username}` through a field-level `@connect` keyed by
   `$this.owner` — one request per issue that selects it, the same token as
   `gitea_user`. It is the repository's CI proof that a link field runs
   through unit, e2e and live. `owner` is nullable, so the field carries the
-  null guard `links apply --dry-run` prints (ADR 0084), and a second e2e
+  null guard `links apply --dry-run` prints, and a second e2e
   case gives it an owner-less parent. No inventory fact backs the link:
   the old hint pointed at `GET /packages/{owner}`, a list of packages, and
-  since ADR 0085 `inventory links` refuses `GET /users/{username}` because
+  `inventory links` now refuses `GET /users/{username}` because
   Gitea's User spells the key `login` (D-0018). `Organization > username`
   is declined.
 - **Live runs everything** (D-0008): nine cases, no exclusions — every
