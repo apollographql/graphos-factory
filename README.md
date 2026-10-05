@@ -38,8 +38,9 @@ build it from source instead, run
 ## This repository is a mirror
 
 Each commit here is a snapshot published from a private development
-repository; `SOURCE_COMMIT` names the commit it came from. History is not
-kept, and nothing pushed here by hand survives the next snapshot.
+repository; `SOURCE_COMMIT` names the commit it came from. Each snapshot is
+added on top of the last, so a commit's diff is what changed upstream since
+the previous one. Only the sync pushes here.
 
 Issues are welcome. Pull requests are closed without review, because a
 change has to land upstream to reach the next snapshot; open an issue that

@@ -1,9 +1,10 @@
 # CLAUDE.md
 
 This repository is a push-only mirror. Every commit is a snapshot published
-from a private development repository (`SOURCE_COMMIT` names it), and the
-next snapshot replaces the whole history. A change made here does not
-survive; report it as an issue instead.
+from a private development repository (`SOURCE_COMMIT` names it), added on
+top of the previous one; a commit's diff is what changed upstream. Only the
+sync pushes here, so a change made here cannot land; report it as an issue
+instead.
 
 ## Layout
 
