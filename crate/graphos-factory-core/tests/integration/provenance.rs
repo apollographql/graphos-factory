@@ -821,6 +821,24 @@ fn the_graphos_factory_core_variable_names_are_read_and_recorded_as_read() {
     );
 }
 
+/// Runs `cmd`, retrying while exec fails with ETXTBSY. On Linux a binary
+/// just written by `fs::copy` cannot be exec'd while any process holds a
+/// write descriptor to it, and a child another test thread forks while the
+/// copy is open inherits that descriptor until it execs itself
+/// (rust-lang/rust#114554). The window is short, so a few retries close it.
+fn output_retrying_busy(cmd: &mut Command) -> std::process::Output {
+    let mut attempt = 0;
+    loop {
+        match cmd.output() {
+            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempt < 50 => {
+                attempt += 1;
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            result => return result.unwrap(),
+        }
+    }
+}
+
 /// The recorded writer is the constant its composition root names (here
 /// `graphos-factory-bare`), never argv[0]: a copy of the binary invoked under
 /// another file name (the `graphos-factory-core` link every product installs,
@@ -837,13 +855,13 @@ fn a_binary_invoked_under_another_name_still_records_its_own() {
     let link = bins.path().join("graphos-factory-core");
     std::os::unix::fs::symlink(&copy, &link).unwrap();
     for bin in [&copy, &link] {
-        let out = Command::new(bin)
-            .current_dir(ws)
-            .args(["lock", ws, "--model", "m-1"])
-            .env_remove("GRAPHOS_FACTORY_CORE_SCRIPTS")
-            .env_remove("GRAPHOS_FACTORY_CORE_SKILL_ROOT")
-            .output()
-            .unwrap();
+        let out = output_retrying_busy(
+            Command::new(bin)
+                .current_dir(ws)
+                .args(["lock", ws, "--model", "m-1"])
+                .env_remove("GRAPHOS_FACTORY_CORE_SCRIPTS")
+                .env_remove("GRAPHOS_FACTORY_CORE_SKILL_ROOT"),
+        );
         assert!(
             out.status.success(),
             "{}",
