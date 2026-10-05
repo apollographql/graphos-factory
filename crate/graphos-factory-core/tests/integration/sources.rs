@@ -126,11 +126,10 @@ fn prose(dir: &Path, id: &str) -> String {
     )
 }
 
+/// The findings as every reader sees them: `findings.json`'s, then the ones
+/// added since ADR 0118, one file each under `.factory/findings/`.
 fn findings_doc(dir: &Path) -> Value {
-    match std::fs::read_to_string(dir.join(".factory/findings.json")) {
-        Ok(t) => graphos_factory_core::json::parse(&t).unwrap(),
-        Err(_) => graphos_factory_core::findings::empty(),
-    }
+    graphos_factory_core::findings::load(dir, None).unwrap()
 }
 
 fn finding_ids(dir: &Path) -> Vec<String> {
@@ -432,6 +431,7 @@ fn formatting_is_not_a_hand_edit_but_a_content_change_is_until_codified() {
     );
     assert_eq!(decision_ids(d), vec!["D-0001"], "no decision was appended");
     assert!(!d.join(".factory/findings.json").exists());
+    assert!(!d.join(".factory/findings").exists());
     assert_eq!(
         validate(
             &sources_lock(d),
@@ -1092,13 +1092,16 @@ fn force_replaces_the_baseline_only_with_a_reason_and_records_a_finding() {
         std::fs::read(d.join("openapi.json")).unwrap()
     );
     assert_eq!(decision_ids(d), vec!["D-0001"]);
-    assert!(has_decision(d, "F-0001"), "{}", all_prose(d));
-    let f = graphos_factory_core::findings::find(&findings_doc(d), "F-0001")
+    let ids = finding_ids(d);
+    assert_eq!(ids.len(), 1, "{}", all_prose(d));
+    let fid = ids[0].clone();
+    assert!(graphos_factory_core::record_log::is_random(&fid), "{}", fid);
+    let f = graphos_factory_core::findings::find(&findings_doc(d), &fid)
         .cloned()
         .unwrap();
     assert_eq!(f["source"], "sources");
     assert_eq!(f["related"], json!(["D-0001"]));
-    let decisions = prose(d, "F-0001");
+    let decisions = prose(d, &fid);
     assert!(
         decisions.contains("Upstream replaced: openapi.json"),
         "{}",
@@ -1115,6 +1118,88 @@ fn force_replaces_the_baseline_only_with_a_reason_and_records_a_finding() {
         "{:?}",
         rules(d)
     );
+}
+
+/// `pin --force` and `refresh` take `--decision` with a random id, a
+/// decision added since ADR 0118, as they take a numbered one: the
+/// decision is added, cited, and the finding each records relates to it.
+#[test]
+fn pin_force_and_refresh_cite_a_random_decision_id() {
+    let ws = workspace();
+    let d = ws.path();
+    assert_eq!(
+        cmd::decisions::main(&args(&[
+            "add",
+            d.to_str().unwrap(),
+            "--title",
+            "Follow the vendor's 2.0.0",
+            "--question",
+            "Move to 2.0.0?",
+        ])),
+        0
+    );
+    let log = graphos_factory_core::decisions::load(d, None).unwrap();
+    let decision = graphos_factory_core::json::get_arr(&log, "decisions")
+        .into_iter()
+        .flatten()
+        .filter_map(|r| r["id"].as_str())
+        .find(|id| graphos_factory_core::record_log::is_random(id))
+        .expect("the added decision has a random id")
+        .to_string();
+    assert_eq!(pin(d), 0);
+    let mut edited = spec();
+    edited["info"]["version"] = json!("2.0.0");
+    write(
+        d,
+        "openapi.json",
+        &graphos_factory_core::json::pretty(&edited),
+    );
+    assert_eq!(
+        cmd::sources::main(&args(&[
+            "pin",
+            d.to_str().unwrap(),
+            "--path",
+            "openapi.json",
+            "--force",
+            "--reason",
+            "vendor published 2.0.0; re-fetched",
+            "--decision",
+            &decision,
+        ])),
+        0
+    );
+    let related = |d: &Path| -> Vec<Value> {
+        findings_doc(d)["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| f["related"].clone())
+            .collect()
+    };
+    assert_eq!(related(d), vec![json!([decision])]);
+
+    edited["info"]["version"] = json!("2.1.0");
+    write(
+        d,
+        "vendor-2.1.0.json",
+        &graphos_factory_core::json::pretty(&edited),
+    );
+    assert_eq!(
+        cmd::sources::main(&args(&[
+            "refresh",
+            d.to_str().unwrap(),
+            "--path",
+            "openapi.json",
+            "--from",
+            d.join("vendor-2.1.0.json").to_str().unwrap(),
+            "--reason",
+            "vendor published 2.1.0",
+            "--decision",
+            &decision,
+        ])),
+        0
+    );
+    assert_eq!(related(d), vec![json!([decision]), json!([decision])]);
 }
 
 #[test]
@@ -1856,6 +1941,7 @@ fn a_partial_revert_drops_the_patch_and_writes_no_record() {
     assert_eq!(lock_check(d), 0);
     assert_eq!(read(d, ".factory/decisions.json"), decisions);
     assert!(!d.join(".factory/findings.json").exists());
+    assert!(!d.join(".factory/findings").exists());
 }
 
 #[test]

@@ -11,12 +11,55 @@
   ],
   "properties": {
     "contract_version": {
-      "const": 1
+      "description": "1 on disk, always: the single file holds the records written before ADR 0118 and never gains one. 2 only for the log as readers see it, the file's records with those added since, each its own $defs/file under the record directory (ADR 0118).",
+      "enum": [
+        1,
+        2
+      ]
     },
     "decisions": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/decision"
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "contract_version": {
+        "const": 1
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "decisions": {
+        "items": {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "slug"
+                ]
+              },
+              {
+                "required": [
+                  "after"
+                ]
+              },
+              {
+                "required": [
+                  "amends"
+                ]
+              },
+              {
+                "required": [
+                  "resolved_against"
+                ]
+              }
+            ]
+          }
+        }
       }
     }
   },
@@ -231,7 +274,20 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^D-[0-9]{4}$"
+          "pattern": "^D-([0-9]{4,}|[0-9a-z]{6})$"
+        },
+        "slug": {
+          "description": "The record file's name after its id (ADR 0118): lower-case letters and digits in hyphen-separated runs, at most 40 characters. Directory shape only.",
+          "allOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+            },
+            {
+              "type": "string",
+              "pattern": "^.{1,40}$"
+            }
+          ]
         },
         "title": {
           "type": "string",
@@ -307,6 +363,32 @@
           "items": {
             "$ref": "#/$defs/null_handling"
           }
+        },
+        "after": {
+          "description": "Decisions this one presumes (ADR 0118). Directory shape only.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^D-([0-9]{4,}|[0-9a-z]{6})$"
+          }
+        },
+        "amends": {
+          "description": "Decisions whose answer this one changes where their affects overlap; the amended record keeps its status (ADR 0118). Directory shape only.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^D-([0-9]{4,}|[0-9a-z]{6})$"
+          }
+        },
+        "resolved_against": {
+          "description": "At resolve, the applied lock's hash of every affects entry that is a lock key (ADR 0118). Directory shape only; nothing reads it yet.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "\\S"
+          }
         }
       },
       "if": {
@@ -320,6 +402,23 @@
         "required": [
           "resolution"
         ]
+      }
+    },
+    "file": {
+      "description": "One record file under .factory/decisions/ (ADR 0118): the record, beside its own contract version.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "decision"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": 2
+        },
+        "decision": {
+          "$ref": "#/$defs/decision"
+        }
       }
     }
   }

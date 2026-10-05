@@ -159,9 +159,9 @@ fn every_command_and_verb_answers_help_without_touching_the_workspace() {
             count += 1;
         }
     }
-    // The core's 27 commands and 27 verbs, each with both spellings; a
+    // The core's 27 commands and 28 verbs, each with both spellings; a
     // target's commands are its own suite's.
-    assert_eq!(count, 108);
+    assert_eq!(count, 110);
 }
 
 /// The flag wins wherever it appears, and with the flags that make a

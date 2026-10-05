@@ -227,6 +227,7 @@ fn codify_writes_the_override_the_decision_and_refreshes_the_lock() {
     assert_eq!(decision_ids(dir.path()), vec!["D-0001", "D-0002"]);
     assert_eq!(read(dir.path(), ".factory/decisions.json"), DECISIONS);
     assert!(!dir.path().join(".factory/findings.json").exists());
+    assert!(!dir.path().join(".factory/findings").exists());
 
     // After: no hand edit, the override holds, reconcile is clean apart from
     // the drift the engineer created on purpose.
@@ -438,10 +439,13 @@ fn codify_expressed_needs_the_selection_to_agree_and_drops_a_previous_override()
     // No override carries the context, so it is a finding (ADR 0113 §3);
     // no decision is written.
     assert_eq!(decision_ids(dir.path()), vec!["D-0001", "D-0002"]);
-    let findings =
-        graphos_factory_core::json::parse(&read(dir.path(), ".factory/findings.json")).unwrap();
+    // A new finding: a random id, in its own file (ADR 0118).
+    let findings = graphos_factory_core::findings::load(dir.path(), None).unwrap();
     let f = &findings["findings"][0];
-    assert_eq!(f["id"], "F-0001");
+    assert!(graphos_factory_core::record_log::is_random(
+        f["id"].as_str().unwrap()
+    ));
+    assert!(!dir.path().join(".factory/findings.json").exists());
     assert_eq!(f["source"], "codify");
     assert_eq!(f["status"], "current");
     assert_eq!(f["affects"], json!(["get:/widgets"]));
@@ -843,4 +847,112 @@ fn codify_refuses_a_splice_the_selection_schema_rejects() {
     assert_eq!(code, 2);
     assert_eq!(read(dir.path(), ".factory/selection.yaml"), invalid);
     assert_eq!(read(dir.path(), ".factory/applied.lock.yaml"), lock);
+}
+
+// ── a random decision id (ADR 0118) ────────────────────────────────────────
+
+/// `decisions add` beside the numbered `decisions.json`: the new record's
+/// random id, found by its title.
+fn add_random_decision(dir: &Path, title: &str) -> String {
+    let argv: Vec<String> = [
+        "add",
+        &dir.to_string_lossy(),
+        "--title",
+        title,
+        "--question",
+        "Accept it?",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    assert_eq!(graphos_factory_core::cmd::decisions::main(&argv), 0);
+    let doc = decisions::load(dir, None).unwrap();
+    let id = doc["decisions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["title"] == title)
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(graphos_factory_core::record_log::is_random(&id), "{}", id);
+    id
+}
+
+/// A decision added since ADR 0118 is cited exactly as a numbered one is:
+/// `--decision` on a waiver and on an override takes the random id, the
+/// selection schema accepts what codify wrote, and lint reads it back with
+/// no contract finding.
+#[test]
+fn codify_cites_a_random_decision_id_on_a_waiver_and_an_override() {
+    let dir = workspace_with_gap();
+    let id = add_random_decision(dir.path(), "Accept the undocumented 404");
+    let code = codify(
+        dir.path(),
+        &[
+            "--waive",
+            "tests/fixtures/mappings/widget_missing.json",
+            "--status",
+            "unchecked",
+            "--reason",
+            "Widget Co documents no 404 body.",
+            "--decision",
+            &id,
+        ],
+    );
+    assert_eq!(code, 0);
+    let parsed =
+        graphos_factory_core::yaml::parse(&read(dir.path(), ".factory/selection.yaml")).unwrap();
+    assert_eq!(parsed["waivers"][0]["decision"], id.as_str());
+
+    let dir = workspace(SDL, &untagged(), SELECTION);
+    let id = add_random_decision(dir.path(), "Tag the list internal");
+    let code = codify(
+        dir.path(),
+        &[
+            "--key",
+            "get:/widgets",
+            "--reason",
+            "User data is personal.",
+            "--assert",
+            "tag=internal",
+            "--decision",
+            &id,
+        ],
+    );
+    assert_eq!(code, 0);
+    let parsed =
+        graphos_factory_core::yaml::parse(&read(dir.path(), ".factory/selection.yaml")).unwrap();
+    assert_eq!(parsed["overrides"][0]["decision"], id.as_str());
+    let lint = graphos_factory_core::lint::lint_workspace(
+        dir.path(),
+        &graphos_factory_core::lint::LintOptions {
+            schemas_dir: None,
+            skip_evidence: true,
+            target: &graphos_factory_core::target::BARE,
+        },
+    );
+    let contract: Vec<_> = lint
+        .findings
+        .iter()
+        .filter(|f| f.rule == "contract" && f.message.starts_with(".factory/selection.yaml"))
+        .map(|f| f.message.clone())
+        .collect();
+    assert!(contract.is_empty(), "{:?}", contract);
+    // A malformed id is still a usage error.
+    let code = codify(
+        dir.path(),
+        &[
+            "--key",
+            "get:/widgets",
+            "--reason",
+            "x.",
+            "--assert",
+            "tag=internal",
+            "--decision",
+            "D-series1",
+        ],
+    );
+    assert_eq!(code, 1);
 }

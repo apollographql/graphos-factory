@@ -192,7 +192,7 @@ fn an_empty_suite_whose_header_cites_no_decision_fails() {
     let (code, out) = unit(&env, &[]);
     assert_eq!(code, 1, "{}", out);
     assert!(
-        out.contains("gitea.connector.yaml has no cases and its header's first sentence cites no decision (D-nnnn): the suite header gives no reason"),
+        out.contains("gitea.connector.yaml has no cases and its header's first sentence cites no decision (D-0019 or D-k7m2qx): the suite header gives no reason"),
         "{}",
         out
     );
@@ -208,7 +208,7 @@ fn an_empty_suite_whose_header_cites_no_decision_fails() {
     assert_eq!(code, 1, "{}", out);
     assert!(
         out.contains(
-            "cites no decision (D-nnnn): Asserts the OUTBOUND request each connector builds."
+            "cites no decision (D-0019 or D-k7m2qx): Asserts the OUTBOUND request each connector builds."
         ),
         "{}",
         out
@@ -232,6 +232,28 @@ fn a_decision_id_past_four_digits_and_a_crlf_header_are_read() {
         "{:?}",
         out
     );
+}
+
+#[test]
+fn a_random_decision_id_is_a_citation_and_a_near_miss_is_not() {
+    // ADR 0118: a decision added to a one-file-per-record log has a random
+    // six-character id, and an empty suite may cite it like a numbered one.
+    let body = EMPTY_SUITE.split_once("config:").unwrap().1;
+    let text = format!("# Deliberately empty (D-k7m2qx)\nconfig:{}", body);
+    let env = setup(Suite::Text(&text));
+    let (code, out) = unit(&env, &[]);
+    assert_eq!(code, 3, "{}", out);
+    assert!(
+        out.contains("gitea.connector.yaml: Deliberately empty (D-k7m2qx) (not_run)"),
+        "{:?}",
+        out
+    );
+    // Five characters is neither shape, so the suite cites nothing.
+    let text = format!("# Deliberately empty (D-k7m2q)\nconfig:{}", body);
+    let env = setup(Suite::Text(&text));
+    let (code, out) = unit(&env, &[]);
+    assert_eq!(code, 1, "{}", out);
+    assert!(out.contains("cites no decision"), "{}", out);
 }
 
 #[test]
@@ -305,7 +327,7 @@ fn an_empty_suite_beside_one_with_cases_must_cite_its_decision() {
     let (code, out) = unit(&env, &[]);
     assert_eq!(code, 1, "{}", out);
     assert!(
-        out.contains("aaa.connector.yaml has no cases and its header's first sentence cites no decision (D-nnnn)"),
+        out.contains("aaa.connector.yaml has no cases and its header's first sentence cites no decision (D-0019 or D-k7m2qx)"),
         "{}",
         out
     );
@@ -499,7 +521,7 @@ fn evidence_names_why_the_unit_layer_failed() {
     assert_eq!(layer["status"], "fail", "{}", layer);
     assert_eq!(
         layer["reason"],
-        "unit: FAIL — gitea.connector.yaml has no cases and its header's first sentence cites no decision (D-nnnn): the suite header gives no reason",
+        "unit: FAIL — gitea.connector.yaml has no cases and its header's first sentence cites no decision (D-0019 or D-k7m2qx): the suite header gives no reason",
         "{}",
         layer
     );

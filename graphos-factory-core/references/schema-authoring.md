@@ -1121,7 +1121,7 @@ now reads the path (for an `editorial` entry), or a refreshed source no
 longer offers the path or the operation. Such an entry is **stale**:
 `source-coverage` counts it per direction as `stale-omit N` (JSON
 `stale_omit`, only when nonzero), lists it after that direction's rows as
-`stale omit: D-nnnn omits `path` (direction) on OP, but …` (JSON
+`stale omit: D-id omits `path` (direction) on OP, but …` (JSON
 `stale_omits`: `decision`, `operation`, `direction`, `path`, `why` —
 `mapped`, `consumed`, `not-offered` or `no-operation` — `message`, `fix`),
 and with no OP-KEY lists every stale entry in the workspace, on any
@@ -1129,9 +1129,9 @@ operation, selected or not. It is **not part of the bar**: a stale entry
 leaves no offered path unaccounted, so `--check` does not fail on it.
 `lint` warns `stale-omit` on each, naming the decision and the row. Fix it
 through the log, never by hand: `graphos-factory-core decisions supersede .
---id D-nnnn`, then record any of its omits that still apply on a new
+--id D-id`, then record any of its omits that still apply on a new
 resolved decision (for a finding, `graphos-factory-core findings supersede .
---id F-nnnn` and a new finding). An entry is only reported when staleness is known: a
+--id F-id` and a new finding). An entry is only reported when staleness is known: a
 row it covers that is `unresolved` or `unverified-default` counts as
 needing it.
 

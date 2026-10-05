@@ -319,13 +319,17 @@ pub fn main(argv: &[String]) -> i32 {
             for d in &drift {
                 println!(
                     "  {} {}   ({}{})",
-                    if d.change == "missing" { "-" } else { "~" },
+                    match d.change {
+                        "missing" => "-",
+                        "added" => "+",
+                        _ => "~",
+                    },
                     d.path,
                     d.section,
-                    if d.change == "missing" {
-                        ", missing"
-                    } else {
-                        ""
+                    match d.change {
+                        "missing" => ", missing",
+                        "added" => ", added since the lock",
+                        _ => "",
                     }
                 );
             }

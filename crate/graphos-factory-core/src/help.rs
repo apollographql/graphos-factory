@@ -25,24 +25,25 @@ pub const USAGE: &str = "usage: graphos-factory-core <command> [args]
              build <document> [--out F] [--force]      --force overwrites an inventory that changed since applied.lock.yaml
   context    check [workspace] [--phase build|live] [--json]   assess declared customer-context requirements before authoring
              capture [workspace] (--requirement ID|--input) --id ID --from FILE --representation raw|derived|transcribed …   preserve an exact local artifact; no network or credentials
-  decisions  list [workspace] [--open] [--json]                the decision log: judgement calls recorded and open questions awaiting the user
+  decisions  list [workspace] [--open] [--causal] [--json]     the decision log: judgement calls recorded and open questions awaiting the user
              add [workspace] --title T (--question Q | --choice id:label --choice id:label…) [--multiple] [--resolved --chosen id --note TEXT --decision TEXT [--by user|agent]] [--omit operation|direction|path|reason]…   a record with no question and fewer than two choices is refused (no-alternative, ADR 0113)
-             resolve [workspace] --id D-nnnn [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
-             reopen [workspace] --id D-nnnn [--json]           clear a resolved or superseded decision's answer so it can be resolved again
-             supersede [workspace] --id D-nnnn [--json]        mark a resolved decision replaced: its answer is kept, its omits stop counting
+             resolve [workspace] --id D-id [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
+             reopen [workspace] --id D-id [--json]           clear a resolved or superseded decision's answer so it can be resolved again
+             supersede [workspace] --id D-id [--json]        mark a resolved decision replaced: its answer is kept, its omits stop counting
+             link [workspace] --id D-id (--after D-id | --amends D-id)… [--json]   edges on a decision recorded since ADR 0118
              migrate [workspace] [--keep-md] [--force] [--dry-run] [--json]   import a legacy .factory/decisions.md into decisions.json
              migrate [workspace] --split [--sorted FILE] [--dry-run] [--json]   ADR 0113: provenance onto its entries, facts to findings.json, the hand-sorted rest per FILE
   findings   list [workspace] [--json]                 facts a reference, an ADR or the wire settled, read by the instruments that read omits and affects (ADR 0113)
-             add [workspace] --title T --body TEXT [--cites C] [--source agent|codify|sources] [--affects P]… [--omit operation|direction|path|reason]… [--evidence E]… [--related D-nnnn|F-nnnn]… [--json]   --omit refuses editorial
-             supersede [workspace] --id F-nnnn [--json]        a later finding replaced it: its omits and affects stop counting
+             add [workspace] --title T --body TEXT [--cites C] [--source agent|codify|sources] [--affects P]… [--omit operation|direction|path|reason]… [--evidence E]… [--related D-id|F-id]… [--json]   --omit refuses editorial
+             supersede [workspace] --id F-id [--json]        a later finding replaced it: its omits and affects stop counting
   lint       [workspace] [--json] [--warnings-as-errors] [--skip-evidence]
   reconcile  [workspace] [--json] [--baseline <git-rev>]  schema <-> selection <-> inventory delta; overrides; hand edits
   lock       [workspace] [--check [--provenance]] [--json] [--skill-dir DIR] [--model MODEL]   record applied state plus authoring provenance
-  codify     [workspace] --key K --reason R [--assert kind=value]… [--decision D-nnnn] [--context TEXT] [--expressed] [--model MODEL]   --context lands on the override; with --expressed, a finding
-             [workspace] --source PATH --reason R [--decision D-nnnn] [--context TEXT] [--model MODEL]   a hand edit to a pinned spec -> patches[]
-             [workspace] --waive TARGET --status unchecked|unmatched --reason R [--decision D-nnnn] [--context TEXT]   a conformance gap -> waivers[]
-  sources    pin [workspace] --path SPEC [--url U] [--retrieved-at T] [--force --reason R [--decision D-nnnn]] [--json] [--model MODEL] · status [workspace] [--json]
-             refresh [workspace] --path SPEC --from FILE --reason R [--decision D-nnnn] [--url U] [--retrieved-at T] [--dry-run] [--json] [--model MODEL]   a new vendor document: re-apply patches[], rebuild + diff the inventory; both record a finding
+  codify     [workspace] --key K --reason R [--assert kind=value]… [--decision D-id] [--context TEXT] [--expressed] [--model MODEL]   --context lands on the override; with --expressed, a finding
+             [workspace] --source PATH --reason R [--decision D-id] [--context TEXT] [--model MODEL]   a hand edit to a pinned spec -> patches[]
+             [workspace] --waive TARGET --status unchecked|unmatched --reason R [--decision D-id] [--context TEXT]   a conformance gap -> waivers[]
+  sources    pin [workspace] --path SPEC [--url U] [--retrieved-at T] [--force --reason R [--decision D-id]] [--json] [--model MODEL] · status [workspace] [--json]
+             refresh [workspace] --path SPEC --from FILE --reason R [--decision D-id] [--url U] [--retrieved-at T] [--dry-run] [--json] [--model MODEL]   a new vendor document: re-apply patches[], rebuild + diff the inventory; both record a finding
   source-coverage [workspace] [OP-KEY] [--json] [--check]   every request-body and response path the source offers, classified: covered by the schema, or a decision says why not; --check fails on unaccounted, unresolved, unverified-default, transport-expansion-missing or an unaccounted behaviour fact; no OP-KEY: every selected operation, one counts line each
   spans      obligations …                             the old spelling of source-coverage; still runs
              json-accounting [workspace] [--json] [--check]   every response field still typed as the JSON scalar, matched against a resolved json_reasons decision (ADR 0073)
@@ -121,7 +122,15 @@ pub const VERBS: &[(&str, &[&str])] = &[
     ("context", &["check", "capture"]),
     (
         "decisions",
-        &["list", "add", "resolve", "reopen", "supersede", "migrate"],
+        &[
+            "list",
+            "add",
+            "resolve",
+            "reopen",
+            "supersede",
+            "link",
+            "migrate",
+        ],
     ),
     ("findings", &["list", "add", "supersede"]),
     ("sources", &["pin", "status", "refresh"]),

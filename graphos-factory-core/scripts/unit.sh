@@ -23,8 +23,8 @@
 # included; a suite rover lists that unit.sh cannot match to a file, or the
 # reverse, fails the run. Every suite that ran no case must cite, in the
 # first sentence of its header comment, the decision behind it (a D-nnnn
-# id from decisions.json), or the run fails (exit 1), the way live.sh
-# fails an exclusion with no reason. When no suite ran a
+# or random D-k7m2qx id from the decision log), or the run fails (exit
+# 1), the way live.sh fails an exclusion with no reason. When no suite ran a
 # case, the run exits 3 (not_run) with "unit: no runnable cases:" and each
 # suite's sentence; when others did, it passes and names the empty ones. A
 # `skip: true` case is not a pass either: any skipped count fails. A missing
@@ -223,8 +223,8 @@ while IFS=$'\t' read -r n path; do
   # The reason is only as good as the decision it cites: without one, an
   # empty suite (or a header that says nothing about it) would clear the
   # publication gate on the fallback text alone.
-  if ! grep -Eq '(^|[^[:alnum:]])D-[0-9]{4,}([^[:alnum:]]|$)' <<<"$reason"; then
-    echo "unit: FAIL — $rel has no cases and its header's first sentence cites no decision (D-nnnn): $reason" >&2
+  if ! grep -Eq '(^|[^[:alnum:]])D-([0-9]{4,}|[0-9a-z]{6})([^[:alnum:]]|$)' <<<"$reason"; then
+    echo "unit: FAIL — $rel has no cases and its header's first sentence cites no decision (D-0019 or D-k7m2qx): $reason" >&2
     uncited=$((uncited + 1))
   fi
   reasons="${reasons:+$reasons; }$rel: $reason"

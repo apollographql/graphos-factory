@@ -1,13 +1,13 @@
 //! sources — pin the description documents a workspace is built from.
 //!
-//!   sources pin [workspace-dir] --path <spec> [--url URL] [--retrieved-at T] [--force --reason R [--decision D-nnnn]] [--json] [--model MODEL]
+//!   sources pin [workspace-dir] --path <spec> [--url URL] [--retrieved-at T] [--force --reason R [--decision D-id]] [--json] [--model MODEL]
 //!   sources status [workspace-dir] [--json]   (--json: {"sources": [...], "unpinned": [...], "recorded": [...]})
-//!   sources refresh [workspace-dir] --path <spec> --from <file> --reason R [--decision D-nnnn] [--url URL] [--retrieved-at T] [--dry-run] [--json] [--model MODEL]
+//!   sources refresh [workspace-dir] --path <spec> --from <file> --reason R [--decision D-id] [--url URL] [--retrieved-at T] [--dry-run] [--json] [--model MODEL]
 //!
 //! `pin` keeps the vendor's bytes as `.factory/sources/<name>.upstream.<ext>`
 //! (copied from the working copy the first time, or with --force, which
 //! replaces the vendor baseline and therefore needs a --reason: it records a
-//! finding in findings.json with both hashes — `source: sources`, `related`
+//! finding in the findings log with both hashes — `source: sources`, `related`
 //! naming `--decision` when given (ADR 0113 §3) — and refreshes retrieved_at), detects
 //! the document's kind (openapi / swagger) and version, records kind,
 //! version, upstream and upstream_sha256 on the matching sources.lock.yaml
@@ -27,7 +27,7 @@
 //! curl or the browser), makes it the upstream copy, replays the entry's
 //! `patches[]` over it (crate::refresh: each one re-applied, obsolete or in
 //! conflict), writes the working copy from the result, keeps only the
-//! re-applied patches on the entry, records a finding in findings.json with
+//! re-applied patches on the entry, records a finding in the findings log with
 //! both hashes, the origin and every patch's fate (`source: sources`,
 //! `related` naming `--decision` when given), acknowledges the new working copy in
 //! applied.lock.yaml, and — when `.factory/inventory.json` exists — rebuilds
@@ -50,7 +50,7 @@ use serde_json::Value;
 use std::path::Path;
 
 /// The usage text: `sources --help` prints it on stdout (ADR 0086).
-pub const USAGE: &str = "usage: sources pin [workspace] --path <spec> [--url URL] [--retrieved-at T] [--force --reason R [--decision D-nnnn]] [--json] [--model MODEL]\n       sources status [workspace] [--json]\n       sources refresh [workspace] --path <spec> --from <file> --reason R [--decision D-nnnn] [--url URL] [--retrieved-at T] [--dry-run] [--json] [--model MODEL]\n  pin --force and refresh record a finding (findings.json, source: sources); --decision names a decision it relates to";
+pub const USAGE: &str = "usage: sources pin [workspace] --path <spec> [--url URL] [--retrieved-at T] [--force --reason R [--decision D-id]] [--json] [--model MODEL]\n       sources status [workspace] [--json]\n       sources refresh [workspace] --path <spec> --from <file> --reason R [--decision D-id] [--url URL] [--retrieved-at T] [--dry-run] [--json] [--model MODEL]\n  pin --force and refresh record a finding (the findings log, source: sources); --decision names a decision it relates to";
 
 fn usage(msg: &str) -> i32 {
     eprintln!("sources: {}", msg);
@@ -77,13 +77,16 @@ pub const PIN_FLAGS: Flags = Flags {
     valued: &["path", "url", "retrieved-at", "reason", "model", "decision"],
 };
 
-/// `--decision D-nnnn` on `pin --force` and `refresh`: the decision the
-/// finding relates to. `Err` is the usage message for a malformed id.
+/// `--decision D-id` (numbered or random) on `pin --force` and `refresh`:
+/// the decision the finding relates to. `Err` is the usage message for a malformed id.
 fn related_decision(args: &Args) -> Result<Vec<String>, String> {
     match args.get("decision") {
         None => Ok(Vec::new()),
-        Some(d) if regex::Regex::new(r"^D-\d{4}$").unwrap().is_match(d) => Ok(vec![d.to_string()]),
-        Some(d) => Err(format!("--decision must look like D-0019, got {:?}", d)),
+        Some(d) if crate::record_log::is_decision_id(d) => Ok(vec![d.to_string()]),
+        Some(d) => Err(format!(
+            "--decision must look like D-0019 or D-k7m2qx, got {:?}",
+            d
+        )),
     }
 }
 
@@ -1084,7 +1087,7 @@ fn refresh(argv: &[String]) -> i32 {
             return 2;
         }
     };
-    let finding_id = crate::findings::next_id(&findings_doc);
+    let finding_id = crate::findings::new_id(&findings_doc);
     // The document's origin, as a committed file should record it: the URL
     // when given, else the fetched file's name — never a local path.
     let from_label = url.clone().unwrap_or_else(|| {
@@ -1143,7 +1146,7 @@ fn refresh(argv: &[String]) -> i32 {
         upstream_rel.as_str(),
         rel.as_str(),
         SOURCES_LOCK,
-        crate::findings::FILE,
+        crate::record_log::FINDINGS.dir,
     ];
     let applied_exists = dir.join(crate::spans::LOCK_FILE).exists();
     if previous_inventory.is_some() {
@@ -1218,13 +1221,14 @@ fn refresh(argv: &[String]) -> i32 {
             );
         }
         written.push(SOURCES_LOCK);
-        if let Err(e) = crate::findings::add(&mut findings_doc, finding_record) {
+        if let Err(e) = crate::findings::add_with_id(&mut findings_doc, &finding_id, finding_record)
+        {
             return incomplete(&written, "the finding could not be recorded", &e);
         }
         if let Err(e) = crate::findings::save(&dir, &findings_doc, None) {
-            return incomplete(&written, "findings.json could not be written", &e);
+            return incomplete(&written, "the finding could not be written", &e);
         }
-        written.push(crate::findings::FILE);
+        written.push(crate::record_log::FINDINGS.dir);
         if let Some(before) = &previous_inventory {
             // The same inventory, now with the patch marks the files on disk
             // let the builder see; the pre-built one stands in if that
@@ -1347,9 +1351,12 @@ fn refresh(argv: &[String]) -> i32 {
         kind,
         version,
         if dry_run {
-            format!("; would record {} in findings.json", finding_id)
+            format!(
+                "; would record a finding ({} here; the real run draws its own id)",
+                finding_id
+            )
         } else {
-            format!("; {} recorded in findings.json", finding_id)
+            format!("; finding {} recorded", finding_id)
         }
     );
     println!(

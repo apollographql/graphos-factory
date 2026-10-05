@@ -28,15 +28,20 @@ fn sf(args: &[&str]) -> (i32, String, String) {
     )
 }
 
+/// The findings as every reader sees them: `findings.json`'s, then those
+/// added since ADR 0118, one file each under `.factory/findings/`.
 fn read_doc(dir: &Path) -> Value {
-    graphos_factory_core::json::parse(
-        &std::fs::read_to_string(dir.join(".factory/findings.json")).unwrap(),
-    )
-    .unwrap()
+    graphos_factory_core::findings::load(dir, None).unwrap()
+}
+
+/// A refused verb recorded nothing: no `findings.json`, no record file.
+fn assert_nothing_recorded(dir: &Path) {
+    assert!(!dir.join(".factory/findings.json").exists());
+    assert!(!dir.join(".factory/findings").exists());
 }
 
 #[test]
-fn add_records_every_field_with_sequential_ids_and_supersede_flips_only_the_status() {
+fn add_records_every_field_with_random_ids_and_supersede_flips_only_the_status() {
     let dir = TempDir::new().unwrap();
     let d = dir.path();
     assert_eq!(
@@ -82,13 +87,33 @@ fn add_records_every_field_with_sequential_ids_and_supersede_flips_only_the_stat
         0
     );
     let doc = read_doc(d);
-    assert_eq!(doc["contract_version"], 1);
     let recs = doc["findings"].as_array().unwrap();
     assert_eq!(recs.len(), 2);
+    let first_i = recs
+        .iter()
+        .position(|r| r["title"] == "errors[] and success are consumed by the error mapping")
+        .unwrap();
+    let second = &recs[1 - first_i];
+    let first_id = recs[first_i]["id"].as_str().unwrap().to_string();
+    // A new finding's id is random (ADR 0118), and it lives in its own file.
+    assert!(
+        graphos_factory_core::record_log::is_random(&first_id),
+        "{}",
+        first_id
+    );
+    assert!(!d.join(".factory/findings.json").exists());
+    assert!(d
+        .join(".factory/findings")
+        .join(format!(
+            "{}-errors-and-success-are-consumed-by-the.json",
+            first_id
+        ))
+        .exists());
     assert_eq!(
-        recs[0],
+        recs[first_i],
         json!({
-            "id": "F-0001",
+            "id": first_id,
+            "slug": "errors-and-success-are-consumed-by-the",
             "title": "errors[] and success are consumed by the error mapping",
             "date": "2026-10-01",
             "status": "current",
@@ -104,11 +129,11 @@ fn add_records_every_field_with_sequential_ids_and_supersede_flips_only_the_stat
             "related": ["D-0001"]
         })
     );
-    assert_eq!(recs[1]["id"], "F-0002");
-    assert_eq!(recs[1]["source"], "agent");
+    assert_ne!(second["id"], first_id.as_str());
+    assert_eq!(second["source"], "agent");
     // No question, choices or resolution: a finding has no alternative.
     for k in ["question", "choices", "resolution"] {
-        assert!(recs[1].get(k).is_none(), "{}", k);
+        assert!(second.get(k).is_none(), "{}", k);
     }
 
     let (code, stdout, _) = sf(&["findings", "list", d.to_str().unwrap(), "--json"]);
@@ -122,7 +147,7 @@ fn add_records_every_field_with_sequential_ids_and_supersede_flips_only_the_stat
         "supersede",
         d.to_str().unwrap(),
         "--id",
-        "F-0001",
+        &first_id,
         "--json",
     ]);
     assert_eq!(code, 0);
@@ -130,12 +155,12 @@ fn add_records_every_field_with_sequential_ids_and_supersede_flips_only_the_stat
     assert_eq!(out["status"], "superseded");
     let after = read_doc(d);
     let mut expected = before.clone();
-    expected["findings"][0]["status"] = json!("superseded");
+    expected["findings"][first_i]["status"] = json!("superseded");
     assert_eq!(after, expected, "only the status changes");
 
     // Again: already superseded; an unknown id: unknown-finding.
     for (id, code_name) in [
-        ("F-0001", "already-superseded"),
+        (first_id.as_str(), "already-superseded"),
         ("F-0099", "unknown-finding"),
     ] {
         let (code, stdout, _) = sf(&[
@@ -174,7 +199,7 @@ fn add_refuses_an_editorial_omit_and_writes_nothing() {
     let out: Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(out["code"], "editorial-omit");
     assert!(stderr.contains("lives only on a decision"), "{}", stderr);
-    assert!(!d.join(".factory/findings.json").exists());
+    assert_nothing_recorded(d);
     // The direction's vocabulary still holds: consumed is a wire reason,
     // not-applicable a behaviour one.
     for spec in [
@@ -190,7 +215,7 @@ fn add_refuses_an_editorial_omit_and_writes_nothing() {
             spec
         );
     }
-    assert!(!d.join(".factory/findings.json").exists());
+    assert_nothing_recorded(d);
 }
 
 #[test]
@@ -213,7 +238,7 @@ fn add_needs_a_title_a_body_and_a_known_source() {
         ),
         1
     );
-    assert!(!d.join(".factory/findings.json").exists());
+    assert_nothing_recorded(d);
     assert_eq!(
         findings(
             d,
@@ -289,4 +314,78 @@ fn the_union_reads_a_current_finding_as_resolved_and_a_superseded_one_as_superse
     assert_eq!(recs[1]["resolution"]["decision"], "b1");
     assert_eq!(recs[1]["affects"], json!(["T.f"]));
     assert_eq!(recs[2]["status"], "superseded");
+}
+
+/// `--related` cites a record added since ADR 0118 by its random id, a
+/// decision's or a finding's, as it cites a numbered one: the record is
+/// added, then cited, and the citation is what the new finding carries.
+#[test]
+fn related_cites_a_random_decision_and_a_random_finding() {
+    let dir = TempDir::new().unwrap();
+    let d = dir.path();
+    let argv: Vec<String> = [
+        "add",
+        &d.to_string_lossy(),
+        "--title",
+        "Paginate by cursor",
+        "--question",
+        "Which way?",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    assert_eq!(graphos_factory_core::cmd::decisions::main(&argv), 0);
+    let decision = graphos_factory_core::decisions::load(d, None).unwrap()["decisions"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(findings(d, &["add", "--title", "First", "--body", "b."]), 0);
+    let finding = read_doc(d)["findings"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    for id in [&decision, &finding] {
+        assert!(graphos_factory_core::record_log::is_random(id), "{}", id);
+    }
+    assert_eq!(
+        findings(
+            d,
+            &[
+                "add",
+                "--title",
+                "Second",
+                "--body",
+                "b.",
+                "--related",
+                &decision,
+                "--related",
+                &finding,
+            ]
+        ),
+        0
+    );
+    let doc = read_doc(d);
+    let second = doc["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["title"] == "Second")
+        .unwrap();
+    assert_eq!(second["related"], json!([decision, finding]));
+    // Six characters of the wrong shape are still refused.
+    assert_eq!(
+        findings(
+            d,
+            &[
+                "add",
+                "--title",
+                "t",
+                "--body",
+                "b",
+                "--related",
+                "D-K7M2QX"
+            ]
+        ),
+        1
+    );
 }

@@ -55,6 +55,17 @@ fn snapshot(dir: &Path) -> Result<(Value, Value), String> {
             content.map(Value::String).unwrap_or(Value::Null),
         );
     }
+    // Each decision or finding record file (ADR 0118) binds the review, as
+    // `decisions.json` does.
+    for rel in crate::record_log::record_paths(&root)? {
+        let content = crate::factory_io::read_to_string(&root, &rel).map_err(String::from)?;
+        let name = rel.trim_start_matches(".factory/").to_string();
+        hashes.insert(
+            name.clone(),
+            Value::String(crate::spans::sha256_hex(&content)),
+        );
+        contents.insert(name, Value::String(content));
+    }
     for name in ["workspace.yaml", "inventory.json"] {
         if contents[name].is_null() {
             return Err(format!("missing .factory/{name}"));

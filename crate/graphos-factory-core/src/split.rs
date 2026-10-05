@@ -772,7 +772,7 @@ pub fn plan(
         };
         let entry = sorted.and_then(|s| get(s, &id));
         let mut add_finding = |new: NewFinding, outcome: &mut Outcome| -> Result<(), Refusal> {
-            let fid = crate::findings::add(&mut findings, new)
+            let fid = crate::findings::add_numbered(&mut findings, new)
                 .map_err(|e| invalid(format!("{}: {}", id, e)))?;
             outcome.outcome = "finding";
             outcome.finding = Some(fid);
@@ -1067,9 +1067,11 @@ pub fn write(dir: &Path, plan: &Plan, schemas_dir: Option<&Path>) -> Result<(), 
             )
         }
     };
-    crate::findings::save(dir, &plan.findings, schemas_dir).map_err(|e| fail(&written, e))?;
+    crate::findings::save_single(dir, &plan.findings, schemas_dir)
+        .map_err(|e| fail(&written, e))?;
     written.push(crate::findings::FILE);
-    crate::decisions::save(dir, &plan.decisions, schemas_dir).map_err(|e| fail(&written, e))?;
+    crate::decisions::save_single(dir, &plan.decisions, schemas_dir)
+        .map_err(|e| fail(&written, e))?;
     written.push(crate::decisions::FILE);
     if let Some(t) = &plan.selection {
         crate::factory_io::write_in_place(dir, SELECTION, t.as_bytes())

@@ -452,7 +452,7 @@ kind. Four of them only the authored schema can tell you:
   (`Amazon_AmazonProductsByProductIdResponseVariationsItem`). A split is an
   authoring decision, not a `links apply` output: record it (`decide:`,
   `graphos-factory-core decisions add …` with declining the link as its
-  alternative, D-nnnn; it overrides any shared-type decision), paste the field by hand, and give it its own unit entry, e2e
+  alternative, D-id; it overrides any shared-type decision), paste the field by hand, and give it its own unit entry, e2e
   case, null-parent case and live case. Until those exist it is not
   validated. Otherwise decline the link (`include: false` with a
   `reason`).
@@ -512,7 +512,7 @@ A stale link **raises a decision** (ADR 0113): an open record for the
 field with the refusal reason as its `context`, choices `keep` and `drop`,
 and `affects: [Type.field]`. Reconcile and lint print the exact `decisions
 add` command in their fix text; run it, name the record on the entry
-(`decision: D-nnnn`), and settle it with the user (in the desktop panel the
+(`decision: D-k7m2qx`, the id `add` printed), and settle it with the user (in the desktop panel the
 open record is what `decision_ask` surfaces). While it is open the entry
 stays drift, lint keeps reporting it and `links apply` keeps refusing it.
 Then:

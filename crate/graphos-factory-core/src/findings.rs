@@ -63,7 +63,7 @@ pub fn check_omit(direction: &str, reason: &str) -> Result<(), String> {
     crate::decisions::check_omit_vocabulary(direction, reason)
 }
 
-/// An empty file, stamped with the current contract version.
+/// An empty log.
 pub fn empty() -> Value {
     json::object(vec![
         ("contract_version", Value::from(1)),
@@ -71,51 +71,42 @@ pub fn empty() -> Value {
     ])
 }
 
-fn schema_errors(value: &Value, schemas_dir: Option<&Path>) -> Vec<String> {
-    match crate::schemas::load("findings.schema.json", schemas_dir) {
-        Some(schema) => crate::jsonschema::validate(value, &schema),
-        None => vec!["cannot load findings.schema.json".into()],
-    }
-}
-
-/// Read the file, or an empty one when it is absent. Present but invalid is
-/// an error, never a silent reset.
+/// Read the log, or an empty one when there is none: `findings.json`'s
+/// findings, then `.factory/findings/`'s (ADR 0118). Present but invalid is an error, never a
+/// silent reset.
 pub fn load(dir: &Path, schemas_dir: Option<&Path>) -> Result<Value, String> {
     Ok(load_present(dir, schemas_dir)?.unwrap_or_else(empty))
 }
 
-/// Read the file, or `None` when it is absent.
+/// Read the log, or `None` when there is neither a `findings.json` nor a
+/// `.factory/findings/`. Every read goes through custody, so a symlinked file is
+/// refused rather than read through (ADR 0025).
 pub fn load_present(dir: &Path, schemas_dir: Option<&Path>) -> Result<Option<Value>, String> {
-    // `.factory/` — custody's, so a symlinked file is refused rather than
-    // read through (ADR 0025).
-    let text = match crate::factory_io::read_to_string_optional(dir, FILE)? {
-        Some(text) => text,
-        None => return Ok(None),
-    };
-    let value = json::parse(&text).map_err(|e| format!("{}: {}", FILE, e))?;
-    let errors = schema_errors(&value, schemas_dir);
-    if !errors.is_empty() {
-        return Err(format!("{}: {}", FILE, errors.join("; ")));
-    }
-    Ok(Some(value))
+    crate::record_log::read(dir, &crate::record_log::FINDINGS, schemas_dir)
 }
 
-/// Validate then write in place through custody. Refuses a document the
-/// schema rejects.
+/// Validate then write: each finding `findings.json` holds goes back into it,
+/// every other one to its own file under `.factory/findings/` (ADR 0118).
+/// Refuses a document the schema rejects or that holds an id twice.
 pub fn save(dir: &Path, doc: &Value, schemas_dir: Option<&Path>) -> Result<(), String> {
-    let errors = schema_errors(doc, schemas_dir);
-    if !errors.is_empty() {
-        return Err(format!(
-            "{}: refusing to write an invalid document: {}",
-            FILE,
-            errors.join("; ")
-        ));
-    }
-    crate::factory_io::create_parent_dir(dir, FILE)?;
-    crate::factory_io::write_in_place(dir, FILE, json::pretty(doc).as_bytes()).map_err(String::from)
+    crate::record_log::write(dir, &crate::record_log::FINDINGS, doc, schemas_dir)
 }
 
-/// The next `F-nnnn` id after the highest one already recorded.
+/// The id a new finding gets: `F-` and six random base36 characters no
+/// finding holds (ADR 0118).
+pub fn new_id(doc: &Value) -> String {
+    let taken = crate::record_log::ids(doc, "findings");
+    crate::record_log::new_id("F-", |id| taken.contains(id))
+}
+
+/// Write the whole log as `findings.json`, as before ADR 0118, for
+/// `migrate --split`.
+pub fn save_single(dir: &Path, doc: &Value, schemas_dir: Option<&Path>) -> Result<(), String> {
+    crate::record_log::write_single(dir, &crate::record_log::FINDINGS, doc, schemas_dir)
+}
+
+/// The next `F-nnnn` id after the highest one already recorded: only
+/// `migrate --split` numbers a finding now.
 pub fn next_id(doc: &Value) -> String {
     let max = json::get_arr(doc, "findings")
         .into_iter()
@@ -202,9 +193,32 @@ pub fn record(id: &str, new: NewFinding) -> Result<Value, String> {
     Ok(Value::Object(rec))
 }
 
-/// Append a new finding and return its id. In-memory only; the caller
-/// persists with [`save`].
+/// Append a new finding under a random id and return the id (ADR 0118).
+/// In-memory only; the caller persists with [`save`], which gives it its own
+/// file under `.factory/findings/`.
 pub fn add(doc: &mut Value, new: NewFinding) -> Result<String, String> {
+    let id = new_id(doc);
+    add_with_id(doc, &id, new)
+}
+
+/// [`add`], under an id the caller already drew with [`new_id`] (so a
+/// message can name it before the finding is built).
+pub fn add_with_id(doc: &mut Value, id: &str, new: NewFinding) -> Result<String, String> {
+    let mut rec = record(id, new)?;
+    let slug = crate::record_log::slugify(json::get_str(&rec, "title").unwrap_or(""));
+    if !slug.is_empty() {
+        rec = crate::record_log::with_slug(&rec, &slug);
+    }
+    match doc.get_mut("findings") {
+        Some(Value::Array(items)) => items.push(rec),
+        _ => return Err("findings is not an array".into()),
+    }
+    Ok(id.to_string())
+}
+
+/// Append a finding under the next number, for `migrate --split`, which
+/// writes the single file as before ADR 0118 ([`save_single`]).
+pub fn add_numbered(doc: &mut Value, new: NewFinding) -> Result<String, String> {
     let id = next_id(doc);
     let rec = record(&id, new)?;
     match doc.get_mut("findings") {
@@ -328,6 +342,16 @@ pub fn union_of(
         Err(e) => (empty(), Some(e)),
     };
     (decisions.map(|d| union(d, &findings)), error)
+}
+
+/// Where the finding with this id lives: `findings.json` for a numbered
+/// one, else the record directory (ADR 0118).
+pub fn file_of(id: &str) -> &'static str {
+    if crate::record_log::is_random(id) {
+        crate::record_log::FINDINGS.dir
+    } else {
+        FILE
+    }
 }
 
 /// Whether an id names a finding (`F-nnnn`) rather than a decision.

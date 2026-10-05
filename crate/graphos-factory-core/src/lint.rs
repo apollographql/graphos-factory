@@ -7247,7 +7247,77 @@ fn lint_decision_alternatives(decisions: Option<&Value>, findings: &mut Findings
                 get_str(rec, "title").unwrap_or(""),
                 id
             ),
-            Some(crate::decisions::FILE),
+            Some(crate::decisions::file_of(id)),
+            None,
+        );
+    }
+}
+
+/// The decision log's own integrity after a merge (ADR 0118), which git
+/// cannot see: `decision-id-duplicate` (error) for an id two records of
+/// either log share, `decision-link-unresolved` and `decision-link-cycle`
+/// (errors) for an `after`/`amends` that names nothing or loops, and
+/// `decision-overlap` (warn) for two resolved decisions, at least one with
+/// a random id, that name the same span with no `after`/`amends` path
+/// between them. Two numbered records are never an overlap: their numbers
+/// already order them. A log that does not load is reported elsewhere.
+fn lint_decision_log(
+    decisions: Option<&Value>,
+    logged_findings: Option<&Value>,
+    findings: &mut Findings,
+) {
+    let file_of: [fn(&str) -> &'static str; 2] =
+        [crate::decisions::file_of, crate::findings::file_of];
+    for ((doc, array), file_of) in [(decisions, "decisions"), (logged_findings, "findings")]
+        .into_iter()
+        .zip(file_of)
+    {
+        let Some(doc) = doc else { continue };
+        for id in crate::record_log::duplicate_ids(doc, array) {
+            findings.error(
+                "decision-id-duplicate",
+                format!(
+                    "{} is the id of more than one record: a merge kept both. Every reference to {} now means whichever comes first; settle it as the merge conflict it is: keep one of the two, or, if both are real, remove the later one and `decisions add` it again so it gets a fresh id, then update what cites it (ADR 0118)",
+                    id, id
+                ),
+                Some(file_of(&id)),
+                None,
+            );
+        }
+    }
+    let Some(doc) = decisions else {
+        return;
+    };
+    for (from, to) in crate::decisions::unresolved_links(doc) {
+        findings.error(
+            "decision-link-unresolved",
+            format!(
+                "{} names {} in after or amends, and the log has no {}: a merge dropped it, or the id is mistyped. Restore {} or correct the id; to drop the edge, edit {}'s record file under {}/ by hand, since no verb removes an edge (ADR 0118)",
+                from, to, to, to, from, crate::record_log::DECISIONS.dir
+            ),
+            Some(crate::decisions::file_of(&from)),
+            None,
+        );
+    }
+    if let Some(cycle) = crate::decisions::link_cycle(doc) {
+        findings.error(
+            "decision-link-cycle",
+            format!(
+                "after and amends form a cycle, so no decision in it comes first: {}. Remove the edge that runs backwards (ADR 0118)",
+                cycle.join(" -> ")
+            ),
+            Some(crate::decisions::file_of(&cycle[0])),
+            None,
+        );
+    }
+    for (old, new, span) in crate::decisions::unordered_overlaps(doc, true) {
+        findings.warn(
+            "decision-overlap",
+            format!(
+                "{} and {} both decide {} and neither names the other: added independently, they may disagree. Record how they relate on the newer one: `graphos-factory-core decisions link . --id {} --after {}` (it presumes the other) or `--amends {}` (it changes the other's answer there) (ADR 0118)",
+                old, new, span, new, old, old
+            ),
+            Some(crate::decisions::file_of(&new)),
             None,
         );
     }
@@ -8608,19 +8678,28 @@ pub fn lint_workspace(dir: &Path, options: &LintOptions) -> LintResult {
     lint_link_connectors(&sdl, &schema_file, &mut findings);
     lint_link_coverage(dir, &sdl, &schema_file, &mut findings);
     lint_template(dir, &sdl, options.target, &mut findings);
-    // decisions.json and its union with findings.json, read and validated
+    // The decision log and its union with the findings, read and validated
     // once per run and handed to every rule that reads them (ADR 0113).
-    // Either one not loading leaves its readers with nothing to count, as
-    // each used to on its own read; a findings.json that does not load is
-    // reported here and leaves the union with the decisions alone, so one
-    // corrupt findings file never blanks a resolved decision.
+    // Either one not loading is reported here as `unreadable-file` and
+    // leaves its readers with nothing to count; a findings log that does
+    // not load leaves the union with the decisions alone, so one corrupt
+    // findings file never blanks a resolved decision.
     let decisions_loaded = crate::decisions::load(dir, options.schemas_dir);
     let (union_loaded, findings_error) = crate::findings::union_of(
         decisions_loaded.as_ref().map_err(String::clone),
         crate::findings::load(dir, options.schemas_dir),
     );
     if let Some(e) = findings_error {
-        findings.error("unreadable-file", e, Some(crate::findings::FILE), None);
+        let file = crate::record_log::error_path(&crate::record_log::FINDINGS, &e).to_string();
+        findings.error("unreadable-file", e, Some(&file), None);
+    }
+    // A decision log that does not load is an error too, never a silent
+    // empty log: every rule below would otherwise read "no decision" where a
+    // resolved one stands (a stray `.orig` under `.factory/decisions/` was
+    // reported only through the vanished decision's consequences).
+    if let Err(e) = &decisions_loaded {
+        let file = crate::record_log::error_path(&crate::record_log::DECISIONS, e);
+        findings.error("unreadable-file", e.clone(), Some(file), None);
     }
     let decisions_doc = decisions_loaded.ok();
     let union_doc = union_loaded.ok();
@@ -8764,6 +8843,12 @@ pub fn lint_workspace(dir: &Path, options: &LintOptions) -> LintResult {
     lint_secret_fields(decisions_doc.as_ref(), &sdl, &schema_file, &mut findings);
     lint_stale_omits(dir, union_doc.as_ref(), &mut findings);
     lint_decision_alternatives(decisions_doc.as_ref(), &mut findings);
+    let logged_findings = crate::findings::load(dir, options.schemas_dir).ok();
+    lint_decision_log(
+        decisions_doc.as_ref(),
+        logged_findings.as_ref(),
+        &mut findings,
+    );
     lint_live(dir, &sdl, &schema_file, selection.as_ref(), &mut findings);
     if !options.skip_evidence {
         lint_evidence(dir, selection.as_ref(), &mut findings, options.schemas_dir);

@@ -1,6 +1,7 @@
 //! `decisions <list|add|resolve|reopen|supersede|migrate>`: the workspace decision log —
 //! judgement calls recorded and open questions still awaiting the user. The
-//! only writer of `.factory/decisions.json`, so a headless agent and a desktop
+//! only writer of `.factory/decisions.json` and of `.factory/decisions/`, where
+//! every decision added since ADR 0118 is its own file with a random id, so a headless agent and a desktop
 //! UI record resolutions through the same command (ADR 0026). `reopen` clears
 //! a recorded answer so the user can revise it (ADR 0060); `supersede` marks
 //! a resolved decision replaced, keeping its answer (ADR 0103).
@@ -28,11 +29,12 @@ use crate::json;
 use serde_json::Value;
 use std::path::Path;
 
-pub const USAGE: &str = "usage: graphos-factory-core decisions <list|add|resolve|reopen|supersede|migrate> [workspace] …
-  list    [workspace] [--open] [--json]
+pub const USAGE: &str = "usage: graphos-factory-core decisions <list|add|resolve|reopen|supersede|link|migrate> [workspace] …
+  list    [workspace] [--open] [--causal] [--json]   --causal: in the order decisions presume one another (after, amends, shared affects)
   add     [workspace] --title T (--question Q | --choice id:label --choice id:label…) [--context C] [--phase P]
           [--choice-detail id:text]… [--multiple]
           [--affects PATH]… [--requested-by WHO]
+          [--slug S] [--after D-id]… [--amends D-id]…   the record file's name; decisions this one presumes or changes (ADR 0118)
           [--resolved [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent]]   --by defaults to agent
           [--json]
           a record with no --question, fewer than two --choice and no editorial --omit is refused (no-alternative):
@@ -41,9 +43,11 @@ pub const USAGE: &str = "usage: graphos-factory-core decisions <list|add|resolve
           [--json-reason 'Type.field|reason']…   (read only on a resolved record)
           [--null-handling 'operation|argument|behavior']…   (behavior: send_null or omit; read only on a resolved record)
           [--secret-field 'Type.field|disposition|reason']…   (disposition: expose or exclude; secret-field-exposed, ADR 0078)
-  resolve [workspace] --id D-nnnn [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
-  reopen  [workspace] --id D-nnnn [--json]   clear a resolved or superseded decision's answer; status back to open
-  supersede [workspace] --id D-nnnn [--json] mark a resolved decision replaced; its answer is kept, its omits, json_reasons and null_handling stop counting
+  resolve [workspace] --id D-id [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
+  reopen  [workspace] --id D-id [--json]   clear a resolved or superseded decision's answer; status back to open
+  supersede [workspace] --id D-id [--json] mark a resolved decision replaced; its answer is kept, its omits, json_reasons and null_handling stop counting
+  link    [workspace] --id D-id (--after D-id | --amends D-id)… [--json]   a decision recorded since ADR 0118 presumes or changes another
+          (how decision-overlap is answered); an old D-nnnn record never gains a field and is refused
   migrate [workspace] [--keep-md] [--force] [--dry-run] [--json]   import a legacy .factory/decisions.md into decisions.json
   migrate [workspace] --split [--sorted FILE] [--dry-run] [--json]   ADR 0113: leave decisions.json holding decisions only
           kept: a record with a question, choices or an editorial omit stays a decision, id and all
@@ -79,8 +83,11 @@ pub fn main(argv: &[String]) -> i32 {
         Some("resolve") => resolve(&argv[1..]),
         Some("reopen") => reopen(&argv[1..]),
         Some("supersede") => supersede(&argv[1..]),
+        Some("link") => link(&argv[1..]),
         Some("migrate") => migrate(&argv[1..]),
-        _ => usage("expected a subcommand (list, add, resolve, reopen, supersede, or migrate)"),
+        _ => {
+            usage("expected a subcommand (list, add, resolve, reopen, supersede, link, or migrate)")
+        }
     }
 }
 
@@ -90,7 +97,7 @@ fn schemas_dir(args: &Args) -> Option<&Path> {
 
 /// The flags this verb accepts; dispatch refuses any other (ADR 0097).
 pub const LIST_FLAGS: Flags = Flags {
-    boolean: &["open", "json"],
+    boolean: &["open", "json", "causal"],
     valued: &["schemas"],
 };
 
@@ -102,6 +109,9 @@ fn list(argv: &[String]) -> i32 {
         Err(e) => return fail(&e),
     };
     let only_open = args.has("open");
+    if args.has("causal") {
+        return list_causal(&doc, only_open, args.has("json"));
+    }
     let items: Vec<&Value> = json::get_arr(&doc, "decisions")
         .map(|a| {
             a.iter()
@@ -127,6 +137,68 @@ fn list(argv: &[String]) -> i32 {
     }
     for d in items {
         print_decision(d);
+    }
+    0
+}
+
+/// `list --causal` (ADR 0118): the log in the order its decisions presume
+/// one another, each with the edges that place it.
+fn list_causal(doc: &Value, only_open: bool, json_out: bool) -> i32 {
+    let ordered = match decisions::causal_order(doc) {
+        Ok(o) => o,
+        Err(ids) => {
+            return fail(&format!(
+                "list --causal: no order exists: {}. Either after/amends form a cycle, or they run against the age order of a span a third decision shares with both; fix the edge on one of them",
+                ids.join(" -> ")
+            ))
+        }
+    };
+    let keep = |d: &Value| !only_open || json::get_str(d, "status") == Some("open");
+    if json_out {
+        let arr: Vec<Value> = ordered
+            .iter()
+            .filter(|(d, _)| keep(d))
+            .map(|(d, edges)| {
+                let mut v = d.clone();
+                let via: Vec<Value> = edges
+                    .iter()
+                    .map(|e| {
+                        json::object(vec![
+                            ("before", Value::from(e.before.as_str())),
+                            ("via", Value::from(e.via.as_str())),
+                        ])
+                    })
+                    .collect();
+                json::set(&mut v, "placed_after", Value::Array(via));
+                v
+            })
+            .collect();
+        print!(
+            "{}",
+            json::pretty(&json::object(vec![("decisions", Value::Array(arr))]))
+        );
+        return 0;
+    }
+    let mut any = false;
+    for (d, edges) in &ordered {
+        if !keep(d) {
+            continue;
+        }
+        any = true;
+        print_decision(d);
+        for e in edges {
+            println!("             via: {} {}", e.via, e.before);
+        }
+    }
+    if !any {
+        println!(
+            "{}",
+            if only_open {
+                "No open decisions."
+            } else {
+                "No decisions recorded."
+            }
+        );
     }
     0
 }
@@ -246,6 +318,9 @@ pub const ADD_FLAGS: Flags = Flags {
         "secret-field",
         "json-reason",
         "null-handling",
+        "slug",
+        "after",
+        "amends",
         "chosen",
         "note",
         "decision",
@@ -476,6 +551,9 @@ fn add(argv: &[String]) -> i32 {
         secret_fields,
         json_reasons,
         null_handling,
+        slug: args.get("slug").map(str::to_string),
+        after: args.all("after"),
+        amends: args.all("amends"),
     };
     if new.resolution.is_none()
         && !(new.omits.is_empty() && new.json_reasons.is_empty() && new.null_handling.is_empty())
@@ -498,9 +576,17 @@ fn add(argv: &[String]) -> i32 {
         return fail(&e);
     }
     if args.has("json") {
+        // The record file the add wrote (ADR 0118), so a caller that stages
+        // or copies it does not glob for it.
+        let path = match crate::record_log::path_of(&dir, &crate::record_log::DECISIONS, &id) {
+            Ok(path) => path.map(Value::from).unwrap_or(Value::Null),
+            Err(e) => return fail(&e),
+        };
         print!(
             "{}",
-            json::pretty(&json::object(vec![("id", Value::from(id))]))
+            json::pretty(&json::object(
+                vec![("id", Value::from(id)), ("path", path),]
+            ))
         );
     } else {
         println!("recorded {}", id);
@@ -518,7 +604,7 @@ fn resolve(argv: &[String]) -> i32 {
     let args = Args::parse(argv, &RESOLVE_FLAGS);
     let dir = Path::new(&args.dir()).to_path_buf();
     let Some(id) = args.get("id") else {
-        return usage("resolve: --id D-nnnn is required");
+        return usage("resolve: --id D-id is required");
     };
     if !(args.has("chosen") || args.has("note") || args.has("decision")) {
         return usage("resolve: give at least one of --chosen, --note, or --decision");
@@ -574,8 +660,9 @@ fn load_recorded(dir: &Path, args: &Args, verb: &str) -> Result<Value, ReopenRef
         Ok(None) => Err(ReopenRefusal {
             code: "decisions-missing",
             message: format!(
-                "{} does not exist; there is no decision to {}",
+                "the workspace has no decision log ({} nor a record under {}/); there is no decision to {}",
                 decisions::FILE,
+                crate::record_log::DECISIONS.dir,
                 verb
             ),
         }),
@@ -599,7 +686,7 @@ fn reopen(argv: &[String]) -> i32 {
             json_out,
             ReopenRefusal {
                 code: "usage",
-                message: "reopen: --id D-nnnn is required".into(),
+                message: "reopen: --id D-id is required".into(),
             },
         );
     };
@@ -657,7 +744,7 @@ fn supersede(argv: &[String]) -> i32 {
             json_out,
             ReopenRefusal {
                 code: "usage",
-                message: "supersede: --id D-nnnn is required".into(),
+                message: "supersede: --id D-id is required".into(),
             },
         );
     };
@@ -689,6 +776,76 @@ fn supersede(argv: &[String]) -> i32 {
         );
     } else {
         println!("superseded {} (was resolved)", id);
+    }
+    0
+}
+
+/// The flags this verb accepts; dispatch refuses any other (ADR 0097).
+pub const LINK_FLAGS: Flags = Flags {
+    boolean: &["json"],
+    valued: &["id", "after", "amends", "schemas"],
+};
+
+/// `link --id D-id --after D-id… --amends D-id…` (ADR 0118): edges on a
+/// record added since the single file stopped growing.
+fn link(argv: &[String]) -> i32 {
+    let args = Args::parse(argv, &LINK_FLAGS);
+    let json_out = args.has("json");
+    let dir = Path::new(&args.dir()).to_path_buf();
+    let Some(id) = args.get("id") else {
+        return refuse(
+            json_out,
+            ReopenRefusal {
+                code: "usage",
+                message: "link: --id is required".into(),
+            },
+        );
+    };
+    let (after, amends) = (args.all("after"), args.all("amends"));
+    if after.is_empty() && amends.is_empty() {
+        return refuse(
+            json_out,
+            ReopenRefusal {
+                code: "usage",
+                message: "link: give at least one --after or --amends".into(),
+            },
+        );
+    }
+    let mut doc = match load_recorded(&dir, &args, "link") {
+        Ok(doc) => doc,
+        Err(refusal) => return refuse(json_out, refusal),
+    };
+    if let Err(refusal) = decisions::link(&mut doc, id, after, amends) {
+        return refuse(json_out, refusal);
+    }
+    if let Err(e) = decisions::save(&dir, &doc, schemas_dir(&args)) {
+        return refuse(
+            json_out,
+            ReopenRefusal {
+                code: "write-failed",
+                message: e,
+            },
+        );
+    }
+    let rec = decisions::find(&doc, id).cloned().unwrap_or(Value::Null);
+    if json_out {
+        print!(
+            "{}",
+            json::pretty(&json::object(vec![
+                ("id", Value::from(id)),
+                (
+                    "after",
+                    rec.get("after").cloned().unwrap_or(Value::Array(vec![]))
+                ),
+                (
+                    "amends",
+                    rec.get("amends").cloned().unwrap_or(Value::Array(vec![]))
+                ),
+                ("exit", Value::from(0)),
+            ]))
+        );
+    } else {
+        println!("linked {}", id);
     }
     0
 }
@@ -780,7 +937,7 @@ fn migrate(argv: &[String]) -> i32 {
         ("contract_version", Value::from(1)),
         ("decisions", Value::Array(records)),
     ]);
-    if let Err(e) = decisions::save(&dir, &doc, schemas_dir(&args)) {
+    if let Err(e) = decisions::save_single(&dir, &doc, schemas_dir(&args)) {
         return fail(&e);
     }
     let removed = if args.has("keep-md") {
@@ -845,6 +1002,15 @@ fn migrate_split(args: &Args, dir: &Path) -> i32 {
         Ok(doc) => doc,
         Err(refusal) => return refuse(json_out, refusal),
     };
+    if crate::record_log::has_directory(dir) {
+        return refuse(
+            json_out,
+            ReopenRefusal {
+                code: "split-refused",
+                message: "migrate --split reads and writes decisions.json and findings.json only, and this workspace already records decisions or findings one file each under .factory/ (ADR 0118); the split is for a log written before them".into(),
+            },
+        );
+    }
     let sorted = match args.get("sorted") {
         Some(path) => {
             let text = match crate::factory_io::read_named_path(Path::new(path))

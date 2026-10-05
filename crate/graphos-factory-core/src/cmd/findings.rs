@@ -23,10 +23,10 @@ pub const USAGE: &str = "usage: graphos-factory-core findings <list|add|supersed
   list      [workspace] [--json]
   add       [workspace] --title T --body TEXT [--cites C] [--source agent|codify|sources]
             [--affects PATH]… [--omit 'operation|direction|path|reason']… [--evidence E]…
-            [--related D-nnnn|F-nnnn]… [--date YYYY-MM-DD] [--json]
+            [--related D-id|F-id]… [--date YYYY-MM-DD] [--json]
             --omit reason: consumed (direction response|request) or not-applicable (behaviour);
             editorial is refused: a path left off on judgement is a decision (`decisions add`)
-  supersede [workspace] --id F-nnnn [--json]   a later finding or a change replaced it; its omits and affects stop counting";
+  supersede [workspace] --id F-id [--json]   a later finding or a change replaced it; its omits and affects stop counting";
 
 fn schemas_dir(args: &Args) -> Option<&Path> {
     args.get("schemas").map(Path::new)
@@ -195,12 +195,14 @@ fn add(argv: &[String]) -> i32 {
         Err(r) => return refuse(json_out, r),
     };
     let related = args.all("related");
-    let id_re = regex::Regex::new(r"^[DF]-\d{4}$").unwrap();
-    if let Some(bad) = related.iter().find(|r| !id_re.is_match(r)) {
+    if let Some(bad) = related
+        .iter()
+        .find(|r| !crate::record_log::is_id(r, &["D-", "F-"]))
+    {
         return refuse(
             json_out,
             usage_refusal(format!(
-                "add: --related must look like D-0019 or F-0003, got {:?}",
+                "add: --related must look like D-0019, D-k7m2qx, F-0003 or F-9k2wde, got {:?}",
                 bad
             )),
         );
@@ -267,10 +269,16 @@ fn add(argv: &[String]) -> i32 {
         );
     }
     if json_out {
+        let path = crate::record_log::path_of(&dir, &crate::record_log::FINDINGS, &id)
+            .ok()
+            .flatten()
+            .map(Value::from)
+            .unwrap_or(Value::Null);
         print!(
             "{}",
             json::pretty(&json::object(vec![
                 ("id", Value::from(id)),
+                ("path", path),
                 ("exit", Value::from(0)),
             ]))
         );
@@ -291,10 +299,7 @@ fn supersede(argv: &[String]) -> i32 {
     let json_out = args.has("json");
     let dir = Path::new(&args.dir()).to_path_buf();
     let Some(id) = args.get("id") else {
-        return refuse(
-            json_out,
-            usage_refusal("supersede: --id F-nnnn is required"),
-        );
+        return refuse(json_out, usage_refusal("supersede: --id F-id is required"));
     };
     let mut doc = match findings::load_present(&dir, schemas_dir(&args)) {
         Ok(Some(doc)) => doc,

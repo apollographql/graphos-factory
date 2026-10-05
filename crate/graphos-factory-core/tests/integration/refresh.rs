@@ -127,11 +127,23 @@ fn finding_prose(dir: &Path, id: &str) -> String {
     format!("{} {} {} {}", s("title"), s("body"), s("cites"), evidence)
 }
 
+/// The findings as every reader sees them: `findings.json`'s, then the ones
+/// added since ADR 0118, one file each under `.factory/findings/`.
 fn findings_doc(dir: &Path) -> Value {
-    match std::fs::read_to_string(dir.join(".factory/findings.json")) {
-        Ok(t) => graphos_factory_core::json::parse(&t).unwrap(),
-        Err(_) => graphos_factory_core::findings::empty(),
-    }
+    graphos_factory_core::findings::load(dir, None).unwrap()
+}
+
+/// The id of the one finding a refresh recorded: random (ADR 0118), so
+/// found rather than assumed.
+fn the_finding(dir: &Path) -> String {
+    let ids = finding_ids(dir);
+    assert_eq!(ids.len(), 1, "{:?}", ids);
+    assert!(
+        graphos_factory_core::record_log::is_random(&ids[0]),
+        "{}",
+        ids[0]
+    );
+    ids[0].clone()
 }
 
 fn finding_ids(dir: &Path) -> Vec<String> {
@@ -493,8 +505,7 @@ fn a_refresh_with_one_obsolete_and_one_still_valid_patch_reports_exactly_that() 
 
     // The decision names both hashes and each patch's fate, the dropped
     // patch's reason included.
-    assert!(has_decision(d, "F-0001"), "{}", all_prose(d));
-    let decisions = prose(d, "F-0001");
+    let decisions = prose(d, &the_finding(d));
     assert!(
         decisions.contains("Upstream refreshed: openapi.json"),
         "{}",
@@ -600,7 +611,7 @@ fn a_conflict_is_dropped_not_applied_recorded_and_exits_3() {
     assert_eq!(code, 3);
     assert_eq!(summary["exit"], 3);
     assert_eq!(summary["dry_run"], false);
-    assert_eq!(summary["finding"], "F-0001");
+    assert_eq!(summary["finding"], the_finding(d).as_str());
     assert_eq!(summary["acknowledged_in_applied_lock"], true);
     assert_eq!(summary["patches"]["recorded"], 2);
     assert_eq!(summary["patches"]["reapplied"], 1);
@@ -621,7 +632,7 @@ fn a_conflict_is_dropped_not_applied_recorded_and_exits_3() {
             ".factory/sources/openapi.upstream.json",
             "openapi.json",
             ".factory/sources.lock.yaml",
-            ".factory/findings.json",
+            ".factory/findings",
             ".factory/inventory.json",
             ".factory/applied.lock.yaml"
         ])
@@ -646,7 +657,7 @@ fn a_conflict_is_dropped_not_applied_recorded_and_exits_3() {
     let patches = e["patches"].as_array().unwrap();
     assert_eq!(patches.len(), 1, "{}", e["patches"]);
     assert_eq!(patches[0]["op"], "add");
-    let decisions = prose(d, "F-0001");
+    let decisions = prose(d, &the_finding(d));
     assert!(decisions.contains("1 in conflict"), "{}", decisions);
     let conflict = decisions
         .lines()
@@ -829,7 +840,7 @@ fn when_no_patch_survives_the_working_copy_is_the_vendor_bytes_verbatim() {
     assert_eq!(e["patches"], json!([]));
     assert_eq!(lock_check(d), 0);
     assert_eq!(source_rules(d), Vec::<String>::new());
-    let decisions = prose(d, "F-0001");
+    let decisions = prose(d, &the_finding(d));
     assert!(decisions.contains("2 obsolete"), "{}", decisions);
 }
 
@@ -866,7 +877,7 @@ fn a_swagger_document_replacing_an_openapi_one_records_the_new_kind() {
     assert_eq!(e["patches"], json!([]));
     assert_eq!(lock_check(d), 0);
     assert_eq!(source_rules(d), Vec::<String>::new());
-    let decisions = prose(d, "F-0001");
+    let decisions = prose(d, &the_finding(d));
     assert!(
         decisions.contains("swagger 2.0, previously openapi"),
         "{}",
@@ -1109,11 +1120,7 @@ fn a_second_refresh_replays_only_the_surviving_patches_and_keeps_the_url_unless_
         e["upstream_sha256"],
         sha(read(d, ".factory/sources/openapi.upstream.json").as_bytes())
     );
-    assert!(
-        has_decision(d, "F-0001") && has_decision(d, "F-0002"),
-        "{}",
-        all_prose(d)
-    );
+    assert_eq!(finding_ids(d).len(), 2, "{}", all_prose(d));
     assert!(
         all_prose(d).contains("Of 1 recorded patch,"),
         "the second refresh saw one patch: {}",
@@ -1134,24 +1141,18 @@ fn a_write_that_fails_after_the_first_file_is_exit_4_and_names_what_was_written(
     let fetched = tempfile::tempdir().unwrap();
     let from = fetched.path().join("openapi.json");
     std::fs::write(&from, graphos_factory_core::json::pretty(&vendor)).unwrap();
-    // findings.json readable but not writable: `refresh` loads it before the
-    // write phase (custody demands a regular file, ADR 0025) and the fourth
-    // write fails. A directory or a symlink here would be refused before
-    // anything is written, which is the next test.
-    let decisions = d.join(".factory/findings.json");
-    std::fs::write(
-        &decisions,
-        graphos_factory_core::json::pretty(&graphos_factory_core::findings::empty()),
-    )
-    .unwrap();
+    // The findings directory readable but not writable: `refresh` loads it
+    // before the write phase (custody demands a real directory, ADR 0025)
+    // and the fourth write, the new finding's own file (ADR 0118), fails. A
+    // symlink here would be refused before anything is written, which is
+    // the next test.
+    let decisions = d.join(".factory/findings");
+    std::fs::create_dir_all(&decisions).unwrap();
     let mut perms = std::fs::metadata(&decisions).unwrap().permissions();
-    perms.set_mode(0o444);
+    perms.set_mode(0o555);
     std::fs::set_permissions(&decisions, perms).unwrap();
     assert!(
-        std::fs::OpenOptions::new()
-            .write(true)
-            .open(&decisions)
-            .is_err(),
+        std::fs::write(decisions.join("probe.json"), "x").is_err(),
         "this test needs a write that really fails; running as root defeats the mode bit"
     );
     let (code, summary) = refresh_json(d, &from, &[]);
@@ -1169,7 +1170,7 @@ fn a_write_that_fails_after_the_first_file_is_exit_4_and_names_what_was_written(
         summary["incomplete"]
             .as_str()
             .unwrap()
-            .contains("findings.json could not be written"),
+            .contains("the finding could not be written"),
         "{}",
         summary
     );
@@ -1285,20 +1286,21 @@ fn a_multi_line_reason_is_one_line_in_the_decision_and_an_unbuildable_document_i
         ),
         0
     );
+    let fid = the_finding(d);
     assert!(
-        decision_str(d, "F-0001").contains("vendor published 1.1.0 see the changelog"),
+        decision_str(d, &fid).contains("vendor published 1.1.0 see the changelog"),
         "{}",
-        prose(d, "F-0001")
+        prose(d, &fid)
     );
     assert!(
-        decision_str(d, "F-0001")
+        decision_str(d, &fid)
             .lines()
             .any(|l| l == "Reason: vendor published 1.1.0 see the changelog"),
         "the reason is flattened to one line: {}",
-        decision_str(d, "F-0001")
+        decision_str(d, &fid)
     );
     let doc = findings_doc(d);
-    let rec = graphos_factory_core::findings::find(&doc, "F-0001").unwrap();
+    let rec = graphos_factory_core::findings::find(&doc, &fid).unwrap();
     assert_eq!(rec["source"], "sources");
     // No inventory to rebuild, so the evidence names only the document and
     // the command.

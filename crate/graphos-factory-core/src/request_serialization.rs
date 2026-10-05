@@ -2968,7 +2968,7 @@ pub fn report_with_evidence(workspace: &Path, evidence: Option<&Value>) -> Repor
         Err(e) => {
             // An unreadable decisions log could hide a documented
             // explicit-null distinction: refuse rather than under-require.
-            return all_unexecuted(&e, ".factory/decisions.json");
+            return all_unexecuted(&e, "the decisions log");
         }
     };
     // A request omit on a current finding counts as one on a resolved

@@ -553,9 +553,9 @@ impl StaleOmit {
     /// The file the entry sits in.
     pub fn file(&self) -> &'static str {
         if crate::findings::is_finding_id(&self.decision) {
-            crate::findings::FILE
+            crate::findings::file_of(&self.decision)
         } else {
-            crate::decisions::FILE
+            crate::decisions::file_of(&self.decision)
         }
     }
 }

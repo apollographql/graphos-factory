@@ -80,7 +80,7 @@
           "description": "The status being accepted. A waiver for `unchecked` never hides a later `unmatched`."
         },
         "reason": { "type": "string", "minLength": 1, "description": "Why the gap is acceptable, in one or two sentences. Surfaces in every validate report." },
-        "decision": { "type": "string", "pattern": "^D-\\d{4}$", "description": "Optional: the decisions.json decision this waiver carries out, when it is one (ADR 0113). `reason` carries the why." },
+        "decision": { "type": "string", "pattern": "^D-([0-9]{4,}|[0-9a-z]{6})$", "description": "Optional: the decision this waiver carries out (a numbered or a random id, ADR 0118), when it is one (ADR 0113). `reason` carries the why." },
         "context": { "type": "string", "minLength": 1, "description": "Optional background beyond the reason, in prose (`codify --context`, ADR 0113)." },
         "until": { "type": ["string", "null"], "description": "Free text: the condition under which the waiver should be revisited (the vendor documents the shape, a spec version)." },
         "expires": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Machine-checked: after this date lint reports the waiver as expired." }
@@ -97,7 +97,7 @@
           "description": "The span: an inventory operation key, `type:<Name>`, `Query.<field>` / `Mutation.<field>`, or `header`."
         },
         "reason": { "type": "string", "minLength": 1, "description": "Why the edit was made, in one or two sentences. Surfaces in every reconcile report." },
-        "decision": { "type": "string", "pattern": "^D-\\d{4}$", "description": "Optional: the decisions.json decision this override carries out, when it is one (ADR 0113). `reason` carries the why." },
+        "decision": { "type": "string", "pattern": "^D-([0-9]{4,}|[0-9a-z]{6})$", "description": "Optional: the decision this override carries out (a numbered or a random id, ADR 0118), when it is one (ADR 0113). `reason` carries the why." },
         "context": { "type": "string", "minLength": 1, "description": "Optional background beyond the reason, in prose (`codify --context`, ADR 0113). Read it, with the reason, before touching the span." },
         "assert": {
           "type": "array",
@@ -237,7 +237,7 @@
           "description": "false while the entry is still the tool's draft: `selection draft` writes it, lint warns (`link-unconfirmed`) and reconcile notes it until the agent has agreed the link with the user and set it true or removed the key. Absent means confirmed — a hand-written entry is the user's word."
         },
         "reason": { "type": "string", "description": "Why the relationship is exposed or declined, in one or two sentences." },
-        "decision": { "type": "string", "pattern": "^D-[0-9]{4}$", "description": "The decisions.json record that captures the context." }
+        "decision": { "type": "string", "pattern": "^D-([0-9]{4,}|[0-9a-z]{6})$", "description": "The decision that captures the context." }
       }
     }
   }

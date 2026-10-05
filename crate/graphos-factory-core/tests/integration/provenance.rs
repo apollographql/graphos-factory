@@ -1091,3 +1091,74 @@ fn findings_json_is_a_recorded_input() {
         stdout
     );
 }
+
+/// ADR 0118: a decision is added as a new record file, not appended to
+/// `decisions.json`, so the lock must name the file a relock records and
+/// `--check --provenance` must see one it never recorded, or a lock would
+/// describe a log it never saw.
+#[test]
+fn a_decision_record_added_after_the_lock_is_provenance_drift() {
+    let dir = TempDir::new().unwrap();
+    let ws = dir.path().to_str().unwrap();
+    write(
+        &dir.path().join(".factory/workspace.yaml"),
+        "contract_version: 1\nservice: widget_co\ndirectory: widget-co\ntype_prefix: Widget_Co\nfield_prefix: widget_co\nskill: { name: example, version: 0.5.0 }\nsource_kind: rest\nconnect_spec: v0.3\nfederation_version: 2.12.0\nintake: spec\ncreated_at: 2026-09-16T00:00:00Z\n",
+    );
+    write(
+        &dir.path().join("widget-co.graphql"),
+        "type Query {\n  widget_co_ping: String\n}\n",
+    );
+    let (code, _) = run(&["lock", ws, "--model", "review-test-model"]);
+    assert_eq!(code, Some(0));
+    let (code, _) = run(&[
+        "decisions",
+        "add",
+        ws,
+        "--title",
+        "Paginate by cursor",
+        "--question",
+        "Which way?",
+        "--date",
+        "2026-10-05",
+    ]);
+    assert_eq!(code, Some(0));
+    let record = graphos_factory_core::record_log::record_paths(dir.path()).unwrap();
+    assert_eq!(record.len(), 1, "{:?}", record);
+    let record = &record[0];
+
+    let (code, stdout) = run(&["lock", ws, "--check", "--provenance"]);
+    assert_eq!(
+        code,
+        Some(3),
+        "an unrecorded record file is drift: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains(&format!("+ {}   (inputs, added since the lock)", record)),
+        "{}",
+        stdout
+    );
+    let (_, json) = run(&["lock", ws, "--check", "--json"]);
+    let report: Value = serde_json::from_str(&json).unwrap();
+    assert!(report["provenance_drift"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["path"] == record.as_str()
+            && d["section"] == "inputs"
+            && d["change"] == "added"));
+
+    // A relock records the file and its hash, and the check is clean again.
+    let (code, _) = run(&["lock", ws, "--model", "review-test-model"]);
+    assert_eq!(code, Some(0));
+    let lock = graphos_factory_core::yaml::parse(
+        &std::fs::read_to_string(dir.path().join(".factory/applied.lock.yaml")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        lock["provenance"]["inputs"][record.as_str()]["sha256"],
+        graphos_factory_core::patch::bytes_sha256(&std::fs::read(dir.path().join(record)).unwrap())
+    );
+    let (code, _) = run(&["lock", ws, "--check", "--provenance"]);
+    assert_eq!(code, Some(0));
+}

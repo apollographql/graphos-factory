@@ -2298,7 +2298,7 @@ fn a_stale_link_that_names_a_resolved_decision_is_kept() {
             cited.as_str(),
             None,
             1,
-            "decision: D-0001 is not recorded in decisions.json; raise the decision",
+            "decision: D-0001 is not recorded in the decision log; raise the decision",
         ),
         (
             "no decision named",
@@ -2366,11 +2366,9 @@ fn a_stale_link_with_no_decision_prints_the_exact_decisions_add_that_raises_it()
     let mut argv: Vec<String> = vec!["add".into(), dir.path().to_string_lossy().to_string()];
     argv.extend(words[4..].iter().cloned());
     assert_eq!(graphos_factory_core::cmd::decisions::main(&argv), 0);
-    let log: Value = graphos_factory_core::json::parse(
-        &std::fs::read_to_string(dir.path().join(".factory/decisions.json")).unwrap(),
-    )
-    .unwrap();
+    let log = graphos_factory_core::decisions::load(dir.path(), None).unwrap();
     let rec = &log["decisions"][0];
+    let raised = rec["id"].as_str().unwrap().to_string();
     assert_eq!(rec["status"], "open");
     assert_eq!(rec["affects"], json!(["Widget_Co_Widget.owner"]));
     assert!(rec["context"]
@@ -2380,7 +2378,7 @@ fn a_stale_link_with_no_decision_prints_the_exact_decisions_add_that_raises_it()
     // Named but open: still stale.
     let cited = SELECTION.replacen(
         "    confirmed: true\n",
-        "    confirmed: true\n    decision: D-0001\n",
+        &format!("    confirmed: true\n    decision: {}\n", raised),
         1,
     );
     std::fs::write(dir.path().join(".factory/selection.yaml"), &cited).unwrap();
@@ -2391,7 +2389,7 @@ fn a_stale_link_with_no_decision_prints_the_exact_decisions_add_that_raises_it()
             "resolve".to_string(),
             dir.path().to_string_lossy().to_string(),
             "--id".into(),
-            "D-0001".into(),
+            raised.clone(),
             "--chosen".into(),
             "keep".into(),
         ]),

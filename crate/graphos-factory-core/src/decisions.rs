@@ -96,6 +96,14 @@ pub struct NewDecision {
     pub secret_fields: Vec<SecretField>,
     pub json_reasons: Vec<JsonReason>,
     pub null_handling: Vec<NullHandling>,
+    /// The record file's name after the id; derived from the title when
+    /// absent (ADR 0118).
+    pub slug: Option<String>,
+    /// Decisions this one presumes.
+    pub after: Vec<String>,
+    /// Decisions whose answer this one changes where their `affects`
+    /// overlap.
+    pub amends: Vec<String>,
 }
 
 /// Whether `direction` and `reason` are a spelling `decisions.schema.json`
@@ -128,7 +136,7 @@ pub fn check_omit_vocabulary(direction: &str, reason: &str) -> Result<(), String
     }
 }
 
-/// An empty log, stamped with the current contract version.
+/// An empty log.
 pub fn empty() -> Value {
     json::object(vec![
         ("contract_version", Value::from(1)),
@@ -136,66 +144,353 @@ pub fn empty() -> Value {
     ])
 }
 
-fn schema_errors(value: &Value, schemas_dir: Option<&Path>) -> Vec<String> {
-    match crate::schemas::load("decisions.schema.json", schemas_dir) {
-        Some(schema) => crate::jsonschema::validate(value, &schema),
-        None => vec!["cannot load decisions.schema.json".into()],
-    }
-}
-
-/// Read the log, or an empty one when the file is absent. A present-but-invalid
-/// file is an error rather than a silent reset — the agent must not lose a
+/// Read the log, or an empty one when there is none: the records of
+/// `decisions.json`, then those of `.factory/decisions/` (ADR 0118,
+/// `crate::record_log`). A present-but-invalid log
+/// is an error rather than a silent reset — the agent must not lose a
 /// recorded decision to a bad edit.
 pub fn load(dir: &Path, schemas_dir: Option<&Path>) -> Result<Value, String> {
     Ok(load_present(dir, schemas_dir)?.unwrap_or_else(empty))
 }
 
-/// Read the log, or `None` when the file is absent — for a verb that acts
-/// on a recorded decision and so has nothing to do without one. Present
-/// but unreadable or invalid is an error, as for `load`.
+/// Read the log, or `None` when there is neither a `decisions.json` nor a
+/// `.factory/decisions/` — for a verb that acts on a recorded decision and so
+/// has nothing to do without one. Present but unreadable or invalid is an error,
+/// as for `load`. Every read goes through custody, so a symlinked log or
+/// record file is refused rather than read through (ADR 0025).
 pub fn load_present(dir: &Path, schemas_dir: Option<&Path>) -> Result<Option<Value>, String> {
-    // `.factory/` — custody's, so a symlinked log is refused rather than
-    // read through, on every verb that records a decision (ADR 0025).
-    let text = match crate::factory_io::read_to_string_optional(dir, FILE)? {
-        Some(text) => text,
-        None => return Ok(None),
-    };
-    let value = json::parse(&text)?;
-    let errors = schema_errors(&value, schemas_dir);
-    if !errors.is_empty() {
-        return Err(format!("{}: {}", FILE, errors.join("; ")));
-    }
-    Ok(Some(value))
+    crate::record_log::read(dir, &crate::record_log::DECISIONS, schemas_dir)
 }
 
-/// Validate then write. Refuses to write a document the schema rejects.
+/// Validate then write: each record `decisions.json` holds goes back into it
+/// (it stays contract_version 1 and changes only when one of its records
+/// did), every other record to its own file under `.factory/decisions/`
+/// (ADR 0118). Refuses a document the schema rejects, that holds an id
+/// twice, or whose `after`/`amends` dangle or loop.
 pub fn save(dir: &Path, doc: &Value, schemas_dir: Option<&Path>) -> Result<(), String> {
-    let errors = schema_errors(doc, schemas_dir);
-    if !errors.is_empty() {
+    check_links(doc)?;
+    crate::record_log::write(dir, &crate::record_log::DECISIONS, doc, schemas_dir)
+}
+
+/// Write the whole log as `decisions.json`, as before ADR 0118: for the
+/// migrations that produce the single file (`migrate` from `decisions.md`,
+/// `migrate --split`).
+pub fn save_single(dir: &Path, doc: &Value, schemas_dir: Option<&Path>) -> Result<(), String> {
+    crate::record_log::write_single(dir, &crate::record_log::DECISIONS, doc, schemas_dir)
+}
+
+/// Where the record with this id lives, for a message or a lint finding to
+/// name: `decisions.json` for a numbered record, written before ADR 0118,
+/// else the record directory.
+pub fn file_of(id: &str) -> &'static str {
+    if crate::record_log::is_random(id) {
+        crate::record_log::DECISIONS.dir
+    } else {
+        FILE
+    }
+}
+
+/// The edges a record names: `after` then `amends`.
+pub fn edges(rec: &Value) -> Vec<&str> {
+    ["after", "amends"]
+        .iter()
+        .flat_map(|k| json::get_arr(rec, k).into_iter().flatten())
+        .filter_map(Value::as_str)
+        .collect()
+}
+
+/// Every `after` or `amends` id that names no decision in the log, as
+/// `(from, to)`.
+pub fn unresolved_links(doc: &Value) -> Vec<(String, String)> {
+    let ids = crate::record_log::ids(doc, "decisions");
+    let mut out = Vec::new();
+    for rec in json::get_arr(doc, "decisions").into_iter().flatten() {
+        let from = json::get_str(rec, "id").unwrap_or("");
+        for to in edges(rec) {
+            if !ids.contains(to) {
+                out.push((from.to_string(), to.to_string()));
+            }
+        }
+    }
+    out
+}
+
+/// A cycle through `after` and `amends`, as the ids along it with the first
+/// repeated at the end, or `None`. Depth-first from each record in log
+/// order, so the same log always names the same cycle.
+pub fn link_cycle(doc: &Value) -> Option<Vec<String>> {
+    let recs: Vec<&Value> = json::get_arr(doc, "decisions")
+        .into_iter()
+        .flatten()
+        .collect();
+    let index: std::collections::HashMap<&str, usize> = recs
+        .iter()
+        .enumerate()
+        .filter_map(|(i, r)| json::get_str(r, "id").map(|id| (id, i)))
+        .collect();
+    // 0 unvisited, 1 on the current path, 2 done.
+    let mut state = vec![0u8; recs.len()];
+    let mut path: Vec<usize> = Vec::new();
+    fn visit(
+        i: usize,
+        recs: &[&Value],
+        index: &std::collections::HashMap<&str, usize>,
+        state: &mut [u8],
+        path: &mut Vec<usize>,
+    ) -> Option<Vec<usize>> {
+        state[i] = 1;
+        path.push(i);
+        for to in edges(recs[i]) {
+            let Some(&j) = index.get(to) else { continue };
+            if state[j] == 1 {
+                let start = path.iter().position(|&p| p == j).unwrap_or(0);
+                let mut cycle = path[start..].to_vec();
+                cycle.push(j);
+                return Some(cycle);
+            }
+            if state[j] == 0 {
+                if let Some(c) = visit(j, recs, index, state, path) {
+                    return Some(c);
+                }
+            }
+        }
+        path.pop();
+        state[i] = 2;
+        None
+    }
+    for i in 0..recs.len() {
+        if state[i] == 0 {
+            if let Some(c) = visit(i, &recs, &index, &mut state, &mut path) {
+                return Some(
+                    c.into_iter()
+                        .map(|k| json::get_str(recs[k], "id").unwrap_or("").to_string())
+                        .collect(),
+                );
+            }
+        }
+    }
+    None
+}
+
+/// The writer's refusal of a dangling or circular `after`/`amends` (ADR
+/// 0118). `lint` reports the same two on a hand-merged log.
+fn check_links(doc: &Value) -> Result<(), String> {
+    if let Some((from, to)) = unresolved_links(doc).into_iter().next() {
         return Err(format!(
-            "{}: refusing to write an invalid document: {}",
-            FILE,
-            errors.join("; ")
+            "{} names {} in after or amends, and the log has no {}",
+            from, to, to
         ));
     }
-    // Written in place through custody, never renamed over: a symlinked log
-    // is refused, not silently replaced (ADR 0025).
-    crate::factory_io::create_parent_dir(dir, FILE)?;
-    crate::factory_io::write_in_place(dir, FILE, json::pretty(doc).as_bytes()).map_err(String::from)
+    if let Some(cycle) = link_cycle(doc) {
+        return Err(format!(
+            "after and amends form a cycle: {}",
+            cycle.join(" -> ")
+        ));
+    }
+    Ok(())
 }
 
-/// The next `D-nnnn` id after the highest one already recorded.
+/// One ordering edge between two decisions: `before` comes first, and `via`
+/// says why (`after`, `amends`, or `affects <span>`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Edge {
+    pub before: String,
+    pub after: String,
+    pub via: String,
+}
+
+/// The spans two records share: an exact `affects` string both name, or
+/// `every operation` on either side (ADR 0118 §3.3).
+fn shared_spans(a: &Value, b: &Value) -> Vec<String> {
+    let sa = json::strings(json::field(a, "affects"));
+    let sb = json::strings(json::field(b, "affects"));
+    const EVERY: &str = "every operation";
+    if sa.iter().any(|s| s == EVERY) || sb.iter().any(|s| s == EVERY) {
+        if sa.is_empty() || sb.is_empty() {
+            return vec![];
+        }
+        return vec![EVERY.to_string()];
+    }
+    sa.into_iter().filter(|s| sb.contains(s)).collect()
+}
+
+/// Whether `a` is older than `b` for the implicit order: by number when
+/// both are numbered; a numbered record before a random one, whatever the
+/// dates say, since every numbered record was written before ADR 0118 and
+/// only a random one can carry the edge (`decisions link` refuses an old
+/// record, so the newer of a mixed pair must be the random one); else by
+/// `date`, then id.
+fn older(a: &Value, b: &Value) -> bool {
+    let ia = json::get_str(a, "id").unwrap_or("");
+    let ib = json::get_str(b, "id").unwrap_or("");
+    match (crate::record_log::number(ia), crate::record_log::number(ib)) {
+        (Some(x), Some(y)) => x < y,
+        (Some(_), None) => true,
+        (None, Some(_)) => false,
+        (None, None) => {
+            let da = json::get_str(a, "date").unwrap_or("");
+            let db = json::get_str(b, "date").unwrap_or("");
+            (da, ia) < (db, ib)
+        }
+    }
+}
+
+/// Which records each record can reach through `after` and `amends`,
+/// followed from the later record to the one it names.
+fn explicit_reach(recs: &[&Value]) -> Vec<std::collections::HashSet<usize>> {
+    let index: std::collections::HashMap<&str, usize> = recs
+        .iter()
+        .enumerate()
+        .filter_map(|(i, r)| json::get_str(r, "id").map(|id| (id, i)))
+        .collect();
+    (0..recs.len())
+        .map(|start| {
+            let mut seen = std::collections::HashSet::new();
+            let mut stack = vec![start];
+            while let Some(i) = stack.pop() {
+                for to in edges(recs[i]) {
+                    if let Some(&j) = index.get(to) {
+                        if seen.insert(j) {
+                            stack.push(j);
+                        }
+                    }
+                }
+            }
+            seen
+        })
+        .collect()
+}
+
+/// Two resolved decisions that name the same span with no `after`/`amends`
+/// path between them either way, as `(older, newer, span)`. With
+/// `random_only`, a pair of numbered records is left out: their numbers
+/// already order them (ADR 0118's `decision-overlap`).
+pub fn unordered_overlaps(doc: &Value, random_only: bool) -> Vec<(String, String, String)> {
+    let recs: Vec<&Value> = json::get_arr(doc, "decisions")
+        .into_iter()
+        .flatten()
+        .filter(|r| json::get_str(r, "status") == Some("resolved"))
+        .collect();
+    let reach = explicit_reach(&recs);
+    let mut out = Vec::new();
+    for i in 0..recs.len() {
+        for j in i + 1..recs.len() {
+            let (a, b) = (recs[i], recs[j]);
+            let ia = json::get_str(a, "id").unwrap_or("");
+            let ib = json::get_str(b, "id").unwrap_or("");
+            if random_only && !crate::record_log::is_random(ia) && !crate::record_log::is_random(ib)
+            {
+                continue;
+            }
+            if reach[i].contains(&j) || reach[j].contains(&i) {
+                continue;
+            }
+            if let Some(span) = shared_spans(a, b).into_iter().next() {
+                let (old, new) = if older(a, b) { (ia, ib) } else { (ib, ia) };
+                out.push((old.to_string(), new.to_string(), span));
+            }
+        }
+    }
+    out
+}
+
+/// The causal order of the log (ADR 0118 §3.3): every decision after the
+/// ones it names in `after` or `amends`, and after an older resolved
+/// decision that names one of its spans when no explicit path relates the
+/// two. Topological, oldest first; ties keep the log's order. Returns each
+/// record with the edges into it, or, when there is no order, the records
+/// left unplaced: a cycle through `after`/`amends`, or explicit edges that
+/// run against the age order of spans a third record shares with both.
+pub fn causal_order(doc: &Value) -> Result<Vec<(Value, Vec<Edge>)>, Vec<String>> {
+    if let Some(cycle) = link_cycle(doc) {
+        return Err(cycle);
+    }
+    let recs: Vec<&Value> = json::get_arr(doc, "decisions")
+        .into_iter()
+        .flatten()
+        .collect();
+    let id_of = |r: &Value| json::get_str(r, "id").unwrap_or("").to_string();
+    let index: std::collections::HashMap<String, usize> = recs
+        .iter()
+        .enumerate()
+        .map(|(i, r)| (id_of(r), i))
+        .collect();
+    let mut incoming: Vec<Vec<Edge>> = vec![Vec::new(); recs.len()];
+    for (i, r) in recs.iter().enumerate() {
+        for (key, list) in [("after", "after"), ("amends", "amends")] {
+            for to in json::strings(json::field(r, key)) {
+                if index.contains_key(&to) {
+                    incoming[i].push(Edge {
+                        before: to,
+                        after: id_of(r),
+                        via: list.to_string(),
+                    });
+                }
+            }
+        }
+    }
+    for (old, new, span) in unordered_overlaps(doc, false) {
+        if let Some(&n) = index.get(&new) {
+            incoming[n].push(Edge {
+                before: old,
+                after: new,
+                via: format!("affects {}", span),
+            });
+        }
+    }
+    let mut placed = vec![false; recs.len()];
+    let mut out = Vec::new();
+    while out.len() < recs.len() {
+        let next = (0..recs.len()).find(|&i| {
+            !placed[i]
+                && incoming[i]
+                    .iter()
+                    .all(|e| index.get(&e.before).is_none_or(|&b| placed[b]))
+        });
+        let Some(i) = next else {
+            // `after`/`amends` alone are acyclic (checked above), so an
+            // implicit edge closed this loop: an explicit edge points
+            // against age, and a third record orders the two the other way.
+            let rest: Vec<String> = (0..recs.len())
+                .filter(|&i| !placed[i])
+                .map(|i| id_of(recs[i]))
+                .collect();
+            return Err(rest);
+        };
+        placed[i] = true;
+        out.push((recs[i].clone(), std::mem::take(&mut incoming[i])));
+    }
+    Ok(out)
+}
+
+fn dedup(items: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for i in items {
+        if !out.contains(&i) {
+            out.push(i);
+        }
+    }
+    out
+}
+
+/// The id a new record gets: `D-` and six random base36 characters no
+/// record holds (ADR 0118). Numbered ids are only ever the ones already
+/// recorded.
+pub fn new_id(doc: &Value) -> String {
+    let taken = crate::record_log::ids(doc, "decisions");
+    crate::record_log::new_id("D-", |id| taken.contains(id))
+}
+
+/// The next `D-nnnn` after the highest number recorded: how ids were minted
+/// before ADR 0118. Nothing mints one now; it says where the numbered
+/// sequence ends.
 pub fn next_id(doc: &Value) -> String {
     let max = json::get_arr(doc, "decisions")
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|d| json::get_str(d, "id"))
-                .filter_map(|id| id.strip_prefix("D-"))
-                .filter_map(|n| n.parse::<u32>().ok())
-                .max()
-                .unwrap_or(0)
-        })
+        .into_iter()
+        .flatten()
+        .filter_map(|d| json::get_str(d, "id"))
+        .filter_map(crate::record_log::number)
+        .max()
         .unwrap_or(0);
     format!("D-{:04}", max + 1)
 }
@@ -518,7 +813,18 @@ pub fn add(doc: &mut Value, new: NewDecision) -> Result<String, String> {
     if new.title.trim().is_empty() {
         return Err("a decision needs a title".into());
     }
-    let id = next_id(doc);
+    let slug = match new.slug {
+        Some(s) if !crate::record_log::is_slug(&s) => {
+            return Err(format!(
+                "--slug {:?}: lower-case letters and digits in hyphen-separated runs, at most {} characters",
+                s,
+                crate::record_log::SLUG_MAX
+            ))
+        }
+        Some(s) => Some(s),
+        None => Some(crate::record_log::slugify(&new.title)).filter(|s| !s.is_empty()),
+    };
+    let id = new_id(doc);
     let status = if new.resolution.is_some() {
         "resolved"
     } else {
@@ -526,9 +832,18 @@ pub fn add(doc: &mut Value, new: NewDecision) -> Result<String, String> {
     };
     let mut rec = json::obj();
     rec.insert("id".into(), Value::from(id.clone()));
+    if let Some(s) = slug {
+        rec.insert("slug".into(), Value::from(s));
+    }
     rec.insert("title".into(), Value::from(new.title));
     rec.insert("status".into(), Value::from(status));
     rec.insert("date".into(), Value::from(new.date));
+    if !new.after.is_empty() {
+        rec.insert("after".into(), Value::from(dedup(new.after)));
+    }
+    if !new.amends.is_empty() {
+        rec.insert("amends".into(), Value::from(dedup(new.amends)));
+    }
     if let Some(p) = new.phase {
         rec.insert("phase".into(), Value::from(p));
     }
@@ -680,6 +995,43 @@ pub fn supersede(doc: &mut Value, id: &str) -> Result<(), ReopenRefusal> {
         }
     }
     json::set(rec, "status", Value::from("superseded"));
+    Ok(())
+}
+
+/// Add `after`/`amends` edges to a decision recorded since ADR 0118: how
+/// `decision-overlap` is answered for two records added independently. An
+/// old, numbered record never gains a field (`decisions.json` stays what
+/// every older binary reads), so it is refused (`old-record`), as is an
+/// unknown id; a dangling or circular edge is refused at `save`. In-memory
+/// only; the caller persists with `save`.
+pub fn link(
+    doc: &mut Value,
+    id: &str,
+    after: Vec<String>,
+    amends: Vec<String>,
+) -> Result<(), ReopenRefusal> {
+    if !crate::record_log::is_random(id) {
+        return Err(ReopenRefusal {
+            code: "old-record",
+            message: format!(
+                "{} was recorded before ADR 0118 and keeps the fields it has; put the edge on the newer record instead, which may name {}",
+                id, id
+            ),
+        });
+    }
+    let idx = index_of(doc, id).ok_or_else(|| ReopenRefusal {
+        code: "unknown-decision",
+        message: format!("no decision {}", id),
+    })?;
+    let rec = &mut doc["decisions"][idx];
+    for (key, new) in [("after", after), ("amends", amends)] {
+        if new.is_empty() {
+            continue;
+        }
+        let mut all = json::strings(json::field(rec, key));
+        all.extend(new);
+        json::set(rec, key, Value::from(dedup(all)));
+    }
     Ok(())
 }
 

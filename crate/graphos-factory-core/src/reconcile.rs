@@ -1911,12 +1911,12 @@ impl LinkStaleness {
 /// `keep` and `drop`; resolved `keep` (a chosen id `keep` or `keep-…`,
 /// gitea's D-0018 `keep-guarded`) is the one exemption, and everything
 /// else leaves the link stale with its own remedy. Findings never keep a
-/// link: the rule reads decisions.json only.
+/// link: the rule reads the decision log only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LinkDecision {
     /// No `decision:` on the entry.
     None,
-    /// `decision:` names an id decisions.json does not record.
+    /// `decision:` names an id the decision log does not record.
     Unrecorded(String),
     /// The decision is open: the question is pending.
     Open(String),
@@ -1934,7 +1934,7 @@ fn chose(rec: &Value, choice: &str) -> bool {
         .any(|c| c == choice || c.starts_with(&format!("{}-", choice)))
 }
 
-/// The decision `link` names, read from a `decisions.json` document.
+/// The decision `link` names, read from the decision log.
 pub fn link_decision(link: &Link, decisions: Option<&Value>) -> LinkDecision {
     let Some(id) = link.decision.as_deref().map(str::trim) else {
         return LinkDecision::None;
@@ -2042,7 +2042,7 @@ pub fn stale_link_remedy(
             id, id
         ),
         LinkDecision::Unrecorded(id) => format!(
-            "decision: {} is not recorded in decisions.json; {}; {}",
+            "decision: {} is not recorded in the decision log; {}; {}",
             id, raise, hold
         ),
         LinkDecision::Unanswered(id) => format!(
@@ -2055,7 +2055,7 @@ pub fn stale_link_remedy(
 }
 
 pub struct Inputs<'a> {
-    /// `.factory/decisions.json`, when present and readable: what a stale
+    /// The decision log, when present and readable: what a stale
     /// link's `decision:` says about it (`link_decision`, ADR 0113 §4).
     pub decisions: Option<&'a Value>,
     pub workspace: &'a Value,

@@ -3,11 +3,11 @@
 //!   codify [workspace-dir] --key K --reason R
 //!          [--assert kind=value]… | --pin        # an override, verified by assertions (or pinned bytes)
 //!          [--expressed]                         # no override: selection.yaml now expresses the edit
-//!          [--decision D-nnnn] [--context TEXT] [--until TEXT] [--expires YYYY-MM-DD]
+//!          [--decision D-id] [--context TEXT] [--until TEXT] [--expires YYYY-MM-DD]
 //!          [--dry-run] [--json] [--model MODEL]
-//!   codify [workspace-dir] --source PATH --reason R [--decision D-nnnn] [--context TEXT] [--dry-run] [--json] [--model MODEL]
+//!   codify [workspace-dir] --source PATH --reason R [--decision D-id] [--context TEXT] [--dry-run] [--json] [--model MODEL]
 //!   codify [workspace-dir] --waive TARGET --status unchecked|unmatched --reason R
-//!          [--decision D-nnnn] [--context TEXT] [--until TEXT] [--expires YYYY-MM-DD] [--dry-run] [--json]
+//!          [--decision D-id] [--context TEXT] [--until TEXT] [--expires YYYY-MM-DD] [--dry-run] [--json]
 //!
 //! `--waive` accepts a conformance gap (crate::waivers): TARGET is one body
 //! (`tests/fixtures/mappings/<case>.json` or `tests/<suite>.connector.yaml#<entry>`)
@@ -37,10 +37,11 @@
 //!
 //! codify writes no decision (ADR 0113 §3). The entry carries the why:
 //! `reason` (required) and `context` (`--context TEXT`, optional);
-//! `--decision D-nnnn` attaches it to a real decision the user or the agent
-//! recorded with `decisions add`, and codify warns when no such decision is
-//! recorded. An `--expressed` codification leaves no entry, so its
-//! `--context`, when given, becomes a finding (`source: codify`).
+//! `--decision D-id` (numbered or random) attaches it to a real decision
+//! the user or the agent recorded with `decisions add`, and codify warns
+//! when no such decision is recorded. An `--expressed` codification leaves
+//! no entry, so its `--context`, when given, becomes a finding (`source:
+//! codify`).
 //!
 //! Exit codes: 0 done; 1 usage; 2 refused (no span, a span whose path is a
 //! tie the selection does not settle (ADR 0044), failing assertion, the
@@ -54,14 +55,12 @@ use crate::spans::{check_assertion, spans, ASSERTION_KINDS};
 use serde_json::Value;
 use std::path::Path;
 
-const DECISION_RE: &str = r"^D-\d{4}$";
-
 /// The selection codify edits in place — `.factory/`, so custody's (ADR 0025).
-/// `findings.json` goes through `crate::findings`, which is custody's too.
+/// The findings log goes through `crate::findings`, which is custody's too.
 const SELECTION: &str = ".factory/selection.yaml";
 
 /// The usage text: `codify --help` prints it on stdout (ADR 0086).
-pub const USAGE: &str = "usage: codify [workspace] --key K --reason R [--assert kind=value]… | --pin | --expressed [--decision D-nnnn] [--context TEXT] [--until TEXT] [--expires YYYY-MM-DD] [--dry-run] [--json] [--model MODEL]\n       codify [workspace] --source PATH --reason R [--decision D-nnnn] [--context TEXT] [--dry-run] [--json] [--model MODEL]\n       codify [workspace] --waive TARGET --status unchecked|unmatched --reason R [--decision D-nnnn] [--context TEXT] [--until TEXT] [--expires YYYY-MM-DD] [--dry-run] [--json]";
+pub const USAGE: &str = "usage: codify [workspace] --key K --reason R [--assert kind=value]… | --pin | --expressed [--decision D-id] [--context TEXT] [--until TEXT] [--expires YYYY-MM-DD] [--dry-run] [--json] [--model MODEL]\n       codify [workspace] --source PATH --reason R [--decision D-id] [--context TEXT] [--dry-run] [--json] [--model MODEL]\n       codify [workspace] --waive TARGET --status unchecked|unmatched --reason R [--decision D-id] [--context TEXT] [--until TEXT] [--expires YYYY-MM-DD] [--dry-run] [--json]";
 
 fn usage(msg: &str) -> i32 {
     eprintln!("codify: {}", msg);
@@ -163,11 +162,11 @@ fn warn_unrecorded_decision(dir: &Path, args: &Args, id: &str, what: &str) {
     match decisions::load(dir, schemas_dir(args)) {
         Ok(doc) if decisions::find(&doc, id).is_some() => {}
         Ok(_) => eprintln!(
-            "codify: warning: decisions.json has no decision {} — {}",
+            "codify: warning: the decision log has no decision {} — {}",
             id, what
         ),
         Err(e) => eprintln!(
-            "codify: warning: {} cannot be checked against decisions.json ({}) — {}",
+            "codify: warning: {} cannot be checked against the decision log ({}) — {}",
             id, e, what
         ),
     }
@@ -300,8 +299,11 @@ pub fn main(argv: &[String]) -> i32 {
         return usage("give at least one --assert kind=value (what must stay true), or --pin to freeze the bytes, or --expressed when selection.yaml already carries the edit");
     }
     if let Some(d) = args.get("decision") {
-        if !regex::Regex::new(DECISION_RE).unwrap().is_match(d) {
-            return usage(&format!("--decision must look like D-0019, got {:?}", d));
+        if !crate::record_log::is_decision_id(d) {
+            return usage(&format!(
+                "--decision must look like D-0019 or D-k7m2qx, got {:?}",
+                d
+            ));
         }
     }
     if let Some(e) = args.get("expires") {
@@ -627,7 +629,7 @@ pub fn main(argv: &[String]) -> i32 {
             Value::Array(
                 [
                     Some(".factory/selection.yaml"),
-                    finding_id.as_ref().map(|_| crate::findings::FILE),
+                    finding_id.as_ref().map(|_| crate::record_log::FINDINGS.dir),
                     Some(crate::spans::LOCK_FILE),
                 ]
                 .into_iter()
@@ -660,7 +662,7 @@ pub fn main(argv: &[String]) -> i32 {
                 .and_then(|a| a.last())
                 .filter(|_| finding_id.is_some())
             {
-                print!("--- findings.json record:\n{}", crate::json::pretty(added));
+                print!("--- finding record:\n{}", crate::json::pretty(added));
             }
             println!("--- applied.lock.yaml: spans[{}] = {}", key, span.sha256);
         }
@@ -699,9 +701,9 @@ pub fn main(argv: &[String]) -> i32 {
         print!("{}", crate::json::pretty(&summary));
     } else {
         let cited = match (&decision_id, &finding_id) {
-            (Some(d), Some(f)) => format!(" ({}; {} recorded in findings.json)", d, f),
+            (Some(d), Some(f)) => format!(" ({}; finding {} recorded)", d, f),
             (Some(d), None) => format!(" ({})", d),
-            (None, Some(f)) => format!(" ({} recorded in findings.json)", f),
+            (None, Some(f)) => format!(" (finding {} recorded)", f),
             (None, None) => String::new(),
         };
         println!(
@@ -743,8 +745,11 @@ fn codify_source(args: &Args, dir: &Path, rel: &str) -> i32 {
         return usage("--source takes only --reason, --decision, --context, --dry-run and --json (a source patch has no expiry; say when to revisit it in --reason or --context — nothing checks it)");
     }
     if let Some(d) = args.get("decision") {
-        if !regex::Regex::new(DECISION_RE).unwrap().is_match(d) {
-            return usage(&format!("--decision must look like D-0019, got {:?}", d));
+        if !crate::record_log::is_decision_id(d) {
+            return usage(&format!(
+                "--decision must look like D-0019 or D-k7m2qx, got {:?}",
+                d
+            ));
         }
     }
     let dry_run = args.has("dry-run");
@@ -1146,8 +1151,11 @@ fn codify_waive(args: &Args, dir: &Path, target: &str) -> i32 {
         _ => return usage("--reason is required (why the gap is acceptable; it becomes the waiver's reason and the decision)"),
     };
     if let Some(d) = args.get("decision") {
-        if !regex::Regex::new(DECISION_RE).unwrap().is_match(d) {
-            return usage(&format!("--decision must look like D-0019, got {:?}", d));
+        if !crate::record_log::is_decision_id(d) {
+            return usage(&format!(
+                "--decision must look like D-0019 or D-k7m2qx, got {:?}",
+                d
+            ));
         }
     }
     if let Some(e) = args.get("expires") {

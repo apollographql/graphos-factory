@@ -110,6 +110,9 @@ fn input_paths(dir: &Path) -> Result<BTreeSet<String>, String> {
     .into_iter()
     .map(str::to_string)
     .collect();
+    // Each decision or finding record file is an input (ADR 0118), as
+    // `decisions.json` and `findings.json` are.
+    paths.extend(crate::record_log::record_paths(dir)?);
 
     if let Some(lock) = crate::sources::read_sources_lock(dir)? {
         for source in crate::sources::document_entries(&lock) {
@@ -490,14 +493,18 @@ pub struct Drift {
     /// `inputs` or `outputs`.
     pub section: &'static str,
     pub path: String,
-    /// `changed`, or `missing` when the file is gone or unreadable.
+    /// `changed`; `missing` when the file is gone or unreadable; `added` for
+    /// a decision or finding record file the lock never saw (ADR 0118).
     pub change: &'static str,
 }
 
 /// Rehash every file the lock's provenance recorded and return the ones that
-/// differ. A lock without a provenance block has nothing to compare. Files
-/// added since the lock are not reported: provenance records what the lock
-/// saw, not what the workspace must contain.
+/// differ. A lock without a provenance block has nothing to compare. Other
+/// files added since the lock are not reported: provenance records what the
+/// lock saw, not what the workspace must contain. Decision and finding record
+/// files are the exception (ADR 0118): adding one is how a log grows now, as
+/// appending to `decisions.json` was, so a record file the lock's inputs do
+/// not name is `added`, or the lock would describe a log it never saw.
 pub fn drift(dir: &Path, lock: &Value) -> Vec<Drift> {
     let mut out = Vec::new();
     for section in ["inputs", "outputs"] {
@@ -520,6 +527,23 @@ pub fn drift(dir: &Path, lock: &Value) -> Vec<Drift> {
                 path: rel.clone(),
                 change,
             });
+        }
+    }
+    if let Some(inputs) = lock
+        .get("provenance")
+        .and_then(|p| p.get("inputs"))
+        .and_then(Value::as_object)
+    {
+        // An unreadable directory is reported by every reader of the log;
+        // here it only means nothing can be called added.
+        for rel in crate::record_log::record_paths(dir).unwrap_or_default() {
+            if !inputs.contains_key(&rel) {
+                out.push(Drift {
+                    section: "inputs",
+                    path: rel,
+                    change: "added",
+                });
+            }
         }
     }
     out

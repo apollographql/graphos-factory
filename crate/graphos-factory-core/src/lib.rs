@@ -30,6 +30,7 @@ pub mod openapi;
 pub mod patch;
 pub mod provenance;
 pub mod reconcile;
+pub mod record_log;
 pub mod refresh;
 pub mod render;
 pub mod request_serialization;

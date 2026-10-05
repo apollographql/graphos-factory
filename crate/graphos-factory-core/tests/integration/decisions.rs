@@ -15,9 +15,59 @@ fn decisions(dir: &Path, args: &[&str]) -> i32 {
     graphos_factory_core::cmd::decisions::main(&argv)
 }
 
+/// The log as every reader sees it: `decisions.json`'s records, then those
+/// added since ADR 0118, one file each under `.factory/decisions/`.
 fn read_doc(dir: &Path) -> Value {
-    let text = std::fs::read_to_string(dir.join(".factory/decisions.json")).unwrap();
-    graphos_factory_core::json::parse(&text).unwrap()
+    graphos_factory_core::decisions::load(dir, None).unwrap()
+}
+
+/// The id `add` gave the record with this title: a new record's id is
+/// random (ADR 0118), so a test finds it by what it decided.
+fn id_of(dir: &Path, title: &str) -> String {
+    records(&read_doc(dir))
+        .iter()
+        .find(|r| r["title"] == title)
+        .unwrap_or_else(|| panic!("no decision titled {:?}", title))["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn by_title<'a>(doc: &'a Value, title: &str) -> &'a Value {
+    records(doc)
+        .iter()
+        .find(|r| r["title"] == title)
+        .unwrap_or_else(|| panic!("no decision titled {:?}", title))
+}
+
+/// A refused verb recorded nothing: no `decisions.json`, no record file.
+fn assert_nothing_recorded(dir: &Path) {
+    assert!(!dir.join(".factory/decisions.json").exists());
+    assert!(!dir.join(".factory/decisions").exists());
+}
+
+/// Turn the records `add` wrote into an existing workspace's log: the same
+/// records, in `titles` order, numbered D-0001… in `decisions.json`, as a
+/// workspace written before ADR 0118 holds them. The record files go.
+fn as_legacy(dir: &Path, titles: &[&str]) {
+    let doc = read_doc(dir);
+    let recs: Vec<Value> = titles
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            let mut r = by_title(&doc, t).clone();
+            let m = r.as_object_mut().unwrap();
+            m.shift_remove("slug");
+            m.insert("id".into(), Value::from(format!("D-{:04}", i + 1)));
+            r
+        })
+        .collect();
+    std::fs::remove_dir_all(dir.join(".factory/decisions")).unwrap();
+    std::fs::write(
+        dir.join(".factory/decisions.json"),
+        graphos_factory_core::json::pretty(&json!({"contract_version": 1, "decisions": recs})),
+    )
+    .unwrap();
 }
 
 fn records(doc: &Value) -> &Vec<Value> {
@@ -25,7 +75,7 @@ fn records(doc: &Value) -> &Vec<Value> {
 }
 
 #[test]
-fn add_appends_an_open_decision_with_sequential_ids_and_choices() {
+fn add_appends_open_decisions_with_random_ids_and_choices() {
     let dir = TempDir::new().unwrap();
     let d = dir.path();
     assert_eq!(
@@ -68,19 +118,28 @@ fn add_appends_an_open_decision_with_sequential_ids_and_choices() {
     );
 
     let doc = read_doc(d);
-    assert_eq!(doc.get("contract_version").unwrap(), 1);
     let recs = records(&doc);
     assert_eq!(recs.len(), 2);
-    assert_eq!(recs[0].get("id").unwrap(), "D-0001");
-    assert_eq!(recs[0].get("status").unwrap(), "open");
-    assert_eq!(recs[0].get("phase").unwrap(), "select");
-    let choices = recs[0].get("choices").unwrap().as_array().unwrap();
+    let first = by_title(&doc, "Which OAuth scopes for the write operations?");
+    let second = by_title(&doc, "Second one");
+    // New ids are random, distinct, and never a number (ADR 0118).
+    for r in [first, second] {
+        let id = r["id"].as_str().unwrap();
+        assert!(graphos_factory_core::record_log::is_random(id), "{}", id);
+    }
+    assert_ne!(first["id"], second["id"]);
+    assert!(
+        !d.join(".factory/decisions.json").exists(),
+        "a new record never goes into the single file"
+    );
+    assert_eq!(first.get("status").unwrap(), "open");
+    assert_eq!(first.get("phase").unwrap(), "select");
+    let choices = first.get("choices").unwrap().as_array().unwrap();
     assert_eq!(choices.len(), 2);
     assert_eq!(choices[1].get("id").unwrap(), "read-write");
     assert_eq!(choices[1].get("detail").unwrap(), "Grants both scopes.");
-    assert_eq!(recs[1].get("id").unwrap(), "D-0002");
     // An open decision carries no resolution.
-    assert!(recs[0].get("resolution").is_none());
+    assert!(first.get("resolution").is_none());
 }
 
 #[test]
@@ -139,7 +198,7 @@ fn add_refuses_an_omit_with_an_unknown_reason() {
         ),
         1
     );
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
 }
 
 /// ADR 0073 / Adam's rule: a JSON-scalar field's reason is a
@@ -200,7 +259,7 @@ fn add_refuses_a_json_reason_with_an_unknown_value() {
         ),
         1
     );
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
 }
 
 #[test]
@@ -222,7 +281,7 @@ fn add_refuses_a_json_reason_missing_the_type_dot_field_key() {
         ),
         1
     );
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
 }
 
 /// A field is one level under its type: `Type.a.b` could never match an SDL
@@ -246,7 +305,7 @@ fn add_refuses_a_json_reason_key_nested_past_one_field() {
         ),
         1
     );
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
 }
 
 #[test]
@@ -311,7 +370,7 @@ fn add_refuses_a_null_handling_with_an_unknown_behavior() {
         ),
         1
     );
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
 }
 
 #[test]
@@ -368,7 +427,7 @@ fn add_refuses_a_secret_field_with_an_unknown_disposition() {
         ),
         1
     );
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
 }
 
 #[test]
@@ -390,7 +449,7 @@ fn add_refuses_a_secret_field_with_no_dot_in_the_type_field_pair() {
         ),
         1
     );
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
 }
 
 #[test]
@@ -420,7 +479,7 @@ fn resolve_flips_status_and_records_the_choice() {
             &[
                 "resolve",
                 "--id",
-                "D-0001",
+                &id_of(d, "Scopes?"),
                 "--chosen",
                 "read-write",
                 "--note",
@@ -513,7 +572,7 @@ fn list_open_json_returns_only_open_records() {
         ],
     );
     assert_eq!(
-        decisions(d, &["resolve", "--id", "D-0001", "--note", "done"]),
+        decisions(d, &["resolve", "--id", &id_of(d, "One"), "--note", "done"]),
         0
     );
     // We only assert the exit code here; the JSON body goes to stdout. Re-read
@@ -524,7 +583,7 @@ fn list_open_json_returns_only_open_records() {
         .filter(|r| r.get("status").unwrap() == "open")
         .collect();
     assert_eq!(open.len(), 1);
-    assert_eq!(open[0].get("id").unwrap(), "D-0002");
+    assert_eq!(open[0].get("id").unwrap(), id_of(d, "Two").as_str());
     assert_eq!(decisions(d, &["list", "--open", "--json"]), 0);
 }
 
@@ -571,13 +630,14 @@ fn a_forced_re_resolve_without_a_choice_or_decision_keeps_the_resolution() {
             "b:B",
         ],
     );
+    let id = id_of(d, "One");
     assert_eq!(
         decisions(
             d,
             &[
                 "resolve",
                 "--id",
-                "D-0001",
+                &id,
                 "--chosen",
                 "a",
                 "--decision",
@@ -587,32 +647,19 @@ fn a_forced_re_resolve_without_a_choice_or_decision_keeps_the_resolution() {
         0
     );
     assert_eq!(
-        decisions(
-            d,
-            &["resolve", "--id", "D-0001", "--note", "later", "--force"]
-        ),
+        decisions(d, &["resolve", "--id", &id, "--note", "later", "--force"]),
         1
     );
     // Passing only one of the two would erase the other: refused as well.
     assert_eq!(
         decisions(
             d,
-            &[
-                "resolve",
-                "--id",
-                "D-0001",
-                "--decision",
-                "reworded",
-                "--force"
-            ]
+            &["resolve", "--id", &id, "--decision", "reworded", "--force"]
         ),
         1
     );
     assert_eq!(
-        decisions(
-            d,
-            &["resolve", "--id", "D-0001", "--chosen", "b", "--force"]
-        ),
+        decisions(d, &["resolve", "--id", &id, "--chosen", "b", "--force"]),
         1
     );
     let resolution = records(&read_doc(d))[0].get("resolution").unwrap().clone();
@@ -624,7 +671,7 @@ fn a_forced_re_resolve_without_a_choice_or_decision_keeps_the_resolution() {
             &[
                 "resolve",
                 "--id",
-                "D-0001",
+                &id,
                 "--chosen",
                 "b",
                 "--decision",
@@ -657,19 +704,17 @@ fn resolve_refuses_to_re_resolve_without_force() {
             "2026-09-18",
         ],
     );
+    let id = id_of(d, "One");
     assert_eq!(
-        decisions(d, &["resolve", "--id", "D-0001", "--note", "first"]),
+        decisions(d, &["resolve", "--id", &id, "--note", "first"]),
         0
     );
     assert_eq!(
-        decisions(d, &["resolve", "--id", "D-0001", "--note", "second"]),
+        decisions(d, &["resolve", "--id", &id, "--note", "second"]),
         1
     );
     assert_eq!(
-        decisions(
-            d,
-            &["resolve", "--id", "D-0001", "--note", "second", "--force"]
-        ),
+        decisions(d, &["resolve", "--id", &id, "--note", "second", "--force"]),
         0
     );
     let doc = read_doc(d);
@@ -687,7 +732,7 @@ fn resolve_refuses_to_re_resolve_without_force() {
 fn add_requires_a_title() {
     let dir = TempDir::new().unwrap();
     assert_eq!(decisions(dir.path(), &["add", "--phase", "select"]), 1);
-    assert!(!dir.path().join(".factory/decisions.json").exists());
+    assert_nothing_recorded(dir.path());
 }
 
 #[test]
@@ -830,6 +875,7 @@ fn migrate_refuses_when_json_exists_unless_forced() {
         ),
         0
     );
+    as_legacy(d, &["pre-existing"]);
     assert_eq!(decisions(d, &["migrate"]), 1);
     assert!(
         d.join(".factory/decisions.md").exists(),
@@ -848,7 +894,7 @@ fn migrate_dry_run_writes_nothing_and_keep_md_keeps_it() {
     let d = dir.path();
     write_md(d, LEGACY_MD);
     assert_eq!(decisions(d, &["migrate", "--dry-run"]), 0);
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
     assert!(d.join(".factory/decisions.md").exists());
     assert_eq!(decisions(d, &["migrate", "--keep-md"]), 0);
     assert!(d.join(".factory/decisions.json").exists());
@@ -864,7 +910,7 @@ fn migrate_refuses_a_file_with_no_decision_blocks() {
     let d = dir.path();
     write_md(d, "# Decisions\n\nJust a preamble, no D-nnnn blocks.\n");
     assert_eq!(decisions(d, &["migrate"]), 1);
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
     assert!(
         d.join(".factory/decisions.md").exists(),
         "nothing is deleted"
@@ -890,6 +936,7 @@ fn migrate_reports_already_done_when_only_json_exists() {
         ),
         0
     );
+    as_legacy(d, &["x"]);
     assert_eq!(decisions(d, &["migrate"]), 0);
 }
 
@@ -977,7 +1024,7 @@ fn migrate_refuses_a_symlinked_legacy_log() {
     std::os::unix::fs::symlink(&target, d.join(".factory/decisions.md")).unwrap();
 
     assert_eq!(decisions(d, &["migrate"]), 1);
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
     assert_eq!(std::fs::read_to_string(&target).unwrap(), LEGACY_MD);
     assert!(d.join(".factory/decisions.md").is_symlink());
 }
@@ -1019,7 +1066,7 @@ fn migrate_refuses_a_fence_that_runs_into_the_next_decision() {
         "# Decisions\n\n## D-0001 · 2026-09-01 · Open fence\n\n```\nexample\n\nDecision: x.\n\n## D-0002 · 2026-09-02 · Next\n\n```\n\nDecision: y.\n",
     );
     assert_eq!(decisions(d, &["migrate"]), 1);
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
     assert!(d.join(".factory/decisions.md").exists());
 }
 
@@ -1037,7 +1084,7 @@ fn a_tilde_fence_holding_a_decision_header_never_replaces_the_real_decision() {
         "# Decisions\n\n## D-0001 · 2026-09-01 · First\n\nContext: an example follows.\n\n~~~\n## D-0002 · 2026-09-02 · Example only\n\nDecision: fake.\n~~~\n\nDecision: keep it.\n\n## D-0002 · 2026-09-02 · The real second\n\nDecision: real.\n",
     );
     assert_eq!(decisions(d, &["migrate"]), 1);
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
     assert!(d.join(".factory/decisions.md").exists());
 
     // A ~~~ block without a header inside it migrates like a ``` block.
@@ -1086,8 +1133,11 @@ fn reopen_json(dir: &Path, args: &[&str]) -> (i32, Value) {
     (out.status.code().unwrap(), body)
 }
 
-/// Three decisions: D-0001 resolved with a choice, D-0002 open, D-0003 a
-/// resolved record carrying every optional field, including omits.
+/// Three decisions in an existing workspace's `decisions.json`: D-0001
+/// resolved with a choice, D-0002 open, D-0003 a resolved record carrying
+/// every optional field, including omits. Built through `add` and `resolve`,
+/// then numbered as a log written before ADR 0118 holds them, so reopen and
+/// supersede are proven on the old records they will mostly meet.
 fn three_decisions(d: &Path) {
     assert_eq!(
         decisions(
@@ -1112,7 +1162,7 @@ fn three_decisions(d: &Path) {
             &[
                 "resolve",
                 "--id",
-                "D-0001",
+                &id_of(d, "Scopes?"),
                 "--chosen",
                 "rw",
                 "--by",
@@ -1179,6 +1229,7 @@ fn three_decisions(d: &Path) {
         ),
         0
     );
+    as_legacy(d, &["Scopes?", "Still open", "Drop the audit block"]);
 }
 
 #[test]
@@ -1647,7 +1698,7 @@ fn add_refuses_a_record_that_names_no_alternative() {
     ] {
         assert_eq!(decisions(d, &args), 1, "{:?}", args);
     }
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
 
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_graphos-factory-bare"))
         .args([
@@ -1666,7 +1717,7 @@ fn add_refuses_a_record_that_names_no_alternative() {
     assert_eq!(refusal["exit"], 1);
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("findings add"), "{}", stderr);
-    assert!(!d.join(".factory/decisions.json").exists());
+    assert_nothing_recorded(d);
 
     // A question, or two choices, is an alternative.
     assert_eq!(
@@ -1700,7 +1751,7 @@ fn add_refuses_a_record_that_names_no_alternative() {
         0
     );
     let doc = read_doc(d);
-    let last = records(&doc).last().unwrap();
+    let last = by_title(&doc, "Drop the internal audit block from candidate reads");
     assert_eq!(last["status"], "resolved");
     assert_eq!(last["omits"][0]["reason"], "editorial");
     assert_eq!(records(&doc).len(), 3);
@@ -1757,13 +1808,16 @@ fn resolution_by_defaults_to_agent() {
         0
     );
     assert_eq!(
-        decisions(d, &["resolve", "--id", "D-0003", "--note", "this one"]),
+        decisions(
+            d,
+            &["resolve", "--id", &id_of(d, "Open"), "--note", "this one"]
+        ),
         0
     );
     let doc = read_doc(d);
-    let by: Vec<&str> = records(&doc)
+    let by: Vec<&str> = ["Agent's call", "User's call", "Open"]
         .iter()
-        .map(|r| r["resolution"]["by"].as_str().unwrap())
+        .map(|t| by_title(&doc, t)["resolution"]["by"].as_str().unwrap())
         .collect();
     assert_eq!(by, vec!["agent", "user", "agent"]);
 }

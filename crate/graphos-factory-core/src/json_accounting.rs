@@ -734,7 +734,7 @@ fn read_schema(dir: &Path, schema_file: &str) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|_| format!("{}: not valid UTF-8", schema_file))
 }
 
-/// One `json_reasons` entry, plus the `D-nnnn` id of the resolved decision
+/// One `json_reasons` entry, plus the id of the resolved decision
 /// that carries it, so a report can point at the record the same way
 /// `json_fields` used to carry an inline `decision:` pointer.
 struct JsonReasonEntry {
@@ -795,7 +795,7 @@ pub fn build(dir: &Path) -> Result<Report, String> {
     // (no reason has ever been recorded), same as a missing selection used
     // to be for this instrument.
     let json_reasons = match crate::decisions::load_present(dir, None)
-        .map_err(|e| format!(".factory/decisions.json: {}", e))?
+        .map_err(|e| format!("the decisions log: {}", e))?
     {
         Some(doc) => json_reason_decisions(&doc),
         None => Vec::new(),

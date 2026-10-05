@@ -9214,3 +9214,127 @@ fn an_invalid_findings_file_is_reported_and_decisions_keep_counting() {
         );
     }
 }
+
+/// A copy of the public pilot with one decision added since ADR 0118, and
+/// that decision's random id.
+fn gitea_with_a_random_decision() -> (tempfile::TempDir, String) {
+    let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../pilots/graphos/gitea");
+    let dir = tempfile::tempdir().unwrap();
+    assert!(std::process::Command::new("cp")
+        .arg("-R")
+        .arg(format!("{}/.", from.display()))
+        .arg(dir.path())
+        .status()
+        .unwrap()
+        .success());
+    let argv: Vec<String> = [
+        "add",
+        &dir.path().to_string_lossy(),
+        "--title",
+        "Waive the undocumented 404 body",
+        "--question",
+        "Waive it?",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    assert_eq!(graphos_factory_core::cmd::decisions::main(&argv), 0);
+    let log = graphos_factory_core::decisions::load(dir.path(), None).unwrap();
+    let id = graphos_factory_core::json::get_arr(&log, "decisions")
+        .into_iter()
+        .flatten()
+        .filter_map(|r| r["id"].as_str())
+        .find(|id| graphos_factory_core::record_log::is_random(id))
+        .unwrap()
+        .to_string();
+    (dir, id)
+}
+
+fn bare_lint(dir: &Path) -> LintResult {
+    lint_workspace(
+        dir,
+        &LintOptions {
+            schemas_dir: None,
+            skip_evidence: true,
+            target: &graphos_factory_core::target::BARE,
+        },
+    )
+}
+
+/// A waiver's hand-written `decision:` may cite a random id (ADR 0118): the
+/// selection schema takes it, so lint has no contract finding, reconcile
+/// is clean and `selection review` reads the file, as with `D-0010`.
+#[test]
+fn a_waiver_cites_a_random_decision_id_and_the_selection_still_validates() {
+    let (dir, id) = gitea_with_a_random_decision();
+    let d = dir.path();
+    let rel = ".factory/selection.yaml";
+    let text = std::fs::read_to_string(d.join(rel)).unwrap();
+    assert!(text.contains("    decision: D-0010\n"));
+    std::fs::write(
+        d.join(rel),
+        text.replacen(
+            "    decision: D-0010\n",
+            &format!("    decision: {}\n", id),
+            1,
+        ),
+    )
+    .unwrap();
+    let contract: Vec<_> = bare_lint(d)
+        .findings
+        .into_iter()
+        .filter(|f| f.rule == "contract")
+        .map(|f| f.message)
+        .collect();
+    assert!(contract.is_empty(), "{:?}", contract);
+    assert_eq!(
+        graphos_factory_core::cmd::reconcile::main(&[d.to_string_lossy().to_string()]),
+        0
+    );
+    assert!(graphos_factory_core::cmd::selection_review::review(d, None, None, None).is_ok());
+}
+
+/// A stray file in `.factory/decisions/` (a merge tool's `.orig`) leaves the
+/// whole log unread; lint says so as an error naming the file, rather than
+/// reading an empty log and reporting only what the missing decisions
+/// leave behind. The findings log is pinned the same way.
+#[test]
+fn a_stray_file_in_the_decision_log_is_an_error_naming_it() {
+    let (dir, id) = gitea_with_a_random_decision();
+    let d = dir.path();
+    assert!(!bare_lint(d)
+        .findings
+        .iter()
+        .any(|f| f.rule == "unreadable-file"));
+    let stray = format!(".factory/decisions/{}-x.json.orig", id);
+    std::fs::write(d.join(&stray), "{}").unwrap();
+    let r = bare_lint(d);
+    let unreadable: Vec<_> = r
+        .findings
+        .iter()
+        .filter(|f| f.rule == "unreadable-file")
+        .collect();
+    assert_eq!(unreadable.len(), 1, "{:?}", r.findings);
+    assert_eq!(unreadable[0].severity, "error");
+    assert_eq!(unreadable[0].file.as_deref(), Some(stray.as_str()));
+    assert!(
+        unreadable[0].message.starts_with(&stray)
+            && unreadable[0].message.contains("the whole log is unread"),
+        "{}",
+        unreadable[0].message
+    );
+    std::fs::remove_file(d.join(&stray)).unwrap();
+    std::fs::create_dir_all(d.join(".factory/findings")).unwrap();
+    std::fs::write(d.join(".factory/findings/F-abc123-y.json.rej"), "").unwrap();
+    let r = bare_lint(d);
+    let files: Vec<_> = r
+        .findings
+        .iter()
+        .filter(|f| f.rule == "unreadable-file")
+        .map(|f| f.file.clone())
+        .collect();
+    assert_eq!(
+        files,
+        [Some(".factory/findings/F-abc123-y.json.rej".to_string())]
+    );
+}

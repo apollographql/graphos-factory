@@ -28,7 +28,7 @@ operation. `skipped` and `not_run` are first-class and are never reported as
 plus each suite header's first sentence), not a pass, because rover's
 `0 passed; 0 failed` proves nothing. `unit.sh` counts cases per suite, and
 every suite with none must cite in that sentence the decision behind it
-(`D-nnnn`), or the layer fails, whether or not other suites ran. A
+(`D-0019` or `D-k7m2qx`), or the layer fails, whether or not other suites ran. A
 `skip: true` case also fails the layer: rover counts it as skipped and
 still says SUCCESSFUL. The zero-case run is the one `not_run` the
 validation gate accepts
@@ -354,7 +354,7 @@ fails on the missing `tests/*.connector.yaml`, so `connector_unit` records
 matches) and give it a `connectorResponse` carrying that field alone, as
 the `<case>_<param>_narrowed` stub does. `connector_unit` then passes on a
 real assertion. The alternative is an empty suite whose header's first
-sentence cites the decision that accepts it (`D-nnnn`). `connector_unit`
+sentence cites the decision that accepts it (`D-0019` or `D-k7m2qx`). `connector_unit`
 is then `not_run` with that reason (see above), never a pass.
 
 Stub bodies answer an **expansion boundary** the way the source does:
@@ -963,7 +963,7 @@ unmatched --reason R`. The `unmatched` reason says so.
 
 **Waivers.** "This gap is fine; ignore it from now on" is recorded, never
 implied. `graphos-factory-core codify --waive TARGET --status unchecked|unmatched
---reason R [--context TEXT] [--decision D-nnnn] [--until TEXT] [--expires YYYY-MM-DD]` writes
+--reason R [--context TEXT] [--decision D-id] [--until TEXT] [--expires YYYY-MM-DD]` writes
 a `waivers:` entry in `selection.yaml` and no decision: `reason` carries the
 why, `context` the prose, and `--decision` only attaches a real decision
 (ADR 0113); TARGET is one body

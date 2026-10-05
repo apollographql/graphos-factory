@@ -59,6 +59,17 @@ pub fn validate(value: &Value, schema: &Value) -> Vec<String> {
     validate_at(value, schema, schema, "")
 }
 
+/// Validate `value` against the part of `schema` a local pointer names
+/// (`#/$defs/file`), resolving every `$ref` inside it against `schema`: one
+/// schema file can then hold a document and the record files it is
+/// assembled from (ADR 0118).
+pub fn validate_ref(value: &Value, schema: &Value, reference: &str) -> Vec<String> {
+    match resolve(schema, reference) {
+        Ok(target) => validate_at(value, target, schema, ""),
+        Err(e) => vec![e],
+    }
+}
+
 fn validate_at(value: &Value, schema: &Value, root: &Value, path: &str) -> Vec<String> {
     let mut errors = Vec::new();
     let at = if path.is_empty() { "/" } else { path };

@@ -11,12 +11,40 @@
   ],
   "properties": {
     "contract_version": {
-      "const": 1
+      "description": "1 on disk, always: the single file holds the records written before ADR 0118 and never gains one. 2 only for the log as readers see it, the file's records with those added since, each its own $defs/file under the record directory (ADR 0118).",
+      "enum": [
+        1,
+        2
+      ]
     },
     "findings": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "contract_version": {
+        "const": 1
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "findings": {
+        "items": {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "slug"
+                ]
+              }
+            ]
+          }
+        }
       }
     }
   },
@@ -90,7 +118,20 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^F-[0-9]{4}$"
+          "pattern": "^F-([0-9]{4,}|[0-9a-z]{6})$"
+        },
+        "slug": {
+          "description": "The record file's name after its id (ADR 0118): lower-case letters and digits in hyphen-separated runs, at most 40 characters. Directory shape only.",
+          "allOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+            },
+            {
+              "type": "string",
+              "pattern": "^.{1,40}$"
+            }
+          ]
         },
         "title": {
           "type": "string",
@@ -153,8 +194,25 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "pattern": "^[DF]-[0-9]{4}$"
+            "pattern": "^[DF]-([0-9]{4,}|[0-9a-z]{6})$"
           }
+        }
+      }
+    },
+    "file": {
+      "description": "One record file under .factory/findings/ (ADR 0118): the record, beside its own contract version.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "finding"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": 2
+        },
+        "finding": {
+          "$ref": "#/$defs/finding"
         }
       }
     }

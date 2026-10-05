@@ -220,9 +220,9 @@ still describe the vendor's version and every gate stays green. An
 operation already recorded keeps its own reason, context and decision; when
 nothing changed, nothing is written and codify says so (the `--reason` is not
 used). Add `verified:` by hand — a patch without it is a
-guess. `--decision D-nnnn` attaches the new patches to a real decision the
-user made: they take that id, and codify warns if no `D-nnnn` record is
-there yet. codify rewrites the whole `patches:`
+guess. `--decision D-id` (numbered or random) attaches the new patches to
+a real decision the user made: they take that id, and codify warns if no
+such record is there yet. codify rewrites the whole `patches:`
 block each run, so the keys you
 add to a patch (`verified`, and `reason`/`context`/`decision` edits) survive but YAML
 comments inside the block do not; put commentary in `context` instead:

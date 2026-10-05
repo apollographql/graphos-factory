@@ -1,6 +1,6 @@
 # Service workspace contract
 
-**Status:** All workspace contracts use `contract_version: 1`, except `evidence/latest.json`, which is `contract_version: 2` (the `write_body_proof` layer and `case_proofs` were added to a closed schema, so a version-1 reader rejects the file), and `selection.yaml`, which is `contract_version: 2` since ADR 0113 (`context` on overrides and waivers, `decision:` optional; a version-1 file is still read, and codify or `decisions migrate --split` upgrades it when it writes a `context`). The seven
+**Status:** All workspace contracts use `contract_version: 1`, except `evidence/latest.json`, which is `contract_version: 2` (the `write_body_proof` layer and `case_proofs` were added to a closed schema, so a version-1 reader rejects the file), the record files under `.factory/decisions/` and `.factory/findings/`, each `contract_version: 2` from the first (ADR 0118; `decisions.json` and `findings.json` stay 1), and `selection.yaml`, which is `contract_version: 2` since ADR 0113 (`context` on overrides and waivers, `decision:` optional; a version-1 file is still read, and codify or `decisions migrate --split` upgrades it when it writes a `context`). The seven
 machine-readable files described here are enforced by JSON Schemas in
 the repository's `schemas/` directory — `workspace.schema.json`,
 `inventory.schema.json`, `selection.schema.json`, `evidence.schema.json`,
@@ -112,8 +112,10 @@ both. Nothing under `.factory/` is ever part of that subset.
     inventory.json                 # what the API offers (discovered; refreshable)
     selection.yaml                 # what the user chose (decided; durable) + overrides (hand edits, codified)
     applied.lock.yaml              # the schema (one hash per span) and the pinned specs (one content hash each) as last applied
-    decisions.json                 # tracked decision log: decisions only — resolved calls with their alternatives + open questions (schema-governed; written only by graphos-factory-core decisions)
-    findings.json                  # settled facts an instrument reads (omits, affects), F-nnnn (schema-governed; written only by graphos-factory-core findings)
+    decisions.json                 # tracked decision log: decisions only — resolved calls with their alternatives + open questions (schema-governed; written only by graphos-factory-core decisions); the records written before ADR 0118, D-nnnn, never added to
+    decisions/                     # every decision added since ADR 0118: one file each, <id>-<slug>.json, random D-k7m2qx ids
+    findings.json                  # settled facts an instrument reads (omits, affects), F-nnnn (schema-governed; written only by graphos-factory-core findings); never added to since ADR 0118
+    findings/                      # every finding added since: one file each, <id>-<slug>.json
     memory.md                      # vendor quirks, dead endpoints, auth details, gotchas, tried and rejected
     evidence/
       latest.json                  # last validation run: per layer, per operation
@@ -379,7 +381,7 @@ operations:
 overrides:
   # Hand edits, codified (written by `graphos-factory-core codify`). Each names a
   # schema span, says why (`reason`, and `context` from --context), and
-  # asserts what must stay true; `decision:` (optional, D-nnnn) names a
+  # asserts what must stay true; `decision:` (optional, D-0019 or D-k7m2qx) names a
   # real decision only when the edit carries one out (ADR 0113). Drift
   # between selection and schema on these is reported,
   # not fixed; the agent may still change the span when the selection or
@@ -469,7 +471,7 @@ links:
 
 `shape`, `path`, `operation` and `parameter` restate the inventory's
 `candidate_entity_link` fact (what the property matched); `field`,
-`include`, `confirmed`, `reason` and `decision` (`D-nnnn`) are the
+`include`, `confirmed`, `reason` and `decision` (`D-0019` or `D-k7m2qx`) are the
 judgement. `path` is the inventory walker's grammar: wire-name segments
 joined by `>`, each followed by one `[]` per list level — `album_id` for a
 top-level property, `[]>album_id` under a root-array shape,
@@ -575,7 +577,7 @@ operation, or an unreadable body — this one fails the layer); a waiver names
 one body (`where`: a fixture path, or `tests/<suite>.connector.yaml#<entry
 name>`) or every such body of one operation (`operation`), the `status` it
 accepts, a `reason`, and optionally `context` (from `--context`), a
-`decision` (`D-nnnn`, only a real decision the waiver carries out) and
+`decision` (`D-0019` or `D-k7m2qx`, only a real decision the waiver carries out) and
 `until` / `expires` as overrides do. Written by `graphos-factory-core codify
 --waive`, which refuses a gap validate does not report and records no
 decision (ADR 0113); validate then reports the body as `waived`
@@ -729,7 +731,7 @@ satisfy, then writes two things at once:
 
 codify appends to no log (ADR 0113). `reason` is required and carries the
 why; `context` carries the prose the diff cannot show; the entry's
-`decision:` is optional. `--decision D-nnnn` attaches the entry to a real
+`decision:` is optional. `--decision D-id` (numbered or random, ADR 0118) attaches the entry to a real
 decision — one the user made that this edit carries out — and codify warns
 when no such record exists. Never record a decision only to have one to
 cite.
@@ -843,13 +845,70 @@ graphos-factory-core decisions add  . --title T [--question Q] [--choice id:labe
                                   [--resolved --chosen id --note TEXT --decision TEXT --by user|agent]   # raise a question, or record a call already made; refuses no-alternative
                                   [--omit 'operation|direction|path|reason']… \
                                   [--null-handling 'operation|argument|behavior']…   # behavior: send_null or omit
-graphos-factory-core decisions resolve . --id D-nnnn [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]
-graphos-factory-core decisions reopen  . --id D-nnnn [--json]  # clear the answer so the user can revise it; status back to open
-graphos-factory-core decisions supersede . --id D-nnnn [--json]  # a resolved decision a later one replaced; answer kept, omits, json_reasons and null_handling stop counting
+graphos-factory-core decisions resolve . --id D-id [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]
+graphos-factory-core decisions reopen  . --id D-id [--json]  # clear the answer so the user can revise it; status back to open
+graphos-factory-core decisions supersede . --id D-id [--json]  # a resolved decision a later one replaced; answer kept, omits, json_reasons and null_handling stop counting
+graphos-factory-core decisions add  . … [--slug S] [--after D-id]… [--amends D-id]…   # a new record's file name, and the decisions it presumes or changes
+graphos-factory-core decisions link . --id D-id (--after D-id | --amends D-id)…   # edges on a record added since ADR 0118; an old record is refused
+graphos-factory-core decisions list . --causal                # the log in the order its decisions presume one another
 ```
 
-Records keep the `D-nnnn` id grammar, so ids from the Markdown log and the
-migrated pilots carry over unchanged; `decisions migrate --split` keeps
+### One file per new record (ADR 0118)
+
+`decisions.json` holds the records written before ADR 0118, with their
+numbered ids, at `contract_version` 1, and **never gains a record or a
+field**. Every decision added since is its own file under
+`.factory/decisions/`, and every finding under `.factory/findings/`:
+
+```
+.factory/decisions/D-k7m2qx-paginate-by-cursor.json
+{
+  "contract_version": 2,
+  "decision": { "id": "D-k7m2qx", "slug": "paginate-by-cursor", "title": "…", "status": "open", … }
+}
+```
+
+- **The id** is `D-` (`F-`) and six random base36 characters, at least one
+  a letter, so it never reads as a number; the writer draws again on a
+  repeat. Every id pattern is `^D-([0-9]{4,}|[0-9a-z]{6})$`: the schemas,
+  `selection.yaml`'s `decision:`, a finding's `related`, and the zero-case
+  suite citation `unit.sh` checks.
+- **The name** is `<id>-<slug>.json`. The slug comes from the title (lower
+  case letters and digits in hyphen-separated runs, at most 40, an
+  apostrophe joining its word) or from `add --slug`, and is stored on the
+  record. `load` refuses a file whose name does not begin with its record's
+  id and any entry that is not a `.json` file; a dot-file is ignored.
+- **Readers see one log**: the file's records in file order, then the
+  record files by `date` and id (records added the same day order by id).
+  `save` puts each record back where it lives, by the ids the file on disk
+  holds: an old record changed by `resolve`, `reopen` or `supersede` is
+  rewritten in place in `decisions.json`, which stays version 1; a new one
+  is truncated in place in its own file, or created with `O_EXCL`. Nothing
+  is renamed or removed. A workspace with no log starts with record files.
+- **Edges** (`after`, `amends`) exist only on new records, which may name
+  old ones. `decisions link` adds them after the fact. An old record never
+  gains a field, so `link` refuses it (`old-record`). `slug`, `after`,
+  `amends` and `resolved_against` are forbidden in a version-1 document by
+  the schema, and a single file that is not version 1 is refused on read.
+- **What a merge can break, lint reports**: `decision-id-duplicate`,
+  `decision-link-unresolved`, `decision-link-cycle` (errors; the writer
+  also refuses all three) and `decision-overlap` (warning: two resolved
+  decisions, at least one new, name the same `affects` span, or one names
+  `every operation`, and no `after`/`amends` path relates them; two
+  numbered records are exempt, since their numbers order them). Each
+  finding names the file or directory its record lives in.
+- **The two migrations that produce the single file**, `decisions migrate`
+  from `decisions.md` and `migrate --split`, still write it whole; `--split`
+  refuses once record files exist.
+- The lock's provenance and `selection review` hash every record file beside
+  the single files, and `lock --check` reports a record file the lock never
+  recorded as added (`+`), as it reports a changed `decisions.json`.
+- `decisions add --json` and `findings add --json` print the record file they
+  wrote, `{"id": "D-k7m2qx", "path": ".factory/decisions/D-k7m2qx-….json"}`,
+  so a caller stages or copies it without globbing.
+
+Records in `decisions.json` keep the `D-nnnn` id grammar, so ids from the
+Markdown log and the migrated pilots carry over unchanged; `decisions migrate --split` keeps
 every decision's id. A `resolved` record
 must carry a `resolution`; everything the old Markdown block held becomes
 field values, and nothing is lost. `resolve --force` replaces the whole
@@ -873,7 +932,7 @@ entry, the argument is unproven: the check never picks a value, and never
 reads prose. Both fields are optional and additive, so `contract_version`
 stays 1 (ADR 0079).
 
-**Superseding a decision (ADR 0103).** `decisions supersede . --id D-nnnn`
+**Superseding a decision (ADR 0103).** `decisions supersede . --id D-id`
 sets a `resolved` record's status to `superseded` and changes nothing else:
 the resolution stays, so the log still says what was decided, and its
 `omits` stop counting. Use it when the question itself changed, or when
@@ -890,7 +949,7 @@ id (`unknown-decision`), a record that is open (`not-resolved`) or already
 superseded (`already-superseded`), and a missing or invalid log; `--json`
 prints `{id, status, previous_status, exit}` or `{error, code, exit}`.
 
-**Revising a decision.** `decisions reopen . --id D-nnnn` takes a `resolved`
+**Revising a decision.** `decisions reopen . --id D-id` takes a `resolved`
 or `superseded` record back to `open`: it removes the whole `resolution`
 (`chosen`, `note`, `decision`, `by`, `at`) and keeps every other field —
 title, question, context, choices, affects, omits, json_reasons, secret_fields — and the
@@ -1021,10 +1080,12 @@ hand-edited:
 graphos-factory-core findings list . [--json]
 graphos-factory-core findings add  . --title T --body TEXT [--cites REF] [--affects PATH]… \
                                  [--omit 'operation|direction|path|reason']…   # reason consumed or not-applicable; editorial is refused
-graphos-factory-core findings supersede . --id F-nnnn   # a later finding replaces it
+graphos-factory-core findings supersede . --id F-id     # a later finding replaces it
 ```
 
-Ids are `F-nnnn`, a sequence of their own beside `D-nnnn`. A record:
+Ids are `F-nnnn` in `findings.json`, a sequence of their own beside
+`D-nnnn`, and random `F-9k2wde` for every finding added since ADR 0118. A
+record:
 
 ```jsonc
 {
@@ -1062,7 +1123,7 @@ Ids are `F-nnnn`, a sequence of their own beside `D-nnnn`. A record:
   refuses `editorial`: "deliberately not exposed" always has "expose it" as
   its alternative, so it is a decision.
 - `evidence` (operation keys, file paths, the command run) and `related`
-  (`D-nnnn` or `F-nnnn`) are free.
+  (`D-0019`, `D-k7m2qx`, `F-0003` or `F-9k2wde`) are free.
 - There is no `question`, `choices`, `resolution` or `reopen`. A finding is
   `current` until a later one supersedes it; a superseded finding stops
   counting everywhere.
@@ -1174,7 +1235,7 @@ listing. Every suite with zero cases must say, in the first sentence of its
 header comment, why it is empty and cite the decision that settled it by
 id (for example `Deliberately empty (D-0011).`, where D-0011 records that
 every GET's `fields` value contains a comma, which rover cannot assert). A
-zero-case suite whose first sentence cites no `D-nnnn`, including one with
+zero-case suite whose first sentence cites no decision id, including one with
 no header comment, is a `fail` (exit 1), whether or not other suites ran.
 When no suite ran a case, `unit.sh` exits 3, and evidence records:
 

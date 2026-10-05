@@ -22,6 +22,7 @@ mod codify;
 mod conformance;
 mod context;
 mod decisions;
+mod decisions_directory;
 mod decisions_split;
 mod entity;
 mod envelope;

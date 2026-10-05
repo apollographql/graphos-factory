@@ -315,3 +315,34 @@ fn a_candidate_without_links_reports_no_links_section_and_an_empty_list() {
     assert!(!sections.contains(&"links"), "{:?}", sections);
     assert_eq!(result["unconfirmed_links"], serde_json::json!([]));
 }
+
+/// ADR 0118: a decision added as a record file changes the reviewed inputs,
+/// as an append to `decisions.json` does.
+#[test]
+fn a_decision_record_file_binds_the_review() {
+    let dir = fixture();
+    let input = token(dir.path());
+    let argv: Vec<String> = [
+        "add",
+        dir.path().to_str().unwrap(),
+        "--title",
+        "Paginate by cursor",
+        "--question",
+        "Which way?",
+        "--date",
+        "2026-10-05",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    assert_eq!(graphos_factory_core::cmd::decisions::main(&argv), 0);
+    assert_eq!(
+        graphos_factory_core::record_log::record_paths(dir.path())
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(review(dir.path(), Some(CANDIDATE), Some(&input), None)
+        .unwrap_err()
+        .contains("stale selection inputs"));
+}

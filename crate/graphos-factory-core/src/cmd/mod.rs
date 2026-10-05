@@ -93,6 +93,7 @@ pub fn flags(command: &str, verb: Option<&str>) -> Option<&'static Flags> {
         ("decisions", Some("resolve")) => &decisions::RESOLVE_FLAGS,
         ("decisions", Some("reopen")) => &decisions::REOPEN_FLAGS,
         ("decisions", Some("supersede")) => &decisions::SUPERSEDE_FLAGS,
+        ("decisions", Some("link")) => &decisions::LINK_FLAGS,
         ("decisions", Some("migrate")) => &decisions::MIGRATE_FLAGS,
         ("findings", Some("list")) => &findings::LIST_FLAGS,
         ("findings", Some("add")) => &findings::ADD_FLAGS,

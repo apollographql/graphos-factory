@@ -154,9 +154,9 @@ fn every_command_and_verb_refuses_an_unknown_flag_and_touches_nothing() {
             }
         }
     }
-    // The core's 27 commands (9 with verbs) and 27 verbs: 45 invocations
+    // The core's 27 commands (9 with verbs) and 28 verbs: 46 invocations
     // that take flags, 8 spellings each; 9 bare verb-commands, 4 each.
-    assert_eq!(count, 45 * 8 + 9 * 4);
+    assert_eq!(count, 46 * 8 + 9 * 4);
 }
 
 /// The case that found it: the flags quoted into one argument. `lock`

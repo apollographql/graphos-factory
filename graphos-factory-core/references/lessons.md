@@ -683,3 +683,17 @@ connector's own mapping (`queryParams: "page_size: $args.pageSize"`), never
 by assuming the two names match. The same goes for an element-wise
 translation: `->map(@->match(…))` is `->match` applied to each element, and
 reads as the field itself.
+
+## Two branches minted the same decision id
+
+**Seen on:** this repo's pilots and its ADRs (ADR 0118), the week of Sep 29.
+
+`decisions add` numbered a new record one past the highest id, so two
+branches that each added a decision both wrote `D-0021`. Git conflicted at
+the end of the array, someone renumbered and relocked, and a merge that kept
+both records went through silently. **Rule:** a new decision or finding is
+its own file with a random id (`decisions add` does this); the numbered
+records in `decisions.json` are never moved or extended. After a merge, run
+`lint`: `decision-overlap` names two decisions added independently about the
+same span, and `decisions link . --id <newer> --after|--amends <older>`
+records which holds.
