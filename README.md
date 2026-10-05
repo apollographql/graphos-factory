@@ -28,13 +28,13 @@ the versions pinned in it; today:
 | Apollo Router | 2.17.0 | `~/.cache/graphos-factory-core/apollographql-graphos-factory/` |
 | WireMock | 3.13.2 | `~/.cache/graphos-factory-core/apollographql-graphos-factory/` |
 
-Two things to know before you let it run. The supergraph composition
-plugin is under the Elastic License v2
-(https://www.elastic.co/licensing/elastic-license): read it, then set
-`APOLLO_ELV2_LICENSE=accept` in your environment yourself; the scripts never
-accept it for you, and the compose, unit, end-to-end and live layers report
-`not_run` until you have. And the rover installer adds `~/.rover/bin` to
-your `PATH` by editing your shell profile (`~/.profile`, `~/.zshenv`).
+Two things to know before you let it run. The composition plugin and the
+Apollo Router are under the Elastic License v2
+(https://www.elastic.co/licensing/elastic-license); the agent asks you once
+before anything that needs them, as described under Install, and the
+compose, unit, end-to-end and live layers report `not_run` until you have
+accepted. And the rover installer adds `~/.rover/bin` to your `PATH` by
+editing your shell profile (`~/.profile`, `~/.zshenv`).
 
 ## Install
 
@@ -46,10 +46,11 @@ The plugin is listed in Apollo's Claude Code plugin marketplace
 /plugin install graphos-factory@apollo-marketplace
 ```
 
-The plugin installs the `graphos-factory` binary when a session starts,
-from this repository's releases
-(`skills/graphos-factory/scripts/bootstrap.sh`), with a
-`graphos-factory-core` link beside it: the shared references write
+At the start of each session the plugin's hook installs the
+`graphos-factory` binary from this repository's releases
+(`skills/graphos-factory/scripts/session-start.sh`, which runs
+`bootstrap.sh`), with a `graphos-factory-core` link beside it, and puts both
+on the session's `PATH`: the shared references write
 `graphos-factory-core <command>`, and here that is `graphos-factory`. To
 build it from source instead, run
 `bash skills/graphos-factory/scripts/bootstrap.sh --build`. The toolchain
@@ -96,6 +97,18 @@ did: passed, failed, skipped or not run.
 The plugin's version (`0.1.0`) is independent of the binary's:
 `bootstrap.sh` installs the release matching the crate version pinned in
 the plugin's own copy (`crate/Cargo.toml`).
+
+The hook only checks for the validation toolchain (rover and its supergraph
+plugin, the Apollo Router, WireMock); the agent asks you before it runs
+`graphos-factory-core/scripts/toolchain.sh` to install it, since that
+downloads about 100 MB. The composition plugin and the Apollo Router are
+under the Elastic License v2
+(https://www.elastic.co/licensing/elastic-license): the agent shows you the
+link and asks once; if you say yes it sets `APOLLO_ELV2_LICENSE=accept` for
+the commands it runs in that session, and an `export` in your shell profile
+makes it permanent. It never sets it unasked, and until it is set the
+compose, unit, end-to-end and live layers report `not_run`. Java
+17+ and `jq` are yours to install.
 
 ## Layout
 

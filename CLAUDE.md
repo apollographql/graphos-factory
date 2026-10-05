@@ -10,7 +10,7 @@ instead.
 
 | Path | What it is |
 |---|---|
-| `skills/graphos-factory/` | the skill: `SKILL.md`, its references and `scripts/bootstrap.sh` |
+| `skills/graphos-factory/` | the skill: `SKILL.md`, its references, `scripts/bootstrap.sh` and `scripts/session-start.sh` (the SessionStart hook `hooks/hooks.json` runs) |
 | `graphos-factory-core/` | the core skill material: `references/`, `scripts/` (every layer's bash wrappers), `SKILL-core.md` |
 | `crate/` | cargo workspace: `graphos-factory-core` (lib) and `graphos-factory-targets` (the `graphos-factory` binary) |
 | `schemas/` | JSON Schemas for the workspace contract, embedded into the binary |

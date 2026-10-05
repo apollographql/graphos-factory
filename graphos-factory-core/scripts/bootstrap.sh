@@ -78,6 +78,12 @@ fi
 [ -n "$VERSION" ] || { echo "bootstrap: cannot determine the version (no $CRATE/Cargo.toml and no GRAPHOS_FACTORY_CORE_VERSION)" >&2; exit 1; }
 
 TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+# Every request is bounded, so a stalled connection cannot outlast a caller's
+# own timeout: an API call or the HEAD probe 15 s, the archive 90 s, each with
+# a 10 s connect timeout. A download makes at most three API calls and the
+# archive, 135 s in all.
+CURL_API=(--connect-timeout 10 --max-time 15)
+CURL_GET=(--connect-timeout 10 --max-time 90)
 
 installed_version() {
   if [ -x "$BIN" ]; then "$BIN" version 2>/dev/null | sed -n 's/^[a-z][a-z0-9-]* \([0-9][^ ]*\).*/\1/p'; fi
@@ -87,7 +93,7 @@ installed_version() {
 # GET a releases-API path with the token; empty output when it fails.
 api() {
   [ -n "$TOKEN" ] || return 1
-  curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" "$API/$1" 2>/dev/null
+  curl -fsSL "${CURL_API[@]}" -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" "$API/$1" 2>/dev/null
 }
 
 if [ "$MODE" = "check" ]; then
@@ -122,7 +128,7 @@ resolve_tag() {
         if api "releases/tags/v$VERSION" >/dev/null; then echo "v$VERSION"; else echo edge; fi
       else
         # No API access: probe the public download URL for the versioned asset.
-        if curl -fsSLI -o /dev/null "https://github.com/$OWNER_REPO/releases/download/v$VERSION/$NAME-v$VERSION-$1.tar.gz" 2>/dev/null; then echo "v$VERSION"; else echo edge; fi
+        if curl -fsSLI "${CURL_API[@]}" -o /dev/null "https://github.com/$OWNER_REPO/releases/download/v$VERSION/$NAME-v$VERSION-$1.tar.gz" 2>/dev/null; then echo "v$VERSION"; else echo edge; fi
       fi ;;
   esac
 }
@@ -172,12 +178,12 @@ download() {
     local id
     id="$(printf '%s' "$release" | jq -r --arg n "$asset" '.assets[] | select(.name == $n) | .id')"
     if [ -z "$id" ] || [ "$id" = "null" ]; then echo "bootstrap: release $tag has no asset $asset (still building?)" >&2; return 127; fi
-    curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/octet-stream" \
+    curl -fsSL "${CURL_GET[@]}" -H "Authorization: Bearer $TOKEN" -H "Accept: application/octet-stream" \
       "$API/releases/assets/$id" -o "$tmp/$asset" \
       || { echo "bootstrap: download of $asset failed" >&2; return 127; }
   else
     url="https://github.com/$OWNER_REPO/releases/download/$tag"
-    if ! curl -fsSL "$url/$asset" -o "$tmp/$asset"; then
+    if ! curl -fsSL "${CURL_GET[@]}" "$url/$asset" -o "$tmp/$asset"; then
       cat >&2 <<EOF
 bootstrap: could not download $url/$asset
   The repository is private: export GH_TOKEN (a token with read access to $OWNER_REPO) and re-run,

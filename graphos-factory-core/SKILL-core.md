@@ -60,7 +60,7 @@ from here): they name a reference, and each SKILL.md's References links it.
 One binary, the product's, plus the shell wrappers in `graphos-factory-core/scripts/` around rover, Java
 and curl for the validation layers. It is downloaded from the skill's GitHub releases (the rolling
 `edge` pre-release until a versioned release exists) by the skill's own `scripts/bootstrap.sh` (the
-SessionStart hook runs it), which also links it as `graphos-factory-core`; it is built from
+product's session-start hook may run it; otherwise run it yourself), which also links it as `graphos-factory-core`; it is built from
 `crate/` only when developing the skill itself (`bootstrap.sh --build`). Every wrapper takes
 the binary from `$GRAPHOS_FACTORY_CORE_BIN`, then that link in the bootstrap cache, then PATH, prints which
 one and its version to stderr, and exits **78** (a `fail`, never a skip) when it is

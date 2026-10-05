@@ -117,7 +117,7 @@ the subgraph has not been checked against the user's supergraph.
 One binary, the product's, plus the shell wrappers in `graphos-factory-core/scripts/` around rover, Java
 and curl for the validation layers. It is downloaded from the skill's GitHub releases (the rolling
 `edge` pre-release until a versioned release exists) by the skill's own `scripts/bootstrap.sh` (the
-SessionStart hook runs it), which also links it as `graphos-factory-core`; it is built from
+product's session-start hook may run it; otherwise run it yourself), which also links it as `graphos-factory-core`; it is built from
 `crate/` only when developing the skill itself (`bootstrap.sh --build`). Every wrapper takes
 the binary from `$GRAPHOS_FACTORY_CORE_BIN`, then that link in the bootstrap cache, then PATH, prints which
 one and its version to stderr, and exits **78** (a `fail`, never a skip) when it is
@@ -206,6 +206,8 @@ This target's instruments:
 graphos-factory init <dir> --name N --spec FILE [--url U] [--retrieved-at T] [--created-at T] [--context-mode generic|specialized|undecided] [--dry-run] [--json]   # a new spec-backed workspace: workspace.yaml (skill.name graphos-factory), working + vendor copy, sources.lock.yaml, inventory.json; refuses an existing workspace; never runs git (ADR 0056)
 ```
 
+The plugin's SessionStart hook (`scripts/session-start.sh`) runs `bootstrap.sh`, puts the binary
+on `PATH` and only checks the toolchain; `toolchain.sh` installs it once the user agrees.
 The target adds no command of its own yet; every other instrument above is
 the core's. One validated workspace shows the path end to end:
 [`gitea`](../../pilots/graphos/gitea/) (Swagger 2.0, pinned and patched;

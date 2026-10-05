@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ \"${CLAUDE_CODE_REMOTE:-}\" = true ]; then bash \"$CLAUDE_PROJECT_DIR/skills/graphos-factory/scripts/session-start.sh\"; fi",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/skills/graphos-factory/scripts/session-start.sh",
             "timeout": 240
           }
         ]
