@@ -1,0 +1,12 @@
+e2e: 11 passed, 0 failed
+PASS: list_gizmos
+PASS: search_gizmos_full
+PASS: search_gizmos_required
+PASS: update_gizmo_full
+PASS: update_gizmo_required
+PASS: update_gizmo_note_null
+PASS: update_gizmo_tags_empty
+PASS: update_gizmo_tags_one
+PASS: update_gizmo_tags_badkey
+PASS: update_gizmo_nulls
+PASS: search_gizmos_tags_null

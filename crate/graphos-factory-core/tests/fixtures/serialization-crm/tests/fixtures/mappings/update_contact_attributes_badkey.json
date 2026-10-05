@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "PATCH",
+    "urlPath": "/contacts/c1",
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "attributes": [
+            {
+              "key": "not a graphql name",
+              "value": "x"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "id": "c1",
+      "displayName": "Ada Lovelace"
+    }
+  }
+}

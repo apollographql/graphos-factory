@@ -1,0 +1,112 @@
+{
+  "request": {
+    "headers": {
+      "Authorization": {
+        "equalTo": "token test-token"
+      }
+    },
+    "method": "GET",
+    "urlPath": "/repos/fixture/fixture-repo"
+  },
+  "response": {
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "allow_fast_forward_only_merge": true,
+      "allow_manual_merge": false,
+      "allow_merge_commits": true,
+      "allow_rebase": true,
+      "allow_rebase_explicit": true,
+      "allow_rebase_update": true,
+      "allow_squash_merge": true,
+      "archived": false,
+      "archived_at": "1970-01-01T00:00:00Z",
+      "autodetect_manual_merge": false,
+      "avatar_url": "",
+      "clone_url": "http://127.0.0.1:3000/fixture/fixture-repo.git",
+      "created_at": "2026-09-10T19:00:26Z",
+      "default_allow_maintainer_edit": false,
+      "default_branch": "main",
+      "default_delete_branch_after_merge": false,
+      "default_merge_style": "merge",
+      "description": "Fixture repository for the Gitea pilot",
+      "empty": false,
+      "fork": false,
+      "forks_count": 0,
+      "full_name": "fixture/fixture-repo",
+      "has_actions": true,
+      "has_code": false,
+      "has_issues": true,
+      "has_packages": true,
+      "has_projects": true,
+      "has_pull_requests": true,
+      "has_releases": true,
+      "has_wiki": true,
+      "html_url": "http://127.0.0.1:3000/fixture/fixture-repo",
+      "id": 1,
+      "ignore_whitespace_conflicts": false,
+      "internal": false,
+      "internal_tracker": {
+        "allow_only_contributors_to_track_time": true,
+        "enable_issue_dependencies": true,
+        "enable_time_tracker": true
+      },
+      "language": "",
+      "languages_url": "http://127.0.0.1:3000/api/v1/repos/fixture/fixture-repo/languages",
+      "licenses": [],
+      "link": "",
+      "mirror": false,
+      "mirror_interval": "",
+      "mirror_updated": "0001-01-01T00:00:00Z",
+      "name": "fixture-repo",
+      "object_format_name": "sha1",
+      "open_issues_count": 1,
+      "open_pr_counter": 0,
+      "original_url": "",
+      "owner": {
+        "active": false,
+        "avatar_url": "http://127.0.0.1:3000/avatars/a403c50e83dfc222f341e532d0f4a6e2",
+        "created": "2026-09-10T19:00:26Z",
+        "description": "",
+        "email": "fixture@example.invalid",
+        "followers_count": 0,
+        "following_count": 0,
+        "full_name": "",
+        "html_url": "http://127.0.0.1:3000/fixture",
+        "id": 1,
+        "is_admin": false,
+        "language": "",
+        "last_login": "0001-01-01T00:00:00Z",
+        "location": "",
+        "login": "fixture",
+        "login_name": "",
+        "prohibit_login": false,
+        "restricted": false,
+        "source_id": 0,
+        "starred_repos_count": 0,
+        "username": "fixture",
+        "visibility": "public",
+        "website": ""
+      },
+      "permissions": {
+        "admin": true,
+        "pull": true,
+        "push": true
+      },
+      "private": false,
+      "projects_mode": "all",
+      "release_counter": 0,
+      "size": 27,
+      "ssh_url": "gitea@localhost:fixture/fixture-repo.git",
+      "stars_count": 0,
+      "template": false,
+      "topics": [],
+      "updated_at": "2026-09-10T19:00:27Z",
+      "url": "http://127.0.0.1:3000/api/v1/repos/fixture/fixture-repo",
+      "watchers_count": 1,
+      "website": ""
+    },
+    "status": 200
+  }
+}

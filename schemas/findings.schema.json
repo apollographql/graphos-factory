@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/apollographql/graphos-factory/schemas/findings.schema.json",
+  "title": "Findings",
+  "description": "Facts the agent established that an instrument must read, or the next session needs: a reference, an ADR or the wire settled them, so there is no alternative to choose (ADR 0113). A decision, which carries its alternative, lives in decisions.json instead. Skill-native — the `graphos-factory-core findings` command is the only writer. A finding is current until a later one supersedes it; it has no question, choices, resolution or reopen.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "findings"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": 1
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "$defs": {
+    "omit": {
+      "description": "A wire path, or a behaviour sentence, the finding accounts for. `consumed` (response or request: an instrument reads it, e.g. the error mapping) or `not-applicable` (behaviour: the sentence is not about omitting the argument) only. An `editorial` omit is a choice not to expose something, and lives only on a decision.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "direction",
+        "path",
+        "reason"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "direction": {
+          "enum": [
+            "response",
+            "request",
+            "behaviour"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "reason": {
+          "enum": [
+            "consumed",
+            "not-applicable"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "direction": {
+            "const": "behaviour"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "const": "not-applicable"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "reason": {
+            "const": "consumed"
+          }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "date",
+        "status",
+        "body",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^F-[0-9]{4}$"
+        },
+        "title": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "date": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "status": {
+          "enum": [
+            "current",
+            "superseded"
+          ]
+        },
+        "body": {
+          "description": "The fact, in prose.",
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "cites": {
+          "description": "The rule that settles it: \"references/naming.md § Enums\", \"ADR 0032\".",
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "source": {
+          "description": "Who wrote it: the agent (`findings add`), `codify --expressed --context`, or `sources refresh` / `sources pin --force`.",
+          "enum": [
+            "agent",
+            "codify",
+            "sources"
+          ]
+        },
+        "affects": {
+          "description": "Type.field / field(arg) / operation keys, as on a decision.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "\\S"
+          }
+        },
+        "omits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/omit"
+          }
+        },
+        "evidence": {
+          "description": "Free strings: operation keys, file paths, the command run.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "\\S"
+          }
+        },
+        "related": {
+          "description": "The decisions or findings this one relates to.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[DF]-[0-9]{4}$"
+          }
+        }
+      }
+    }
+  }
+}

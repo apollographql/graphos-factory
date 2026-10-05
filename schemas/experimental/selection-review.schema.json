@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Experimental read-only selection review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "kind", "input_token", "binding", "before", "before_yaml"],
+  "properties": {
+    "contract_version": {"const": 1},
+    "kind": {"const": "selection-review"},
+    "input_token": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workspace", "files", "selection_schema", "inventory_schema"],
+      "properties": {
+        "workspace": {"type": "string"},
+        "files": {"type": "object", "additionalProperties": {"type": ["string", "null"]}},
+        "selection_schema": {"type": "string"}, "inventory_schema": {"type": "string"}
+      }
+    },
+    "before_yaml": {"type": ["string", "null"]},
+    "before": {"type": ["object", "null"]},
+    "candidate_yaml": {"type": "string"},
+    "candidate": {"type": "object"},
+    "review_token": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "operation_changes": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false, "required": ["key", "before", "after"],
+        "properties": {"key": {"type": "string"}, "before": {"type": ["object", "null"]}, "after": {"type": ["object", "null"]}}
+      }
+    },
+    "changed_sections": {"type": "array", "items": {"enum": ["defaults", "overrides", "waivers", "links"]}},
+    "unconfirmed_responses": {"type": "array", "items": {"type": "string"}},
+    "unconfirmed_links": {"type": "array", "items": {"type": "string"}, "description": "`<shape> > <path>` of every included link still marked confirmed: false in the candidate (ADR 0069). Emitted by `selection review` from Phase 7as (b) on."},
+    "query_write_decisions": {"type": "array", "items": {"type": "string"}}
+  },
+  "if": {"required": ["candidate_yaml"]},
+  "then": {"required": ["candidate", "review_token", "operation_changes", "changed_sections", "unconfirmed_responses", "unconfirmed_links", "query_write_decisions"]},
+  "else": {"not": {"anyOf": [{"required": ["candidate"]}, {"required": ["review_token"]}, {"required": ["operation_changes"]}, {"required": ["changed_sections"]}, {"required": ["unconfirmed_responses"]}, {"required": ["unconfirmed_links"]}, {"required": ["query_write_decisions"]}]}}
+}

@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = ["graphos-factory-core", "graphos-factory-targets"]
+
+[workspace.package]
+version = "0.9.2"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/apollographql/graphos-factory"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+# preserve_order: the inventory, evidence and fixture files must serialize
+# with the same key order the JavaScript instruments produced, so the
+# committed pilots reproduce byte-for-byte.
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml = "0.9"
+regex = "1"
+url = "2"
+time = { version = "0.3", features = ["formatting", "macros"] }
+sha2 = "0.10"
+# Parses the schema's field and argument types for `source-coverage`
+# (closure.rs), and validates scaffold's rendered operation document against
+# the target schema.
+apollo-compiler = "1.33.0"
+# O_NOFOLLOW / O_CLOEXEC / ELOOP for `factory_io`'s custody of `.factory/*`
+# (ADR 0025). Bindings only — std already links libc, so the release binary
+# stays exactly as static as it was.
+libc = "0.2"
+tempfile = "3"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+
+# Debug and test builds keep file:line in panics and backtraces, for this
+# crate and its dependencies, but not the full debug info a debugger needs to
+# show local variables; and they skip the incremental cache, which grew every
+# checkout by ~200 MB per edit (ADR 0061). For a one-off full-debug build:
+# CARGO_PROFILE_DEV_DEBUG=true cargo test ...
+[profile.dev]
+debug = "line-tables-only"
+incremental = false

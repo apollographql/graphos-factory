@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ \"${CLAUDE_CODE_REMOTE:-}\" = true ]; then bash \"$CLAUDE_PROJECT_DIR/skills/graphos-factory/scripts/bootstrap.sh\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

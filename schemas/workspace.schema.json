@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/apollographql/graphos-factory/schemas/workspace.schema.json",
+  "title": "Service workspace identity (.factory/workspace.yaml)",
+  "description": "Identity and toolchain pins for one service workspace. The wrapper scripts refuse to run at a different pin than the one recorded here, so a workspace cannot be silently validated against a toolchain it was not authored for.",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "service",
+    "directory",
+    "type_prefix",
+    "field_prefix",
+    "skill",
+    "source_kind",
+    "connect_spec",
+    "federation_version",
+    "intake",
+    "created_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": { "const": 1 },
+    "service": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+      "description": "snake_case; equals the @source name and the type/field prefix stem."
+    },
+    "directory": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*([-_][a-z0-9]+)*$",
+      "description": "The service id: kebab-case or snake_case, matching ^[a-z][a-z0-9_-]*$ (ADR 0108). Also the subgraph name and the schema filename <directory>.graphql. rover derives join__Graph from it by uppercasing and replacing hyphens with underscores, so file-system and file_system both give FILE_SYSTEM."
+    },
+    "type_prefix": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9]*(_[A-Z][A-Za-z0-9]*)*$",
+      "description": "Prefix on every type name, e.g. Incident_Io."
+    },
+    "field_prefix": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+      "description": "Prefix on every root field name, e.g. incident_io."
+    },
+    "skill": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "The target the workspace is for, as init --target wrote it: every command on the workspace runs against the registered target of this name, and a name no registered target carries is refused (ADR 0114)." },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+      }
+    },
+    "source_kind": {
+      "enum": ["rest"],
+      "description": "What kind of external source this service wraps. 'rest' (a REST API via Apollo Connectors) is the only implemented kind; gRPC/protobuf, database and GraphQL sources are planned and will extend this enum, each with its own intake reference and inventory key grammar."
+    },
+    "connect_spec": {
+      "enum": ["v0.3", "v0.4"],
+      "description": "Connect spec version linked by the schema (rest sources). v0.4 is the default for a new workspace (ADR 0049: composition plugin 2.15.x, Apollo Router >= 2.16 with no preview flag); v0.3 remains valid for workspaces created before it."
+    },
+    "federation_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "The composition PLUGIN version (rover's `supergraph-vX.Y.Z`), matched exactly against supergraph.yaml's own federation_version pin by `render`/compose. This is not the schema's linked federation spec version -- see federation_spec_version, a separate, optional field. A plugin newer than the linked spec is normal and expected (e.g. plugin 2.15.1 composing a `@link(federation/v2.14)` schema); do not bump this field to try to match the spec version."
+    },
+    "federation_spec_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Optional. The federation spec version the schema's own `@link(url: \".../federation/vX.Y\")` declares (e.g. \"2.14\"), checked by `lint`'s federation-drift rule against the schema directly. Distinct from federation_version (the composition plugin pin, a separate axis -- see that field's own description). Absent means the schema links the plugin's own minor, as a new workspace does (plugin 2.15.2 linking federation/v2.15, ADR 0049); `lint` then compares the schema's spec version against federation_version itself. Set this explicitly whenever the linked spec is older than the plugin's minor (the pilots link v2.12 on plugin 2.15.2)."
+    },
+    "intake": {
+      "enum": ["spec", "discovered", "mixed"],
+      "description": "How inventory.json was built for a rest source. 'spec': from a description document (OpenAPI 3.x or Swagger 2.0; the format is on the sources.lock.yaml entry's kind), via `inventory build`. 'discovered': from documentation and probes (api-discovery). 'mixed': a spec plus docs/probe additions."
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "base_url_default": { "type": "string" },
+    "notes": { "type": "string" },
+    "sparse_fieldsets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "param": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "The query parameter that names the fields a GET returns (Graph's `fields`). It is also the root field's argument name, so it must be a GraphQL name. Absent means `fields`."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Absent or true: the sparse-fieldsets rule applies. false turns it off for a source whose parameter of that name means something else (the fields a search looks in, Google's `items(id)` partial-response syntax): lint does not check the argument and scaffold writes no omitted or narrowed case."
+        }
+      },
+      "description": "Optional. How the source's sparse fieldsets are spelled (ADR 0045). A selected GET whose inventory operation has this string query parameter declares it as a `String` argument whose default is the fields list its connector maps, and forwards it; lint's sparse-fieldsets rule checks both."
+    },
+    "context_mode": {
+      "enum": ["generic", "specialized", "undecided"],
+      "description": "The customer-context assessment result (ADR 0022). 'generic' wraps the documented API and needs no companion file; 'specialized' exposes customer-defined fields and requires a .factory/context.yaml recording the governing scope; 'undecided' blocks authoring until the scope is resolved. Absent reads as generic: nothing blocks on the marker itself, only on 'undecided' and on the requirements a context.yaml declares (ADR 0081)."
+    }
+  }
+}

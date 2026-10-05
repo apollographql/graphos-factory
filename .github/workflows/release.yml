@@ -1,0 +1,131 @@
+name: release
+
+# Publishes the prebuilt graphos-factory binary that
+# skills/graphos-factory/scripts/bootstrap.sh downloads, through the core's
+# graphos-factory-core/scripts/bootstrap.sh (graphos-factory-v<version>-<target>.tar.gz,
+# graphos-factory-edge-<target>.tar.gz). Two channels:
+#
+#   edge      every push to main rebuilds the single `edge` pre-release: the
+#             tag `edge` is moved to the commit, the previous pre-release is
+#             replaced, and the four platform archives are uploaded. This is
+#             the channel bootstrap.sh falls back to while the project has no
+#             versioned release.
+#   release   a tag v<version> (which must equal crate/Cargo.toml's
+#             version), pushed or created by a manual dispatch with `version`,
+#             for environments whose git proxy cannot push tags.
+#
+# Every repository reference is ${{ github.repository }}, so the same file
+# releases from whichever repository it runs in.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Cut a versioned release v<version> at this ref (must equal crate/Cargo.toml). Leave empty to rebuild the edge pre-release."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      channel: ${{ steps.tag.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Resolve the channel and tag
+        id: tag
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          crate_version="$(sed -n 's/^version = "\([^"]*\)".*/\1/p' crate/Cargo.toml | head -1)"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"; channel=release
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${INPUT_VERSION}" ]; then
+            tag="v${INPUT_VERSION}"; channel=release
+          else
+            tag=edge; channel=edge
+          fi
+          if [ "$channel" = release ] && [ "$tag" != "v$crate_version" ]; then
+            echo "tag $tag != crate version v$crate_version" >&2; exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - name: Point the tag at this commit
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          CHANNEL: ${{ steps.tag.outputs.channel }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ "$CHANNEL" = edge ]; then
+            git tag -f edge
+            git push -f origin refs/tags/edge
+          elif ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git tag -a "$TAG" -m "graphos-factory ${TAG#v}"
+            git push origin "refs/tags/$TAG"
+          else
+            echo "tag $TAG already exists on origin; releasing it as is"
+          fi
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          CHANNEL: ${{ steps.tag.outputs.channel }}
+        run: |
+          if [ "$CHANNEL" = edge ]; then
+            # Replace the previous edge pre-release wholesale so its assets
+            # never mix with this build's.
+            gh release delete edge --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
+            gh release create edge --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
+              --title "edge: main @ ${GITHUB_SHA::7}" \
+              --notes "Rolling pre-release built from main at ${GITHUB_SHA} ($(date -u +%Y-%m-%dT%H:%M:%SZ)). Not a versioned release: skills/graphos-factory/scripts/bootstrap.sh installs it when no v<version> release exists for the pinned crate version. Replaced on every push to main."
+          elif gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $TAG already exists (a re-run after a partial upload); keeping it"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "graphos-factory ${TAG#v}" --generate-notes
+          fi
+
+  upload-assets:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+          # Both Apple targets build on the Apple Silicon runner; Apple's
+          # toolchain cross-compiles x86_64, and GitHub retired the Intel
+          # `macos-13` image (a job labelled with it never gets a runner).
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: graphos-factory
+          manifest-path: crate/Cargo.toml
+          target: ${{ matrix.target }}
+          archive: $bin-$tag-$target
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}

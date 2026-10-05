@@ -1,0 +1,330 @@
+contract_version: 1
+schema: gitea.graphql
+written_at: "2026-10-02T17:03:58.531Z"
+written_by: "graphos-factory 0.9.0"
+spans:
+  header: "0f818c1ab954a2b50e2100265b4e1fb3d0bb2f8e3af2f8550cb8737903fa4011"
+  "type:Gitea_StateType": bb2fb1e52a791d33507892cf633159ace99b299cfb3e0280354e3aebf2ba2d62
+  "type:Gitea_ObjectFormatName": "00b0b375c4a99a0815153d842044cbd52bcc33cf5f00e820df7ffb612a18b862"
+  "type:Gitea_User": "84a8fb4f3f6a6f6aecf7479340d25210ea911075aa455a08fcc272a875be71b5"
+  "type:Gitea_Permission": "454d0642df275b17d12fff328da827e2037ae75e2e36ab99b97a79284b9c5098"
+  "type:Gitea_Repository": "4f6f3382ecc3243098137dbcc27b9572ccab49163203de9eb58951f75b99bc09"
+  "type:Gitea_RepositorySearchResult": bbc7d835243c78284fb55902363b2ffba15419fa153d08c304c8a9a984b78195
+  "type:Gitea_Label": ef9cc3aba5bf88f95245393addf33fc234176e04363af6087dfc067d58fb6465
+  "type:Gitea_Milestone": bf6c8881d2eefc120f5a603aa5c41aa8e60472b92b8d955f08d3a8ce1718e545
+  "type:Gitea_PullRequestMeta": c9a77a5688d95f6b3f13e4ae6ed3e06c71c91f50e9aff6c974affebf88b5aed1
+  "type:Gitea_RepositoryMeta": "453aabee4e5e8b484241e9c3ca06fecc4fc9272daf41f6852306ebb9d8dea164"
+  "type:Gitea_Attachment": "046d158e17090ac0e6f053abb626212fdca8d41b4e71aa407142c21498c1f287"
+  "type:Gitea_Issue": "58c24a56fd313b6f40b305fea4ca3d0fe9aaa8ce5815287d4ad3b3f7e020132d"
+  "type:Gitea_IssueType": "12f4a7550e0a4365f054aaff558b8867766f881627e7cb3f796825a2ad641bb7"
+  "type:Gitea_IssueStateFilter": e789f2527ce462be83314f58c1b710ebb7019a0b33e0febbec1aef67ccbf0a59
+  "get:/version": b9e7590872bcadae3f6d6f6b4bf29766bd34a8f86ae68600cda482b016448483
+  "get:/repos/search": "19fa180e72909613c9bdb64808c13e6910e3ae6b5eee9ed7dd734b51215cb464"
+  "get:/repos/{owner}/{repo}": "879a5e77c977a9d155e74cea5fb297f047cf4da3200bfdc164b61890efeb31dc"
+  "get:/repos/{owner}/{repo}/issues": f1447ce52d9ffa12f70d912a8fbe7526d0db8ec5767e0bf591a2999070008969
+  "get:/repos/{owner}/{repo}/issues/{index}": "52cdcbe63e30e611c1b7d9cead2dc0e29d0e9f208c82d14190b6155602411d06"
+  "get:/user": a75472b353c8a87ffcc458bd1e07cf3345af31817bfda00ef3ad8876c4b6af64
+  "get:/users/{username}": "213dc30ebcefdfc7d53ebc579f07c4f60fd838478b1ddf2af6d018eaa242b940"
+  "post:/repos/{owner}/{repo}/issues": "83f8b5e185d005ef1cb7b1726616e56c151a93f327c37320026419eddffef3d5"
+inventory: "6fffbae906dbb8237b89a8207e70a6d3a88293053070a541ec5a40d27fa61241"
+sources:
+  swagger.json: a876b780af2cab2507d51b186bd724ed72fe22f361a76f1b2650de7d56b1afd8
+provenance:
+  recorded_at: "2026-10-02T17:03:58.603Z"
+  skill:
+    revision: "983514c72d56533a56f70cbcc785a75ba5497c08"
+    dirty: false
+    source: "--skill-dir"
+  authoring_agent:
+    model: claude-opus-5-5
+    attested: true
+  binary:
+    name: graphos-factory
+    version: "0.9.0"
+    revision: "983514c72d56533a56f70cbcc785a75ba5497c08"
+    dirty: false
+    rustc: "rustc 1.97.1 (8bab26f4f 2026-07-14)"
+    target: aarch64-apple-darwin
+  toolchain:
+    connect_spec: v0.4
+    federation: "2.15.2"
+    rover_pin: "0.41.0"
+    router_pin: "2.17.0"
+    wiremock_pin: "3.13.2"
+  inputs:
+    ".factory/decisions.json":
+      sha256: c7f58f3f9950c8031f3c0f6b34088030d43d80a9f3a5eedae5ece7c78f2e0056
+      bytes: 44240
+    ".factory/findings.json":
+      sha256: "3c773e639e83810e41b58b80c3a9fe4d2513791fdc0aaab2191eb099051b557f"
+      bytes: 1314
+    ".factory/inventory.json":
+      sha256: "9761bd91d63af6ff8c95be766934e73e4bd1b879f5c0489f9ce51c00753e60a4"
+      bytes: 1127955
+    ".factory/memory.md":
+      sha256: fa2a2ba71f6900a6db966a056b2d3c2070db4b8be36b4318b40365504804eb21
+      bytes: 4788
+    ".factory/selection.yaml":
+      sha256: "42d58e4df1774cc4ab084c29eb04b85d5c7b8bc3654e35ecdf793cb24d6fd642"
+      bytes: 54425
+    ".factory/sources.lock.yaml":
+      sha256: ea83b9d901dfefa74ce4f43bf556ceb42a3b4944bcc22136365d949c362d12aa
+      bytes: 2826
+    ".factory/sources/swagger.upstream.json":
+      sha256: "13a4d55f0e0aed7690345d29fbaaf2c403f63484e79e4a8be47d972f15d6f45b"
+      bytes: 816675
+    ".factory/workspace.yaml":
+      sha256: "960639378f730928a728c6c9068b9356d319ed9e07e1ea00990bb9ed89c3f945"
+      bytes: 686
+    swagger.json:
+      sha256: "169cdd230430d55ceb2efb02c5480a4c0576f69fb2c68a799e702fd742a9a882"
+      bytes: 816821
+  outputs:
+    README.md:
+      sha256: "4e88c55c67b8eb36e27a4a9348643fb420240f5a58e4ae2bf4a1bf4665729ac4"
+      bytes: 8702
+    gitea.graphql:
+      sha256: "3b1ada72bae00a2cdc86c406f4a263b0a5958bf7fb9a4464e9f87799759fb5b6"
+      bytes: 34937
+    supergraph.yaml:
+      sha256: df02a87032386bb3230810120dd352ffa6a86851edd27e7c4f128e6d48ce72d5
+      bytes: 120
+    template.yaml:
+      sha256: "721817ad66ee59abe1c7fc553a27ca7a4d7ed9f3233c24e4c5ed51d215a51cc6"
+      bytes: 358
+    tests/cases/create_issue.expected.json:
+      sha256: fa4fe5993bdacfb55ee9ab285689c97ca2b51e5873b2b466196e2e94bb356de7
+      bytes: 4917
+    tests/cases/create_issue.graphql:
+      sha256: "3970fb78a026beb593ef59bddee15dc52c105749afa8c542eabe2a060c1d4f91"
+      bytes: 2393
+    tests/cases/create_issue_403.expected.json:
+      sha256: "6082d6a38b4f3bb62b52bb3b74e7ec2ca9cc1225e13f21ef94cc51f6fa71c94a"
+      bytes: 412
+    tests/cases/create_issue_403.graphql:
+      sha256: "88930294a541f3a4d104ea644a28f161ca3d1fcad03d93587b8d0ac9df4dd026"
+      bytes: 2759
+    tests/cases/create_issue_404.expected.json:
+      sha256: c48cb573473201ab4315cb3da0bd3eeb3a31213ac4e39c8b65bb7ed832172f13
+      bytes: 412
+    tests/cases/create_issue_404.graphql:
+      sha256: "7a62832c3d051ddc2bf289152e51a6acd3daa008ac173099247c18c241cae5af"
+      bytes: 2759
+    tests/cases/create_issue_412.expected.json:
+      sha256: c4784f3efb0dbab374a0d52bab1594506b949e290ceba5bcdc46e25349c7fd99
+      bytes: 412
+    tests/cases/create_issue_412.graphql:
+      sha256: "6cd9e911e3eaa205ad9220eb758a7d1128e2823609b7ca4e3fa75c8c867ea1f2"
+      bytes: 2759
+    tests/cases/create_issue_423.expected.json:
+      sha256: "0d12b8c66df643240f0cca9386f79ca4cfb1c23451fb7508ca9fc838866ff9c8"
+      bytes: 412
+    tests/cases/create_issue_423.graphql:
+      sha256: "1fd1a832b179b21e384d80d41d9be830c92fc82399f528f861527b0ce8f761a8"
+      bytes: 2759
+    tests/cases/create_issue_invalid.expected.json:
+      sha256: "15a2310a7272ea0170ff4e4b867854b81baf48f8c5e71eb6fbb6f5719c8ca42c"
+      bytes: 409
+    tests/cases/create_issue_invalid.graphql:
+      sha256: "916bccd866084cf6ce14c3e991a36fc47ed531f3be99d856721b60dc4bdeb510"
+      bytes: 204
+    tests/cases/create_issue_minimal.expected.json:
+      sha256: d2ba2eed150fa5522e8cfc9d1e2982bbdd41fb3499ba1503f5297c30bea612a6
+      bytes: 155
+    tests/cases/create_issue_minimal.graphql:
+      sha256: bfd792fce2b4409e7d72fce8c7f6332e32d50a24ea6ad0e7877445fd847df6cf
+      bytes: 431
+    tests/cases/create_issue_nulls.expected.json:
+      sha256: ab2612db53b2c07803e1427e00080e979a131f8089aff14c2b9fc19cbb93a43e
+      bytes: 153
+    tests/cases/create_issue_nulls.graphql:
+      sha256: "6582e696fb724c7e82bd5d0bd1b0cd09fde3fa4b26b74bfa3e560a76c3ec96b0"
+      bytes: 622
+    tests/cases/current_user.expected.json:
+      sha256: "75222ed17879a8013a74a269795ba5bc8ef6b4931b6b11001a01af55475129ec"
+      bytes: 732
+    tests/cases/current_user.graphql:
+      sha256: "835b2c3c836f8b2be3e735895def9ba2b9f48d06e8a487b7696a9b62ab0eec2f"
+      bytes: 340
+    tests/cases/issue.expected.json:
+      sha256: f5445c30c9e5423ba48604ce5fe3ae6b0cc49a5c5803b886c34f1ba288013ee2
+      bytes: 1689
+    tests/cases/issue.graphql:
+      sha256: "964cf756f74f6ab21e797d70add15dd76943a6eb5b366cfcbf29e53888a56cc8"
+      bytes: 1958
+    tests/cases/issue_404.expected.json:
+      sha256: dec94caaf062d6050235b1868f9cb8f8781b58c737f63ae5957a2c20efef7f3e
+      bytes: 397
+    tests/cases/issue_404.graphql:
+      sha256: e8494ede7c00284f96c299fea5cb6e732dea1701e7daad77998e92e379b59451
+      bytes: 2571
+    tests/cases/issue_repository_owner.expected.json:
+      sha256: d301b8d03918a9a574c35cfad1fdc4051a1fa69ab0e503c415d147ebfd4c4485
+      bytes: 1019
+    tests/cases/issue_repository_owner.graphql:
+      sha256: "9e1e1b77bec23aa8b82a8f6fb5394be9831b785a20154a726b22c14a2a7767ab"
+      bytes: 870
+    tests/cases/list_issues.expected.json:
+      sha256: "2aa544ff47954fec5f8ad2b2197676cef3a9bbf53087a4b5c9bd5c96a0467a59"
+      bytes: 1818
+    tests/cases/list_issues.graphql:
+      sha256: ae5c6ff81db0b0b80a12956f86712da61d4369ab57178fecab41cea9d9baf654
+      bytes: 2143
+    tests/cases/list_issues_404.expected.json:
+      sha256: "1e371792007715154365df597e11dc1a666b6ea32b181b102744f867e51b6cac"
+      bytes: 407
+    tests/cases/list_issues_404.graphql:
+      sha256: "3f21b63105e9385fd5a9f55cba94f60d8ccf16118e1e5b07a4ac30dd6144c09c"
+      bytes: 2848
+    tests/cases/list_issues_repository_owner_null.expected.json:
+      sha256: "392c956bba11537a5bd3cf1b12c09fc336a80d802c9bb8273dea726f10524c6b"
+      bytes: 569
+    tests/cases/list_issues_repository_owner_null.graphql:
+      sha256: cf77bb59c195e05e77659ef4401e29ff9f041953452b8db8b5fd5b66d4ad2c3a
+      bytes: 798
+    tests/cases/repo.expected.json:
+      sha256: c8d23af1eb79bafe71d6c67865d8d07650cc68a9622c45af04399574ee261dee
+      bytes: 2333
+    tests/cases/repo.graphql:
+      sha256: a9ff3c6906ce018ec05520268d2abfddd1bba700fe635dd813e1972a72947414
+      bytes: 1102
+    tests/cases/repo_not_found.expected.json:
+      sha256: "557ad92bbf6e703dfb1ca19b59f7d3e92f35ffad14cbad54b2b9d693dfa7e46f"
+      bytes: 409
+    tests/cases/repo_not_found.graphql:
+      sha256: "79d02527f98c39426dd44cd262b120368c46c9100345ea15d783cef6c13da4aa"
+      bytes: 227
+    tests/cases/search_repos.expected.json:
+      sha256: e1aa09809d7661071604232d21ed46f899aabb9518e80d0013838635e03af95f
+      bytes: 2694
+    tests/cases/search_repos.graphql:
+      sha256: "44649b3ef21b88d7f5c28aa7b9bd9d5febe3c1ccfe81deef42beb4db4a064627"
+      bytes: 1378
+    tests/cases/search_repos_422.expected.json:
+      sha256: "6e26c977f75a54eb0d6350b4c731fd9fa7c493ab3a9e932b4954a179e2ff8199"
+      bytes: 409
+    tests/cases/search_repos_422.graphql:
+      sha256: a6eb9b0137675df2dfe6eed657321851e1994532c557e368d5ec1b0f265bcac5
+      bytes: 2113
+    tests/cases/user.expected.json:
+      sha256: "5e73df5bf725752099fbdd5920d1d084e6e823787e952b7b281bbf883c7fb32e"
+      bytes: 725
+    tests/cases/user.graphql:
+      sha256: "506955d9bd3264a90dff27b8dcdc681c760796e0ea1937f96ef5ff34d0e2d540"
+      bytes: 354
+    tests/cases/user_404.expected.json:
+      sha256: e990ee2a55d11cadc3f4e350e5fd2bcca7cea74347992b78d60251ad8da2a65c
+      bytes: 395
+    tests/cases/user_404.graphql:
+      sha256: c548c03e5a9460bd4fb03a21ada83fd74db4613f85eafe6fd6fb1f32811ca408
+      bytes: 928
+    tests/cases/version.expected.json:
+      sha256: "50fee2226eca4a4550507c8858e7895601ec6f3ca2063cb3e409fd12c03754e0"
+      bytes: 50
+    tests/cases/version.graphql:
+      sha256: "302452469ba9b81063125616a34e69aa077624ab3c0af8188b7825aa23020093"
+      bytes: 26
+    tests/fixtures/mappings/create_issue.json:
+      sha256: "0c6385eb420b1423a5f81cb9d5faf9cd19cb265ded6ba4be83e887ded85b80a8"
+      bytes: 5624
+    tests/fixtures/mappings/create_issue_403.json:
+      sha256: cbdbed48069b0820c56dc1ba6b30c9b8b5e4ed8938ad827e3a08e4d7f9a3f35c
+      bytes: 849
+    tests/fixtures/mappings/create_issue_404.json:
+      sha256: "596879e726f85e61a8b72f2a82e760ca70f3371be7261332a1191fb6e40a597d"
+      bytes: 849
+    tests/fixtures/mappings/create_issue_412.json:
+      sha256: "46a14d12e01e8fabdae3156cc500bd88a83057214866c35459607e7579bee919"
+      bytes: 849
+    tests/fixtures/mappings/create_issue_423.json:
+      sha256: d315b3034028ee95c29f14c46e9a3aa04f59c97055519a7f2349b6d5239b7a85
+      bytes: 849
+    tests/fixtures/mappings/create_issue_invalid.json:
+      sha256: ddc9d50ebde38cad9f29a94b94f31efbadb7243c38bee9e9e64f6c9b364d1643
+      bytes: 496
+    tests/fixtures/mappings/create_issue_minimal.json:
+      sha256: "030e1ad73df86d2d95a70c2f5aa7eef2aa461336354470107bd219ba533e4792"
+      bytes: 2058
+    tests/fixtures/mappings/create_issue_nulls.json:
+      sha256: "283e18d661ba02b75d9efb4441045ba6032290358419f0227b92243fbc4a4755"
+      bytes: 2054
+    tests/fixtures/mappings/current_user.json:
+      sha256: d5b1d18eea003b05db56f0817cc5eaf18ec366315f018d04493541efbf7d7d3b
+      bytes: 1005
+    tests/fixtures/mappings/issue.json:
+      sha256: "9dd848127a1368308059813e9a1ee1a684cdb30b572f25429955a0d614060210"
+      bytes: 2096
+    tests/fixtures/mappings/issue_404.json:
+      sha256: "7b3e759606ee2d8b010915b9a5198266c06912d878ce513f2088cd415696d2df"
+      bytes: 427
+    tests/fixtures/mappings/list_issues.json:
+      sha256: a1e9b1ca28d631b04235b8b8e2425d91cdd9a1092e2883fdb44653dfcdf42f80
+      bytes: 2380
+    tests/fixtures/mappings/list_issues_404.json:
+      sha256: "4debb19084636f74c427846b56353b527d8b0274b49e11c03d0512b0771b20fd"
+      bytes: 1168
+    tests/fixtures/mappings/list_issues_repository_owner_null.json:
+      sha256: "3cbcfcb008e7b1286046d07a0e5255bcadcd8879b9d2cd2a9e869f7691eef055"
+      bytes: 4575
+    tests/fixtures/mappings/repo.json:
+      sha256: "6ca405839e500e865a7983f6a5e205db7b274720bb4f945f58cabfa75ee31a5d"
+      bytes: 3369
+    tests/fixtures/mappings/repo_not_found.json:
+      sha256: "7d33b689f07240e88669347af429db2c0d20dc9f429632c99948423fabb3329a"
+      bytes: 406
+    tests/fixtures/mappings/search_repos.json:
+      sha256: "295ea509485fa9f2a755d8f95b4ecc3305700710a2518eee201e4813800c286a"
+      bytes: 3978
+    tests/fixtures/mappings/search_repos_422.json:
+      sha256: ed31ea981fb171e0736f21c75c6d67b2a0e8ddbff7c4d6034349d5eedc3985c6
+      bytes: 1336
+    tests/fixtures/mappings/user.json:
+      sha256: "7c9f02697ab00c855821aef93fc90ac6fdd74ea128e1d2c19307e2aa55b43a80"
+      bytes: 1146
+    tests/fixtures/mappings/user_404.json:
+      sha256: b3be415fd6cb05d8bd9ad4f55539de0bf5b15f1aebc1b7c958614f4e908a32f1
+      bytes: 391
+    tests/fixtures/mappings/user_empty_segment.json:
+      sha256: "992bd75480d0dd1179e7bd7f8637ad34dd44c05cabb7a03a71c7275e363e4a66"
+      bytes: 805
+    tests/fixtures/mappings/version.json:
+      sha256: "31c0872ccffe277598cdc821893444db79e656b15df3e8d16502ef7a026087ea"
+      bytes: 320
+    tests/gitea.connector.yaml:
+      sha256: db23c2c497b972487e88311f2cf2d6b45398d3f432187b08d8b736854216ceb6
+      bytes: 47324
+    tests/live.yaml:
+      sha256: "44c4eac7b0b0ba02c9860adaa1c0f8bfc1806f0bd7fe1f10dd997ea66cde6b11"
+      bytes: 3741
+    tests/live/create_issue.graphql:
+      sha256: "1f7dc5471efae1b10957264006f735f8508d3a939ef6a4463f04ee96df502eb6"
+      bytes: 249
+    tests/live/current_user.graphql:
+      sha256: "9b306cbc004e739a308240fcf3c8025971065b014afe13f4c84695293b4500db"
+      bytes: 79
+    tests/live/issue.graphql:
+      sha256: "6e6d9d560660331eda66cdb538e9ddefce28302db50a0b0b7163235a3732b841"
+      bytes: 177
+    tests/live/issue_repository_owner.graphql:
+      sha256: "6b4bbd1b3376c2664fe6cb953af19812da98f60136bb271b355a01d94d9660cb"
+      bytes: 178
+    tests/live/list_issues.graphql:
+      sha256: "62cbcf18eabe8a29b64b3906b86a3a9310a023d474f5097fa8bca527c757dd29"
+      bytes: 180
+    tests/live/repo.graphql:
+      sha256: e3dc1fba1a6af004d5119d59598bea68fecdc791297f911da4fcd5478b75f34d
+      bytes: 172
+    tests/live/search_repos.graphql:
+      sha256: "5c93b959f36a9c3bb4f358af98a83b411d02ca2aff9c9cff8ee6c2e5c355026c"
+      bytes: 171
+    tests/live/user.graphql:
+      sha256: "8dbd6b8b83ded3be6d05026804e8fa6f45ce9a707973bf661b326b91a7642ebe"
+      bytes: 79
+    tests/live/version.graphql:
+      sha256: "302452469ba9b81063125616a34e69aa077624ab3c0af8188b7825aa23020093"
+      bytes: 26
+    tests/router.yaml:
+      sha256: f046c11236d8743ceb599d602e873e969f88c8956f3eeab8018195bf52b637d6
+      bytes: 121
+  omitted_outputs: {}
+  reproducibility: "records the authored state and tools; the model is self-reported and does not prove model identity, full session history, or bit-for-bit LLM replay"

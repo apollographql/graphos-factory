@@ -1,0 +1,338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/apollographql/graphos-factory/schemas/inventory.schema.json",
+  "title": "API inventory (.factory/inventory.json)",
+  "description": "What the API offers, as the skill understands it. Discovered and refreshable; never edited to express intent (that is selection.yaml). Every operation the skill ever saw is accounted for as supported, unsupported (with a reason), or listed under unresolved.",
+  "type": "object",
+  "required": ["contract_version", "api", "operations", "shapes", "unresolved"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": { "const": 1 },
+    "api": {
+      "type": "object",
+      "required": ["title", "base_urls"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "version": { "type": "string" },
+        "description": { "type": ["string", "null"] },
+        "base_urls": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "auth": { "type": "array", "items": { "$ref": "#/$defs/auth" } },
+        "security": {
+          "$ref": "#/$defs/security",
+          "description": "The document's default security requirement, verbatim (OpenAPI `security`: a list of alternatives, each a map of scheme name to the scopes it needs). An operation without its own `security` requires this. Absent when the document declares none."
+        },
+        "pagination": { "$ref": "#/$defs/api_pagination" }
+      }
+    },
+    "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } },
+    "shapes": {
+      "type": "object",
+      "description": "Named response/request shapes, JSON-Schema-like, referenced as #/shapes/<name>. A property node may additionally carry a candidate_entity_link (#/$defs/candidate_entity_link), a computed cross-reference to a canonical GET-by-id operation's path parameter — guidance only (ADR 0033, ADR 0069), never enforced, so shape internals otherwise stay unschematized here. <S> is any shape an operation's response returns, or any named shape a response reaches through $ref at any depth (a list's items.$ref, a property's $ref, and on through each shape so reached); a shape reached only from a request or error body carries none. The fact sits on the property node wherever the property sits in <S>, never on a $ref node itself: shapes.<S>.properties.<p>; shapes.<S>.items.properties.<p> for a root-array response; shapes.<S>.properties.<a>.items.properties.<p> under an inline list; shapes.<S>.properties.<o>.properties.<p> under an inline object. `graphos-factory-core inventory links` prints every fact flat with its path in the fields grammar (album_id, []>album_id, songs[]>album_id).",
+      "additionalProperties": { "type": "object" }
+    },
+    "unresolved": { "type": "array", "items": { "$ref": "#/$defs/unresolved" } }
+  },
+  "$defs": {
+    "provenance": {
+      "enum": ["spec", "docs", "probe", "inferred"],
+      "description": "Where this knowledge came from. Anything not confirmed by a spec, the vendor's docs, or a live probe is not an operation."
+    },
+    "auth": {
+      "type": "object",
+      "required": ["kind", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["bearer", "basic", "api_key", "oauth2", "none", "unknown"] },
+        "header": { "type": "string" },
+        "query_param": { "type": "string" },
+        "prefix": {
+          "type": "string",
+          "description": "Literal text before the credential, e.g. 'Bearer ' or 'Token token='. Kept OUTSIDE {{AUTH_EXPR}} in the schema."
+        },
+        "scheme_name": { "type": "string" },
+        "source": { "$ref": "#/$defs/provenance" },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "How sure the reader is of this entry. A spec-read scheme is 1 and omits the key; a scheme assembled from the vendor's docs says how sure (at most 0.9, as api-discovery.md's provenance table says)."
+        },
+        "oauth2": { "$ref": "#/$defs/oauth2" }
+      }
+    },
+    "oauth2": {
+      "type": "object",
+      "description": "What an `oauth2` scheme declares about its flows — facts from the document, never a default. What a target derives from the authorization-code flow is its own file; the judgements (which scopes, extra_authorize_params) are the agent's and the user's.",
+      "required": ["flows"],
+      "additionalProperties": false,
+      "properties": {
+        "flows": {
+          "type": "array",
+          "items": { "enum": ["authorization_code", "client_credentials", "implicit", "password", "device_code"] },
+          "description": "Every flow the scheme declares (OpenAPI `flows` keys: authorizationCode, clientCredentials, implicit, password; Swagger 2.0 accessCode/application map onto the first two)."
+        },
+        "authorization_code": {
+          "type": "object",
+          "description": "The authorization-code flow: its endpoints and scopes, verbatim; `source`/`confidence` when they were learned differently from the scheme itself (a docs page rather than the spec).",
+          "required": ["authorization_url", "token_url"],
+          "additionalProperties": false,
+          "properties": {
+            "authorization_url": { "type": "string" },
+            "token_url": { "type": "string" },
+            "refresh_url": { "type": "string" },
+            "scopes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": ["string", "null"] },
+                  "source": { "$ref": "#/$defs/provenance" },
+                  "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              }
+            },
+            "source": { "$ref": "#/$defs/provenance" },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "array",
+      "description": "An OpenAPI security requirement, verbatim: alternatives (any one satisfies), each a map from a scheme name in api.auth[].scheme_name to the scopes that scheme needs there. An empty list means the request may be anonymous.",
+      "items": {
+        "type": "object",
+        "additionalProperties": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "pagination": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "style": { "enum": ["cursor", "page", "offset", "link_header", "next_link", "none", "unknown"], "description": "next_link: the request takes no paging parameter and the response carries a link to the next page (next_url), which the client follows (ADR 0052)." },
+        "request": { "type": ["string", "null"], "description": "Request parameter carrying the cursor/page." },
+        "size_param": { "type": ["string", "null"] },
+        "response": { "type": ["string", "null"], "description": "Dotted path to the next cursor in the response." },
+        "next_url": { "type": "string", "description": "Dotted path to a next-page URL. Beside a cursor: present when `response` is a `cursors.after` / `cursors.end_cursor` sibling of a `next` / `next_page` link (Graph-API paging). Alone, with style next_link: the link the client follows (Salesforce nextRecordsUrl, OData @odata.nextLink)." },
+        "next_operation": { "type": "string", "description": "Operation-level only, style next_link: the key of the one GET that fetches the linked page: the list's path plus a single parameter whose last word is locator, cursor, token, page or next, whose own response carries the same link. Absent when the document declares none or more than one." }
+      }
+    },
+    "api_pagination": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "api.pagination: the per-operation block's fields, summarised across the operations, plus the counts behind the summary. Only here: an operation's own block carries no counts.",
+      "properties": {
+        "style": { "$ref": "#/$defs/pagination/properties/style" },
+        "request": { "$ref": "#/$defs/pagination/properties/request" },
+        "size_param": { "$ref": "#/$defs/pagination/properties/size_param" },
+        "response": { "$ref": "#/$defs/pagination/properties/response" },
+        "next_url": { "$ref": "#/$defs/pagination/properties/next_url" },
+        "counts": {
+          "type": "object",
+          "description": "How many operations carry each style. The API-level style is the most common of cursor, page, offset and next_link (in that order on a tie), unknown only when none appears; absent when no operation is paginated.",
+          "propertyNames": { "enum": ["cursor", "page", "offset", "link_header", "next_link", "unknown"] },
+          "additionalProperties": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "required": ["key", "operation_id", "method", "path", "semantics", "provenance", "confidence", "support"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^(get|put|post|delete|patch|head|options|trace):/",
+          "description": "{lowercase method}:{path}, the key grammar the existing generator UI already emits."
+        },
+        "operation_id": { "type": "string" },
+        "method": { "enum": ["GET", "PUT", "POST", "DELETE", "PATCH", "HEAD", "OPTIONS", "TRACE"] },
+        "path": { "type": "string", "pattern": "^/" },
+        "summary": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "deprecated": { "type": "boolean" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "semantics": {
+          "enum": ["read", "write", "unknown"],
+          "description": "read for GET/HEAD, write for everything else the spec reader sees — a POST is a write until the engineer decides otherwise, because a write mistaken for a read escapes every control that gates writes. A hand-written (discovered) inventory may say unknown. The GraphQL root is selection.yaml's graphql.root."
+        },
+        "read_hint": {
+          "type": ["string", "null"],
+          "description": "Present on a POST whose operationId or last path segment carries a read verb (search, query, render, preview, …) and no action verb: why it might be a read. Advisory only — the agent surfaces it for the user to confirm before choosing root: query; semantics stays write."
+        },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "parameters": { "type": "array", "items": { "$ref": "#/$defs/parameter" } },
+        "request_body": { "$ref": "#/$defs/body" },
+        "response": { "$ref": "#/$defs/response" },
+        "pagination": {
+          "$ref": "#/$defs/pagination",
+          "description": "This operation's own pagination, from the query parameters it declares and the next-cursor key its response carries; absent when the operation declares no paging parameter (style would be none). api.pagination summarises the whole API."
+        },
+        "security": {
+          "$ref": "#/$defs/security",
+          "description": "This operation's own security requirement, verbatim, only when it declares one; otherwise api.security applies. `[]` is the document saying the operation takes no credential."
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["status"],
+            "additionalProperties": false,
+            "properties": {
+              "status": { "type": "string" },
+              "description": { "type": ["string", "null"] },
+              "shape_ref": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "support": { "enum": ["supported", "unsupported", "needs_review"] },
+        "support_reason": { "type": ["string", "null"] },
+        "patches": {
+          "type": "array",
+          "description": "Present only when the workspace's sources.lock.yaml records patches to the pinned spec that touch this operation (its path item, or any schema its request, response or error responses reach through the `$ref` closure — an envelope's payload, a list's items): the patch's pointer, op and reason, so a UI can mark the operation as adjusted from the vendor document.",
+          "items": {
+            "type": "object",
+            "required": ["path", "op", "reason"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string" },
+              "op": { "enum": ["add", "remove", "replace"] },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "required": ["name", "in", "required"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "in": { "enum": ["path", "query", "header", "cookie"] },
+        "required": { "type": "boolean" },
+        "type": {
+          "anyOf": [{ "type": ["string", "null"] }, { "type": "array", "items": { "type": "string" } }],
+          "description": "A JSON Schema union type (e.g. [\"string\", \"null\"]) is kept as the array the spec wrote."
+        },
+        "format": { "type": ["string", "null"] },
+        "enum": { "type": "array" },
+        "explode": { "type": ["boolean", "null"] },
+        "style": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "shape_ref": { "type": ["string", "null"] },
+        "default": {
+          "description": "The source-declared default value for this parameter, as a JSON value whose type matches the parameter type."
+        },
+        "minimum": {
+          "type": "number",
+          "description": "The source-declared minimum value for a numeric parameter. Omitted (never null) when the source declares none — JSON Schema requires the keyword's value to be a number, so an explicit null in the source is malformed and treated as absent (ADR 0025)."
+        },
+        "maximum": {
+          "type": "number",
+          "description": "The source-declared maximum value for a numeric parameter. Omitted (never null) when the source declares none (ADR 0025)."
+        },
+        "exclusiveMinimum": {
+          "type": ["number", "boolean"],
+          "description": "The source's exclusiveMinimum, as written: a number is the exclusive bound itself (OpenAPI 3.1); a boolean says whether `minimum` is exclusive (OpenAPI 3.0, Swagger 2.0). Omitted when the source declares none (ADR 0065)."
+        },
+        "exclusiveMaximum": {
+          "type": ["number", "boolean"],
+          "description": "The source's exclusiveMaximum, as written: a number is the exclusive bound itself (OpenAPI 3.1); a boolean says whether `maximum` is exclusive (OpenAPI 3.0, Swagger 2.0). Omitted when the source declares none (ADR 0065)."
+        }
+      }
+    },
+    "candidate_entity_link": {
+      "type": "object",
+      "description": "A computed cross-reference found on a shape property node wherever it sits in the shape (properties.<p>, items.properties.<p>, or any inline properties/items below them, in a response shape or a named shape a response reaches through $ref; never on a $ref node itself), not on the parameter: a canonical GET-by-id operation's trailing path parameter — an operation whose success response is one record carrying that key (a property named after the parameter or ending with its name, or an `id` for a parameter ending in id, in the parameter's type family, at the top level or inside a one-property envelope; ADR 0085) — whose case-normalized name (folding snake_case and camelCase) and type family (string/ID-shaped vs integer-shaped, never exact scalar equality) matched this property. A candidate for a field-level relationship connector on the host type, keyed by {$this.<p>} — guidance only, never a lint (ADR 0033, ADR 0069); the judgement lives in selection.yaml `links:` (Phase 7as (b)) and a declined candidate is recorded in decisions.json.",
+      "required": ["operation", "parameter", "list_context"],
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "type": "string",
+          "description": "The matched parameter's own operation, in the same {method}:{path} key grammar as operation.key."
+        },
+        "parameter": {
+          "type": "string",
+          "description": "The matched parameter's raw wire name (pre-rename), so a later GraphQL rename never affects this fact."
+        },
+        "list_context": {
+          "type": "boolean",
+          "description": "Whether the matched operation returns a list (response.root_is_array). False on every fact since ADR 0085, which refuses a target whose response is a list; true was the signal for the $batch entity form documented as the exception. Which keyed types a bulk-by-keys endpoint could resolve in one $batch call is what `batch find` is to report (ADR 0068, pending #109); a relationship field never emits $batch (ADR 0069)."
+        }
+      }
+    },
+    "body": {
+      "type": ["object", "null"],
+      "required": ["content_type"],
+      "additionalProperties": false,
+      "properties": {
+        "content_type": { "type": "string" },
+        "required": { "type": "boolean" },
+        "shape_ref": { "type": ["string", "null"] }
+      }
+    },
+    "response": {
+      "type": ["object", "null"],
+      "description": "The success response, and the factual signals an envelope judgement rests on. There is no `envelope` here on purpose (ADR 0018): which key the payload's useful content sits under decides the shape of the schema, so it is a judgement and lives in selection.yaml (`operations.<key>.response.envelope`). Every key below is checkable against the description document. A key carrying no information (false, zero, empty, absent) is omitted.",
+      "required": ["status", "content_type"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string" },
+        "content_type": { "type": ["string", "null"] },
+        "shape_ref": { "type": ["string", "null"] },
+        "referenced_shape": {
+          "type": "string",
+          "description": "ADR 0080: when `shape_ref` names a two-branch oneOf/anyOf of one success shape and one error shape, and the source document itself makes the branches distinguishable (the spec correlates a branch with a specific non-2xx status documented on the same operation, or the branches share a required property pinned to a distinct literal value in each — a structural discriminator, never a property's name alone), this points at the success branch so scaffold and reconcile type it instead of falling back to JSON. Omitted whenever the union is ambiguous by that rule — inventory build never guesses from a property literally named `error`/`errors`, and a reviewed judgement on an ambiguous case belongs in selection.yaml's own `response.referenced_shape`, never here."
+        },
+        "root_is_array": {
+          "type": "boolean",
+          "description": "The success shape is itself an array — there is nothing to unwrap. Omitted when false."
+        },
+        "root_property_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many properties the root object declares, hypermedia links included. Omitted when the root is not an object with properties."
+        },
+        "link_root_properties": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Root properties that are hypermedia rather than payload (`_links`, `links`). Omitted when empty."
+        },
+        "array_root_properties": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Root properties whose type is array. Omitted when empty."
+        },
+        "sole_root_property": {
+          "type": "string",
+          "description": "The name of the only root property that is not a hypermedia link, when there is exactly one. Omitted otherwise."
+        },
+        "total_items_property": {
+          "type": "string",
+          "description": "The root property naming how many items the whole collection has (`total_items`, `total_count`, `total`, `count`, `totalCount`, `total_results`). Omitted when none."
+        },
+        "cursor_root_properties": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Root properties whose name is a next-cursor key and whose type can carry a string, so a HAL `next: { href }` link does not count. Omitted when empty."
+        }
+      }
+    },
+    "unresolved": {
+      "type": "object",
+      "required": ["hint", "source", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "hint": { "type": "string" },
+        "source": { "$ref": "#/$defs/provenance" },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

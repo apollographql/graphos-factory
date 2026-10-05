@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/apollographql/graphos-factory/schemas/evidence.schema.json",
+  "title": "Validation evidence (.factory/evidence/latest.json)",
+  "description": "What was proven, per layer and per operation, at which commit and toolchain. 'skipped', 'not_run' and 'excluded' are first-class statuses and are never reported as 'pass'.",
+  "type": "object",
+  "required": ["contract_version", "commit", "run_at", "toolchain", "layers", "operations"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": { "const": 2 },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{7,40}(-dirty)?$" },
+    "run_at": { "type": "string", "format": "date-time" },
+    "toolchain": {
+      "type": "object",
+      "required": ["rover", "federation", "connect_spec"],
+      "additionalProperties": false,
+      "properties": {
+        "rover": { "type": "string" },
+        "federation": { "type": "string" },
+        "connect_spec": { "type": "string" },
+        "wiremock": { "type": ["string", "null"] },
+        "service_factory": { "type": ["string", "null"], "description": "Version of the product binary that wrote this file (the key keeps the name it was first written under)." },
+        "router": { "type": ["string", "null"], "description": "Apollo Router version the e2e layer ran, from the banner e2e.sh prints once WireMock and the router are up; null when the run never reached it." },
+        "java": { "type": ["string", "null"], "description": "JVM version WireMock ran under (`java -version`); null when the e2e layer did not execute." },
+        "node": { "type": ["string", "null"], "description": "Written by the pre-0.1 JavaScript instruments; kept so their evidence files still validate." }
+      }
+    },
+    "layers": {
+      "type": "object",
+      "required": ["compose", "connector_unit", "wiremock_e2e", "conformance", "lint", "live"],
+      "additionalProperties": false,
+      "properties": {
+        "compose": { "$ref": "#/$defs/layer" },
+        "connector_unit": { "$ref": "#/$defs/layer" },
+        "wiremock_e2e": { "$ref": "#/$defs/layer" },
+        "write_body_proof": { "$ref": "#/$defs/layer" },
+        "conformance": { "$ref": "#/$defs/layer" },
+        "lint": { "$ref": "#/$defs/layer" },
+        "live": { "$ref": "#/$defs/layer" },
+        "json_accounting": { "$ref": "#/$defs/layer", "description": "Optional (ADR 0073): `spans json-accounting`'s counts. Absent on evidence written before this layer existed; a workspace with no schema yet reports `not_run` rather than being omitted." }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "description": "Per selected operation key: what each layer actually executed for it.",
+      "patternProperties": { "^(get|put|post|delete|patch|head|options|trace):/": { "$ref": "#/$defs/operationEvidence" } },
+      "additionalProperties": false
+    },
+    "target_evidence_layers": {
+      "type": "object",
+      "description": "The evidence layers the target adds (ADR 0114), keyed by layer name, each with the target that ran it beside its status. Run after the core layers, with the same statuses, and skipped is never a pass. Optional and additive: a reader that does not know a layer shows it by name and status.",
+      "additionalProperties": { "$ref": "#/$defs/targetLayer" }
+    }
+  },
+  "$defs": {
+    "targetLayer": {
+      "type": "object",
+      "required": ["status", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "$ref": "#/$defs/status" },
+        "target": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "The target whose layer this is, as workspace.yaml skill.name records it." },
+        "reason": { "type": ["string", "null"], "description": "Required whenever status is skipped, not_run, n/a or fail." },
+        "findings": { "type": "array", "items": { "type": "string" } },
+        "cases": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "status": { "enum": ["pass", "fail", "skipped", "not_run", "excluded", "unchecked", "waived", "n/a"], "description": "excluded: the layer ran but deliberately did not exercise this operation, for a recorded reason (see the layer's `exclusions`). unchecked / waived (conformance): the oracle had nothing to compare a body against, or the engineer accepted that gap in selection.yaml `waivers[]`; neither is a pass. unchecked (e2e, ADR 0077): a case whose stub answered an error status without `# expect-upstream-status`, on an operation documenting more than one, or an operation with a documented error status no passing case saw answer its own request (see `error_coverage`); not a pass." },
+    "layer": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "$ref": "#/$defs/status" },
+        "reason": {
+          "type": ["string", "null"],
+          "description": "Required whenever status is skipped, not_run, n/a or fail — a layer that did not run must say why."
+        },
+        "cases": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "error_coverage": {
+          "type": "object",
+          "description": "wiremock_e2e only (ADR 0077): per selected operation that documents a non-2xx status, which documented statuses a passing e2e case saw answer the operation's OWN request (a status served to a nested lookup or side call is not credited). `not_run` are the documented statuses no such case covers: never a pass, and the operation's e2e verdict reads `unchecked` while any remain. Additive to contract_version 1.",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["documented", "executed", "not_run"],
+            "additionalProperties": false,
+            "properties": {
+              "documented": { "type": "array", "items": { "type": "string" } },
+              "executed": { "type": "array", "items": { "type": "string" } },
+              "not_run": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "write_gaps": { "type": "integer", "minimum": 0, "description": "write_body_proof only: outbound-request assertions still unproven on body-sending writes (POST/PUT/PATCH). Counted apart from `read_gaps` so a workspace with no write gap is not summarised by its reads alone." },
+        "read_gaps": { "type": "integer", "minimum": 0, "description": "write_body_proof only: unproven assertions on every other selected operation (a read's query arguments)." },
+        "placements": {
+          "type": "array",
+          "description": "write_body_proof only: the write arguments whose place in the outbound request was found by execution, not read from the connector (ADR 0079, executed placement). Each names the operation, the argument, where it goes and the executed case whose stub demands its value there. An argument not listed was placed by the reader. Absent when no argument needed execution.",
+          "items": { "$ref": "#/$defs/placement" }
+        },
+        "case_proofs": {
+          "type": "object",
+          "description": "Per-case verdict from a same-run evidence layer (the write-body proof check, ADR 0079 Step 2), attached to the layer that executed the case: case name -> {verdict, findings}. Additive; distinct from the integer `cases` above, which is untouched and required for neither this field's presence nor its absence.",
+          "additionalProperties": { "$ref": "#/$defs/caseProof" }
+        },
+        "oracle": { "type": ["string", "null"], "description": "What the shapes were checked against: the pinned description document's working-copy path (openapi.json, swagger.json, …) | \"inferred-schema.json (recorded samples)\" | \"inventory.json\" (neither a pinned document nor an inferred schema exists)" },
+        "findings": { "type": "array", "items": { "type": "string" } },
+        "command": { "type": ["string", "null"] },
+        "exit_code": { "type": ["integer", "null"] },
+        "log": { "type": ["string", "null"], "description": "Path under evidence/runs/<timestamp>/." },
+        "exclusions": {
+          "type": "array",
+          "description": "Operations this layer deliberately did not exercise, each with the reason (from tests/live.yaml `exclusions`).",
+          "items": {
+            "type": "object",
+            "required": ["operation", "reason"],
+            "additionalProperties": false,
+            "properties": { "operation": { "type": "string" }, "reason": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "description": "json_accounting only (ADR 0073): totals and a per-type breakdown of `spans json-accounting`'s five statuses.",
+          "additionalProperties": false,
+          "properties": {
+            "total_fields": { "type": "integer", "minimum": 0 },
+            "json_fields": { "type": "integer", "minimum": 0 },
+            "accounted": { "type": "integer", "minimum": 0 },
+            "unaccounted": { "type": "integer", "minimum": 0 },
+            "stale": { "type": "integer", "minimum": 0 },
+            "recoverable": { "type": "integer", "minimum": 0 },
+            "unresolved": { "type": "integer", "minimum": 0 },
+            "by_type": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/statusCounts" }
+            }
+          }
+        }
+      }
+    },
+    "statusCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accounted": { "type": "integer", "minimum": 0 },
+        "unaccounted": { "type": "integer", "minimum": 0 },
+        "stale": { "type": "integer", "minimum": 0 },
+        "recoverable": { "type": "integer", "minimum": 0 },
+        "unresolved": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "required": ["operation", "argument", "via", "location"],
+      "additionalProperties": false,
+      "properties": {
+        "operation": { "type": "string" },
+        "argument": { "type": "string" },
+        "via": { "enum": ["static", "executed"], "description": "static: read from the connector. executed: an executed, passing case's stub demands the argument's own value at exactly this place." },
+        "location": { "type": "string", "description": "body /pointer, or body elements /pointer with * for each array index (a list argument's elements)." },
+        "case": { "type": "string", "description": "The proving case, for an executed placement." }
+      }
+    },
+    "caseProof": {
+      "type": "object",
+      "description": "unproven is never a pass: it means no executed, recorded evidence exists for this case, not that its body was checked and found acceptable.",
+      "required": ["verdict"],
+      "additionalProperties": false,
+      "properties": {
+        "verdict": { "enum": ["pass", "fail", "unproven"] },
+        "findings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "operationEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "unit": { "$ref": "#/$defs/status" },
+        "e2e": { "$ref": "#/$defs/status" },
+        "conformance": { "$ref": "#/$defs/status" },
+        "live": { "$ref": "#/$defs/status" },
+        "note": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

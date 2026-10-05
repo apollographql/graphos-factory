@@ -1,0 +1,8 @@
+# Asserts the @source errors mapping on a 404. tests/router.yaml sets
+# include_subgraph_errors so the mapped message and extensions are visible.
+query {
+  gitea_repo(owner: "fixture", repo: "nope") {
+    id
+    fullName
+  }
+}

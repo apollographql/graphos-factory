@@ -1,0 +1,66 @@
+{
+  "operations": [
+    {
+      "key": "get:/contacts",
+      "method": "GET",
+      "path": "/contacts"
+    },
+    {
+      "key": "post:/contacts/search",
+      "method": "POST",
+      "path": "/contacts/search",
+      "request_body": {
+        "shape_ref": "#/shapes/SearchContactsRequest"
+      }
+    },
+    {
+      "key": "patch:/contacts/{id}",
+      "method": "PATCH",
+      "path": "/contacts/{id}",
+      "request_body": {
+        "shape_ref": "#/shapes/UpdateContactRequest"
+      }
+    }
+  ],
+  "shapes": {
+    "SearchContactsRequest": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "statuses": {
+          "type": "array"
+        }
+      }
+    },
+    "UpdateContactRequest": {
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "bio": {
+          "type": "string"
+        },
+        "attributes": {
+          "type": "array"
+        },
+        "location": {
+          "$ref": "#/shapes/Location"
+        }
+      }
+    },
+    "Location": {
+      "type": "object",
+      "properties": {
+        "region": {
+          "type": "string"
+        },
+        "country": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

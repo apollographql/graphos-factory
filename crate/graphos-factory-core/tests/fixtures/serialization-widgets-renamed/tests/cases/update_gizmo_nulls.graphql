@@ -1,0 +1,1 @@
+mutation { gizmo_co_updateGizmo(id: "w1", name: null, labels: null, site: null) { id name } }

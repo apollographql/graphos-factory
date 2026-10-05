@@ -1,0 +1,26 @@
+query {
+  gitea_currentUser {
+    id
+    login
+    loginName
+    sourceId
+    fullName
+    email
+    avatarUrl
+    htmlUrl
+    language
+    isAdmin
+    lastLogin
+    created
+    restricted
+    active
+    prohibitLogin
+    location
+    website
+    description
+    visibility
+    followersCount
+    followingCount
+    starredReposCount
+  }
+}

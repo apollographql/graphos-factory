@@ -1,0 +1,1 @@
+mutation { widget_co_updateWidget(id: "w1", name: null, tags: null, address: null) { id name } }

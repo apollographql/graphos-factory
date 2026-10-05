@@ -1,0 +1,11 @@
+{
+  "data": {
+    "gitea_createIssue": {
+      "body": "",
+      "id": 3,
+      "number": "3",
+      "state": "open",
+      "title": "Minimal"
+    }
+  }
+}

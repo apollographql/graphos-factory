@@ -1,0 +1,9 @@
+query {
+  gitea_listIssues(owner: "fixture", repo: "fixture-repo", state: open, type: issues) {
+    number
+    title
+    state
+    user { login }
+    repository { fullName }
+  }
+}

@@ -1,0 +1,1 @@
+mutation { relay_crm_updateContact(id: "c1", displayName: "Ada Lovelace", bio: "engineer", attributes: [{key: "segment", value: "enterprise"}, {key: "score", value: {model: "v2", points: 87}}], location: {region: "EMEA", country: "UK"}) { id displayName } }

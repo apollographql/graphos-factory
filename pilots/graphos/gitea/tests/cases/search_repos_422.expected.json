@@ -1,0 +1,22 @@
+{
+  "data": null,
+  "errors": [
+    {
+      "extensions": {
+        "code": "CONNECTOR_FETCH",
+        "connector": {
+          "coordinate": "gitea:Query.gitea_searchRepos[0]"
+        },
+        "http": {
+          "status": 422
+        },
+        "httpStatus": 422,
+        "service": "gitea"
+      },
+      "message": "Gitea request failed",
+      "path": [
+        "gitea_searchRepos"
+      ]
+    }
+  ]
+}

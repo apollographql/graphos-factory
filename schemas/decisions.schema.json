@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/apollographql/graphos-factory/schemas/decisions.schema.json",
+  "title": "Design decisions and open questions",
+  "description": "The workspace's decision log: every judgement call the agent recorded and every open question still awaiting the user, as individually tracked records. Replaces the free-form decisions.md (ADR 0026). Skill-native — the `graphos-factory-core decisions` command is the only writer, so a headless agent and any UI record resolutions through the same path.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "decisions"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": 1
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
+    }
+  },
+  "$defs": {
+    "omit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "direction",
+        "path",
+        "reason"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "direction": {
+          "enum": [
+            "response",
+            "request",
+            "behaviour"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "reason": {
+          "enum": [
+            "editorial",
+            "consumed",
+            "not-applicable"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "direction": {
+            "const": "behaviour"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "editorial",
+              "not-applicable"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "editorial",
+              "consumed"
+            ]
+          }
+        }
+      }
+    },
+    "json_reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "field",
+        "reason"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "field": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "reason": {
+          "enum": [
+            "free-form-object",
+            "recursive",
+            "vendor-undocumented",
+            "polymorphic-without-discriminator",
+            "depth-cap"
+          ]
+        }
+      }
+    },
+    "null_handling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "argument",
+        "behavior"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "argument": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "behavior": {
+          "enum": [
+            "send_null",
+            "omit"
+          ]
+        }
+      }
+    },
+    "secret_field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "field",
+        "disposition",
+        "reason"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        },
+        "field": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        },
+        "disposition": {
+          "enum": [
+            "expose",
+            "exclude"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "choice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "label": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "detail": {
+          "type": "string",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chosen": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          }
+        },
+        "note": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "decision": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "by": {
+          "enum": [
+            "user",
+            "agent"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "status",
+        "date"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^D-[0-9]{4}$"
+        },
+        "title": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "status": {
+          "enum": [
+            "open",
+            "resolved",
+            "superseded"
+          ]
+        },
+        "date": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "phase": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "question": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "context": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "requested_by": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "multiple": {
+          "type": "boolean"
+        },
+        "affects": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "\\S"
+          }
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/choice"
+          }
+        },
+        "resolution": {
+          "$ref": "#/$defs/resolution"
+        },
+        "omits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/omit"
+          }
+        },
+        "secret_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/secret_field"
+          }
+        },
+        "json_reasons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/json_reason"
+          }
+        },
+        "null_handling": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/null_handling"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "resolved"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "resolution"
+        ]
+      }
+    }
+  }
+}

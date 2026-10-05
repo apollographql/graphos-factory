@@ -1,0 +1,6 @@
+federation_version: =2.15.2
+subgraphs:
+  media:
+    routing_url: http://localhost
+    schema:
+      file: media.graphql

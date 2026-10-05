@@ -1,0 +1,31 @@
+{
+  "contract_version": 1,
+  "findings": [
+    {
+      "id": "F-0001",
+      "title": "Operation descriptions end with the returned field names",
+      "date": "2026-09-21",
+      "status": "current",
+      "body": "Seven of the eight selected root fields' doc comments end with the names their response exposes; gitea_version returns String and carries none. get:/repos/search returns an envelope and carries both lines; seven lines hit the 14-name cap. Both paginated operations carry ADR 0029's one-page/stop-condition sentence ahead of the Returns line.",
+      "cites": "ADR 0032; references/schema-authoring.md § Returned field names",
+      "source": "agent",
+      "affects": [
+        "gitea.graphql",
+        "applied.lock.yaml"
+      ]
+    },
+    {
+      "id": "F-0002",
+      "title": "Object-typed entries in the Returns line render one level deep",
+      "date": "2026-09-23",
+      "status": "current",
+      "body": "An object-typed entry in a Returns line renders one level deep: 11 brace groups, every one a Gitea_User, whose 22 fields hit the nested cap of 6, so every group ends (+16 more).",
+      "cites": "ADR 0039; references/schema-authoring.md § Returned field names",
+      "source": "agent",
+      "affects": [
+        "gitea.graphql",
+        "applied.lock.yaml"
+      ]
+    }
+  ]
+}

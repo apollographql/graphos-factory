@@ -1,0 +1,468 @@
+# Stay Listings API — Apollo Connectors subgraph.
+#
+# Authored by the factory (no OpenAPI document; the deployment serves no
+# docs either). The inventory was hand-built from the API's own source and
+# every operation was confirmed with a live probe — reads and writes alike.
+# Reasoning is in .factory/decisions.json (D-nnnn below).
+#
+# No authentication of any kind (D-... see memory.md Auth).
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.12", import: ["@key", "@tag"])
+  @link(url: "https://specs.apollo.dev/connect/v0.3", import: ["@source", "@connect"])
+
+@source(
+  name: "stay_listings"
+  http: {
+    baseURL: "{{BASE_URL}}"
+    headers: [{ name: "Accept", value: "application/json" }]
+  }
+  # Most error bodies are plain text ("Could not find listing with specified
+  # id"), not JSON, so $.message resolves to nothing for them and the
+  # fallback fires; it only resolves for the one JSON error body observed
+  # (Railway's own 502 gateway-error page when PATCH crashes the process).
+  errors: {
+    message: "$($.message ?? 'Stay Listings request failed')"
+    extensions: """
+    httpStatus: $status
+    """
+  }
+)
+
+# ─── Shared shapes ───────────────────────────────────────────────────────────
+
+"""
+Fixed vocabulary: only these 4 values have ever been observed, across every
+list/detail sample and both write probes (D-0001) — this is static Odyssey
+course data, not open user input. A 5th value from the API would arrive as
+an unmapped enum value and fail rather than pass through silently.
+"""
+enum Stay_Listings_LocationType {
+  APARTMENT
+  CAMPSITE
+  HOUSE
+  SPACESHIP
+}
+
+"""
+An amenity. `category`/`name` are populated everywhere except the summary
+list routes (`listings`, `featuredListings`), which the API sends with only
+`id` — one shared type covers every route rather than a separate id-only
+type (D-0002).
+"""
+type Stay_Listings_Amenity {
+  id: ID!
+  category: String
+  name: String
+}
+
+"A listing's geographic coordinates."
+type Stay_Listings_Coordinates {
+  latitude: Float!
+  longitude: Float!
+}
+
+"""
+A host listing. `amenities` differs in completeness by the route that
+returned it: the full Amenity shape on `listing`/`createListing`/
+`updateListing`, id-only on `listings`/`featuredListings`, and entirely
+absent (null) from `userListings`, which does not join amenity data at all
+— modeled with nullable fields rather than three separate types (D-0002).
+"""
+type Stay_Listings_Listing
+  @key(fields: "id")
+  @connect(
+    source: "stay_listings"
+    http: { GET: "/listings/{$this.id}" }
+    selection: """
+    id
+    title
+    description
+    costPerNight
+    hostId
+    locationType
+    numOfBeds
+    photoThumbnail
+    isFeatured
+    latitude
+    longitude
+    closedForBookings
+    amenities { id category name }
+    """
+  ) {
+  id: ID!
+  title: String!
+  description: String!
+  costPerNight: Float!
+  "The hosting user's id. There is no exposed User type or lookup for it here."
+  hostId: ID!
+  locationType: Stay_Listings_LocationType!
+  numOfBeds: Int!
+  photoThumbnail: String!
+  isFeatured: Boolean!
+  "Null when the listing has no coordinates recorded."
+  latitude: Float
+  longitude: Float
+  closedForBookings: Boolean!
+  """
+  `userListings`' own REST route never returns amenity data (verified
+  against source and by probe), so this field would be null there — except
+  that `Listing` is an entity: a client that asks for `amenities` on a
+  `userListings` result gets it anyway, at the cost of one extra
+  `GET /listings/{id}` per item (confirmed live), because the router falls
+  back to this type's own connector for a field the root operation did not
+  map. Deliberate, not a workaround: this is what making `Listing` an
+  entity buys every route that returns it.
+  """
+  amenities: [Stay_Listings_Amenity!]
+}
+
+# ─── Queries ─────────────────────────────────────────────────────────────────
+
+type Query {
+  """
+  Retrieves one page of listings with numOfBeds at least `minBeds`, sorted
+  by cost. Iterate through all pages, restarting at page 1 whenever `limit`
+  changes, until a short or empty page — the API provides no total-count or
+  cursor field to detect completion otherwise.
+  """
+  stay_listings_listings(
+    "1-based page number (records skipped = (page - 1) * limit). Provider default: 1; no documented maximum."
+    page: Int
+    "Page size (provider default: 5; no documented maximum)."
+    limit: Int
+    "Only \"COST_ASC\" changes the sort to ascending cost; any other value, including omitting this argument, sorts by cost descending (the API's own default)."
+    sortBy: String
+    "Minimum number of beds, inclusive (provider default: 1 when omitted)."
+    minBeds: Int
+  ): [Stay_Listings_Listing!]!
+    @connect(
+      source: "stay_listings"
+      http: {
+        GET: "/listings"
+        queryParams: """
+        page: $args.page
+        limit: $args.limit
+        sortBy: $args.sortBy
+        numOfBeds: $args.minBeds
+        """
+      }
+      selection: """
+      id
+      title
+      description
+      costPerNight
+      hostId
+      locationType
+      numOfBeds
+      photoThumbnail
+      isFeatured
+      latitude
+      longitude
+      closedForBookings
+      amenities { id }
+      """
+    )
+
+  "Featured listings (isFeatured: true), most interesting first, up to limit."
+  stay_listings_featuredListings(
+    "Maximum number of results (provider default: 3; no documented maximum)."
+    limit: Int
+  ): [Stay_Listings_Listing!]!
+    @connect(
+      source: "stay_listings"
+      http: {
+        GET: "/featured-listings"
+        queryParams: """
+        limit: $args.limit
+        """
+      }
+      selection: """
+      id
+      title
+      description
+      costPerNight
+      hostId
+      locationType
+      numOfBeds
+      photoThumbnail
+      isFeatured
+      latitude
+      longitude
+      closedForBookings
+      amenities { id }
+      """
+    )
+
+  """
+  Listings hosted by the given user. This route's own REST response never
+  includes amenities — but Listing.amenities still resolves if you ask for
+  it, one extra request per item, via the entity connector (see
+  Listing.amenities).
+  """
+  stay_listings_userListings(userId: ID!): [Stay_Listings_Listing!]!
+    @connect(
+      source: "stay_listings"
+      http: { GET: "/user/{$args.userId}/listings" }
+      selection: """
+      id
+      title
+      description
+      costPerNight
+      hostId
+      locationType
+      numOfBeds
+      photoThumbnail
+      isFeatured
+      latitude
+      longitude
+      closedForBookings
+      """
+    )
+
+  "A single listing by id."
+  stay_listings_listing(id: ID!): Stay_Listings_Listing
+    @connect(
+      source: "stay_listings"
+      http: { GET: "/listings/{$args.id}" }
+      selection: """
+      id
+      title
+      description
+      costPerNight
+      hostId
+      locationType
+      numOfBeds
+      photoThumbnail
+      isFeatured
+      latitude
+      longitude
+      closedForBookings
+      amenities { id category name }
+      """
+    )
+
+  """
+  The full amenities of one listing (id, category and name — unlike the
+  id-only amenities embedded in `listings`/`featuredListings`).
+  """
+  stay_listings_listingAmenities(id: ID!): [Stay_Listings_Amenity!]!
+    @connect(
+      source: "stay_listings"
+      http: { GET: "/listings/{$args.id}/amenities" }
+      selection: """
+      id
+      category
+      name
+      """
+    )
+
+  """
+  Total cost of a stay: costPerNight * nights between checkInDate and
+  checkOutDate (YYYY-MM-DD). The API's own guard against malformed dates is
+  dead code (`diffInDays === NaN` is never true in JavaScript, confirmed
+  against source): a malformed date silently yields a NaN-derived total
+  rather than an error — validate the dates before calling this.
+  """
+  stay_listings_listingTotalCost(id: ID!, checkInDate: String!, checkOutDate: String!): Float
+    @connect(
+      source: "stay_listings"
+      http: {
+        GET: "/listings/{$args.id}/totalCost"
+        queryParams: """
+        checkInDate: $args.checkInDate
+        checkOutDate: $args.checkOutDate
+        """
+      }
+      selection: "$.totalCost"
+    )
+
+  "A listing's coordinates, when it has any recorded."
+  stay_listings_listingCoordinates(id: ID!): Stay_Listings_Coordinates
+    @connect(
+      source: "stay_listings"
+      http: { GET: "/listings/{$args.id}/coordinates" }
+      selection: """
+      latitude: coordinates.latitude
+      longitude: coordinates.longitude
+      """
+    )
+
+  "Amenities by id."
+  stay_listings_amenities(ids: [ID!]!): [Stay_Listings_Amenity!]!
+    @connect(
+      source: "stay_listings"
+      http: {
+        GET: "/amenities"
+        queryParams: """
+        ids: $args.ids->joinNotNull(",")
+        """
+      }
+      selection: """
+      id
+      category
+      name
+      """
+    )
+
+  "Every amenity the API knows, regardless of listing."
+  stay_listings_allAmenities: [Stay_Listings_Amenity!]!
+    @connect(
+      source: "stay_listings"
+      http: { GET: "/listing/amenities" }
+      selection: """
+      id
+      category
+      name
+      """
+    )
+
+  """
+  Amenities grouped per listing: one array per id in `listingIds`, same
+  order. A requested id with no matching listing is simply absent from the
+  result, so the result can be shorter than `listingIds`.
+  """
+  stay_listings_amenitiesForListings(listingIds: [ID!]!): [[Stay_Listings_Amenity!]!]!
+    @connect(
+      source: "stay_listings"
+      http: {
+        GET: "/amenities/listings"
+        queryParams: """
+        ids: $args.listingIds->joinNotNull(",")
+        """
+      }
+      selection: """
+      id
+      category
+      name
+      """
+    )
+}
+
+# ─── Mutations ───────────────────────────────────────────────────────────────
+
+type Mutation {
+  """
+  Creates a listing. Optional fields left unset take the API's own
+  defaults: description "", costPerNight 0, hostId "user-4", locationType
+  CAMPSITE, photoThumbnail a stock image (verified live — it is literally
+  listing-10's own photo, an apparent copy-paste artifact in the source, not
+  a generic placeholder), isFeatured false, closedForBookings false.
+  `amenityIds` omitted means no amenities attached — `amenities` on the
+  result is then `null` (confirmed live), not an empty list: the API skips
+  its amenities lookup entirely in this case.
+  """
+  stay_listings_createListing(
+    title: String!
+    numOfBeds: Int!
+    description: String
+    costPerNight: Float
+    hostId: ID
+    locationType: Stay_Listings_LocationType
+    photoThumbnail: String
+    isFeatured: Boolean
+    closedForBookings: Boolean
+    amenityIds: [ID!]
+  ): Stay_Listings_Listing
+    @tag(name: "beta")
+    @connect(
+      source: "stay_listings"
+      http: {
+        POST: "/listings"
+        body: """
+        $({
+          listing: {
+            title: $args.title,
+            numOfBeds: $args.numOfBeds,
+            description: $args.description,
+            costPerNight: $args.costPerNight,
+            hostId: $args.hostId,
+            locationType: $args.locationType,
+            photoThumbnail: $args.photoThumbnail,
+            isFeatured: $args.isFeatured,
+            closedForBookings: $args.closedForBookings,
+            amenities: $args.amenityIds
+          }
+        })
+        """
+      }
+      selection: """
+      id
+      title
+      description
+      costPerNight
+      hostId
+      locationType
+      numOfBeds
+      photoThumbnail
+      isFeatured
+      latitude
+      longitude
+      closedForBookings
+      amenities { id category name }
+      """
+    )
+
+  """
+  Edits a listing. Only the arguments you pass are changed — an omitted
+  optional argument leaves the current value untouched; this is a partial
+  update, not a replace. `amenityIds` is required even though every other
+  field is optional: the API's own PATCH handler dereferences
+  `listing.amenities` unconditionally and crashes (confirmed live: a 502
+  from Railway's edge, not the app's own error) when it is missing — and by
+  then it has already persisted any other changed fields, so the update is
+  not atomic. Pass the listing's current amenity ids (from a prior read) to
+  leave them unchanged.
+  """
+  stay_listings_updateListing(
+    id: ID!
+    title: String
+    description: String
+    costPerNight: Float
+    numOfBeds: Int
+    hostId: ID
+    locationType: Stay_Listings_LocationType
+    photoThumbnail: String
+    isFeatured: Boolean
+    closedForBookings: Boolean
+    amenityIds: [ID!]!
+  ): Stay_Listings_Listing
+    @tag(name: "beta")
+    @connect(
+      source: "stay_listings"
+      http: {
+        PATCH: "/listings/{$args.id}"
+        body: """
+        $({
+          listing: {
+            title: $args.title,
+            description: $args.description,
+            costPerNight: $args.costPerNight,
+            numOfBeds: $args.numOfBeds,
+            hostId: $args.hostId,
+            locationType: $args.locationType,
+            photoThumbnail: $args.photoThumbnail,
+            isFeatured: $args.isFeatured,
+            closedForBookings: $args.closedForBookings,
+            amenities: $args.amenityIds
+          }
+        })
+        """
+      }
+      selection: """
+      id
+      title
+      description
+      costPerNight
+      hostId
+      locationType
+      numOfBeds
+      photoThumbnail
+      isFeatured
+      latitude
+      longitude
+      closedForBookings
+      amenities { id category name }
+      """
+    )
+}

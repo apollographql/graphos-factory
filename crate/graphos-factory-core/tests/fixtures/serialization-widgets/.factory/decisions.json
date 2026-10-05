@@ -1,0 +1,46 @@
+{
+  "contract_version": 1,
+  "decisions": [
+    {
+      "id": "D-0001",
+      "title": "What an explicit null sends, per nullable body argument",
+      "status": "resolved",
+      "date": "2026-09-29",
+      "context": "PATCH /widgets/{id} documents that an explicit null `note` clears the stored note, while omitting `note` entirely leaves the existing value unchanged -- an explicit-null case for `note` is required, distinct from omission. Source: vendor docs, \"Updating a widget\" section.",
+      "affects": [
+        "PATCH /widgets/{id}",
+        "POST /widgets/search"
+      ],
+      "resolution": {
+        "decision": "send null for every nullable body argument."
+      },
+      "null_handling": [
+        {
+          "operation": "patch:/widgets/{id}",
+          "argument": "name",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "patch:/widgets/{id}",
+          "argument": "note",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "patch:/widgets/{id}",
+          "argument": "tags",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "patch:/widgets/{id}",
+          "argument": "address",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "post:/widgets/search",
+          "argument": "tags",
+          "behavior": "send_null"
+        }
+      ]
+    }
+  ]
+}

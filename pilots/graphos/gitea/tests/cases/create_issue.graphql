@@ -1,0 +1,150 @@
+# The full body: every argument, the two list arguments with two elements
+# each (assignees as strings, labels as integers), the renamed due_date and
+# the ID-typed milestone, asserted with equalToJson (D-0007).
+mutation {
+  gitea_createIssue(
+    owner: "fixture"
+    repo: "fixture-repo"
+    title: "Router smoke"
+    body: "Created through the connector."
+    assignees: ["fixture", "octocat"]
+    labels: [1, 2]
+    milestone: 1
+    dueDate: "2026-12-31T00:00:00Z"
+    ref: "main"
+    closed: false
+  ) {
+    id
+    number
+    url
+    htmlUrl
+    title
+    body
+    state
+    isLocked
+    comments
+    user {
+      id
+      login
+      loginName
+      sourceId
+      fullName
+      email
+      avatarUrl
+      htmlUrl
+      language
+      isAdmin
+      lastLogin
+      created
+      restricted
+      active
+      prohibitLogin
+      location
+      website
+      description
+      visibility
+      followersCount
+      followingCount
+      starredReposCount
+    }
+    originalAuthor
+    originalAuthorId
+    assignee {
+      id
+      login
+      loginName
+      sourceId
+      fullName
+      email
+      avatarUrl
+      htmlUrl
+      language
+      isAdmin
+      lastLogin
+      created
+      restricted
+      active
+      prohibitLogin
+      location
+      website
+      description
+      visibility
+      followersCount
+      followingCount
+      starredReposCount
+    }
+    assignees {
+      id
+      login
+      loginName
+      sourceId
+      fullName
+      email
+      avatarUrl
+      htmlUrl
+      language
+      isAdmin
+      lastLogin
+      created
+      restricted
+      active
+      prohibitLogin
+      location
+      website
+      description
+      visibility
+      followersCount
+      followingCount
+      starredReposCount
+    }
+    labels {
+      id
+      name
+      color
+      description
+      exclusive
+      isArchived
+      url
+    }
+    milestone {
+      id
+      title
+      description
+      state
+      openIssues
+      closedIssues
+      createdAt
+      updatedAt
+      closedAt
+      dueOn
+    }
+    assets {
+      id
+      uuid
+      name
+      size
+      downloadCount
+      createdAt
+      browserDownloadUrl
+    }
+    pullRequest {
+      draft
+      htmlUrl
+      merged
+      mergedAt
+    }
+    repository {
+      id
+      name
+      owner
+      fullName
+    }
+    ref
+    timeEstimate
+    pinOrder
+    createdAt
+    updatedAt
+    closedAt
+    dueDate
+  }
+}

@@ -1,0 +1,1 @@
+query { widget_co_searchWidgets(term: "chair", tags: null) { id name } }

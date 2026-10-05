@@ -1,0 +1,62 @@
+{
+  "data": {
+    "gitea_listIssues": [
+      {
+        "assets": [],
+        "assignee": null,
+        "assignees": null,
+        "body": "Seeded by the pilot bootstrap.",
+        "closedAt": null,
+        "comments": "0",
+        "createdAt": "2026-09-10T19:00:27Z",
+        "dueDate": null,
+        "htmlUrl": "http://127.0.0.1:3000/fixture/fixture-repo/issues/1",
+        "id": 1,
+        "isLocked": false,
+        "labels": [],
+        "milestone": null,
+        "number": "1",
+        "originalAuthor": "",
+        "originalAuthorId": 0,
+        "pinOrder": "0",
+        "pullRequest": null,
+        "ref": "",
+        "repository": {
+          "fullName": "fixture/fixture-repo",
+          "id": 1,
+          "name": "fixture-repo",
+          "owner": "fixture"
+        },
+        "state": "open",
+        "timeEstimate": "0",
+        "title": "First fixture issue",
+        "updatedAt": "2026-09-10T19:00:27Z",
+        "url": "http://127.0.0.1:3000/api/v1/repos/fixture/fixture-repo/issues/1",
+        "user": {
+          "active": true,
+          "avatarUrl": "http://127.0.0.1:3000/avatars/a403c50e83dfc222f341e532d0f4a6e2",
+          "created": "2026-09-10T19:00:26Z",
+          "description": "",
+          "email": "fixture@example.invalid",
+          "followersCount": "0",
+          "followingCount": "0",
+          "fullName": "",
+          "htmlUrl": "http://127.0.0.1:3000/fixture",
+          "id": 1,
+          "isAdmin": true,
+          "language": "",
+          "lastLogin": "1970-01-01T00:00:00Z",
+          "location": "",
+          "login": "fixture",
+          "loginName": "",
+          "prohibitLogin": false,
+          "restricted": false,
+          "sourceId": 0,
+          "starredReposCount": "0",
+          "visibility": "public",
+          "website": ""
+        }
+      }
+    ]
+  }
+}

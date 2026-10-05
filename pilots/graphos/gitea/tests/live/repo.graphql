@@ -1,0 +1,11 @@
+query {
+  gitea_repo(owner: "fixture", repo: "fixture-repo") {
+    id
+    fullName
+    defaultBranch
+    hasIssues
+    openIssuesCount
+    topics
+    owner { login }
+  }
+}

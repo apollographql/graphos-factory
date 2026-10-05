@@ -1,0 +1,29 @@
+{
+  "data": {
+    "gitea_listIssues": [
+      {
+        "number": "2",
+        "repository": {
+          "fullName": "fixture/fixture-repo",
+          "id": 1,
+          "name": "fixture-repo",
+          "owner": "fixture",
+          "ownerUser": {
+            "id": 1,
+            "login": "fixture"
+          }
+        }
+      },
+      {
+        "number": "3",
+        "repository": {
+          "fullName": "fixture/fixture-repo",
+          "id": 1,
+          "name": "fixture-repo",
+          "owner": null,
+          "ownerUser": null
+        }
+      }
+    ]
+  }
+}

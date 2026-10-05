@@ -1,0 +1,526 @@
+{
+  "contract_version": 1,
+  "api": {
+    "title": "Stay Listings API",
+    "description": "Host-listing REST API (Express + Sequelize/Postgres). No OpenAPI document; read from the service's own source and confirmed with live probes against its deployment. No authentication of any kind.",
+    "base_urls": [
+      "https://service-listings-rest-api-production.up.railway.app"
+    ],
+    "auth": [
+      {
+        "kind": "none",
+        "source": "docs"
+      }
+    ],
+    "pagination": {
+      "style": "page",
+      "request": "page",
+      "size_param": "limit",
+      "response": null
+    }
+  },
+  "operations": [
+    {
+      "key": "get:/listings",
+      "operation_id": "listListings",
+      "method": "GET",
+      "path": "/listings",
+      "summary": "List listings matching query params",
+      "description": "Listings with numOfBeds >= the numOfBeds filter (default 1), sorted by costPerNight (default descending), paginated.",
+      "tags": ["Listings"],
+      "semantics": "read",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [
+        { "name": "page", "in": "query", "required": false, "type": "integer", "default": 1, "description": "1-indexed page number." },
+        { "name": "limit", "in": "query", "required": false, "type": "integer", "default": 5, "description": "Results per page." },
+        { "name": "sortBy", "in": "query", "required": false, "type": "string", "description": "Only the literal value COST_ASC changes the sort to ascending cost; any other value (including absent) sorts descending." },
+        { "name": "numOfBeds", "in": "query", "required": false, "type": "integer", "default": 1, "description": "Minimum number of beds (inclusive)." }
+      ],
+      "request_body": null,
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/ListListingsResponse",
+        "root_is_array": true
+      },
+      "pagination": { "style": "page", "request": "page", "size_param": "limit", "response": null },
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "get:/featured-listings",
+      "operation_id": "listFeaturedListings",
+      "method": "GET",
+      "path": "/featured-listings",
+      "summary": "List featured listings",
+      "description": "Listings with isFeatured = true.",
+      "tags": ["Listings"],
+      "semantics": "read",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [
+        { "name": "limit", "in": "query", "required": false, "type": "integer", "default": 3 }
+      ],
+      "request_body": null,
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/ListFeaturedListingsResponse",
+        "root_is_array": true
+      },
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "get:/user/{userId}/listings",
+      "operation_id": "listUserListings",
+      "method": "GET",
+      "path": "/user/{userId}/listings",
+      "summary": "List listings hosted by a user",
+      "description": "No amenities included, unlike every other listing-returning route — this route does not join Amenity at all (verified against source and by probe).",
+      "tags": ["Listings"],
+      "semantics": "read",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [
+        { "name": "userId", "in": "path", "required": true, "type": "string" }
+      ],
+      "request_body": null,
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/ListUserListingsResponse",
+        "root_is_array": true
+      },
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "get:/listings/{listingId}",
+      "operation_id": "getListing",
+      "method": "GET",
+      "path": "/listings/{listingId}",
+      "summary": "Get one listing",
+      "description": "Amenities here are the full Amenity shape (id, category, name), unlike the list routes which return only { id } per amenity.",
+      "tags": ["Listings"],
+      "semantics": "read",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [
+        { "name": "listingId", "in": "path", "required": true, "type": "string" }
+      ],
+      "request_body": null,
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/Listing"
+      },
+      "errors": [
+        { "status": "400", "description": "No listing with the given id. Plain-text body, not JSON.", "shape_ref": null }
+      ],
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "get:/listings/{listingId}/amenities",
+      "operation_id": "getListingAmenities",
+      "method": "GET",
+      "path": "/listings/{listingId}/amenities",
+      "summary": "Get the full amenities of one listing",
+      "tags": ["Listings", "Amenities"],
+      "semantics": "read",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [
+        { "name": "listingId", "in": "path", "required": true, "type": "string" }
+      ],
+      "request_body": null,
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/GetListingAmenitiesResponse",
+        "root_is_array": true
+      },
+      "errors": [
+        { "status": "400", "description": "No listing with the given id. Plain-text body, not JSON.", "shape_ref": null }
+      ],
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "get:/listings/{listingId}/totalCost",
+      "operation_id": "getListingTotalCost",
+      "method": "GET",
+      "path": "/listings/{listingId}/totalCost",
+      "summary": "Compute the total cost of a stay",
+      "description": "totalCost = costPerNight * number of nights between checkInDate and checkOutDate. The source's own guard against invalid dates (`diffInDays === NaN`) can never be true in JavaScript, so malformed dates silently produce a NaN-derived totalCost instead of the 400 the code intends — confirmed by reading the source, not yet reproduced by probe.",
+      "tags": ["Listings"],
+      "semantics": "read",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [
+        { "name": "listingId", "in": "path", "required": true, "type": "string" },
+        { "name": "checkInDate", "in": "query", "required": true, "type": "string", "format": "date" },
+        { "name": "checkOutDate", "in": "query", "required": true, "type": "string", "format": "date" }
+      ],
+      "request_body": null,
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/TotalCostResponse",
+        "root_property_count": 1
+      },
+      "errors": [
+        { "status": "400", "description": "No listing with the given id. Plain-text body, not JSON.", "shape_ref": null }
+      ],
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "get:/listings/{listingId}/coordinates",
+      "operation_id": "getListingCoordinates",
+      "method": "GET",
+      "path": "/listings/{listingId}/coordinates",
+      "summary": "Get a listing's latitude/longitude",
+      "tags": ["Listings"],
+      "semantics": "read",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [
+        { "name": "listingId", "in": "path", "required": true, "type": "string" }
+      ],
+      "request_body": null,
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/CoordinatesResponse",
+        "root_property_count": 1
+      },
+      "errors": [
+        { "status": "400", "description": "No listing with the given id, or the listing has no latitude/longitude. Plain-text body, not JSON.", "shape_ref": null }
+      ],
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "get:/amenities",
+      "operation_id": "getAmenities",
+      "method": "GET",
+      "path": "/amenities",
+      "summary": "Get amenities by id",
+      "description": "ids is a comma-separated list of amenity ids matching am-[0-9]+; any id failing that pattern is silently dropped rather than erroring.",
+      "tags": ["Amenities"],
+      "semantics": "read",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [
+        { "name": "ids", "in": "query", "required": true, "type": "string", "description": "Comma-separated amenity ids, e.g. am-1,am-2." }
+      ],
+      "request_body": null,
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/GetAmenitiesResponse",
+        "root_is_array": true
+      },
+      "errors": [
+        { "status": "400", "description": "No valid amenity ids given, or none matched. Plain-text body, not JSON.", "shape_ref": null }
+      ],
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "get:/listing/amenities",
+      "operation_id": "listAllAmenities",
+      "method": "GET",
+      "path": "/listing/amenities",
+      "summary": "List every amenity the API knows",
+      "description": "Path is singular \"listing\" (not \"listings\") — verified against source, not a typo in this inventory.",
+      "tags": ["Amenities"],
+      "semantics": "read",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [],
+      "request_body": null,
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/ListAllAmenitiesResponse",
+        "root_is_array": true
+      },
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "get:/amenities/listings",
+      "operation_id": "getAmenitiesForListings",
+      "method": "GET",
+      "path": "/amenities/listings",
+      "summary": "Get amenities grouped per listing",
+      "description": "Root is an array of arrays: one amenities array per listing id in ids, same order. A listing id with no match is simply absent from the input to map(), so the output length can be less than the number of ids requested.",
+      "tags": ["Listings", "Amenities"],
+      "semantics": "read",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [
+        { "name": "ids", "in": "query", "required": true, "type": "string", "description": "Comma-separated listing ids, e.g. listing-8,listing-10." }
+      ],
+      "request_body": null,
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/GetAmenitiesForListingsResponse",
+        "root_is_array": true
+      },
+      "errors": [
+        { "status": "400", "description": "None of the ids matched a listing. Plain-text body, not JSON.", "shape_ref": null }
+      ],
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "post:/listings",
+      "operation_id": "createListing",
+      "method": "POST",
+      "path": "/listings",
+      "summary": "Create a listing",
+      "description": "photoThumbnail's source-code default is listing-10's own photo URL (an apparent copy-paste artifact, not a generic placeholder) — verified against source, not yet probed live.",
+      "tags": ["Listings"],
+      "semantics": "write",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [],
+      "request_body": {
+        "content_type": "application/json",
+        "required": true,
+        "shape_ref": "#/shapes/CreateListingRequest"
+      },
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/Listing"
+      },
+      "errors": [
+        { "status": "400", "description": "Missing listing.title, or missing/non-positive listing.numOfBeds. Plain-text body, not JSON. Confirmed live for the missing-title case.", "shape_ref": null }
+      ],
+      "support": "supported",
+      "support_reason": null
+    },
+    {
+      "key": "patch:/listings/{listingId}",
+      "operation_id": "updateListing",
+      "method": "PATCH",
+      "path": "/listings/{listingId}",
+      "summary": "Edit a listing",
+      "description": "req.body.listing.amenities is dereferenced unconditionally: an update payload with no listing.amenities throws inside setAmenities(), which Railway's edge reports as a 502 (the Node process itself fails, not a handled app error). Confirmed live: listing.update() had already committed title/description/costPerNight/locationType/isFeatured/closedForBookings before the throw, so a request missing listing.amenities is NOT atomic — earlier fields persist even though the response is an error.",
+      "tags": ["Listings"],
+      "semantics": "write",
+      "provenance": "probe",
+      "confidence": 1.0,
+      "parameters": [
+        { "name": "listingId", "in": "path", "required": true, "type": "string" }
+      ],
+      "request_body": {
+        "content_type": "application/json",
+        "required": true,
+        "shape_ref": "#/shapes/UpdateListingRequest"
+      },
+      "response": {
+        "status": "200",
+        "content_type": "application/json",
+        "shape_ref": "#/shapes/Listing"
+      },
+      "errors": [
+        { "status": "400", "description": "No listing with the given id. Plain-text body, not JSON.", "shape_ref": null },
+        { "status": "502", "description": "listing.amenities missing from the request body: an unhandled exception crashes the request. Body is Railway's own gateway-error JSON ({status, code, message, request_id}), not the app's. Confirmed live.", "shape_ref": "#/shapes/RailwayGatewayError" }
+      ],
+      "support": "supported",
+      "support_reason": null
+    }
+  ],
+  "shapes": {
+    "RailwayGatewayError": {
+      "type": "object",
+      "description": "Not the app's own error shape — Railway's edge proxy reporting that the Node process failed to respond (an unhandled exception). Observed once, for PATCH /listings/{id} with listing.amenities omitted.",
+      "properties": {
+        "status": { "type": "string" },
+        "code": { "type": "integer" },
+        "message": { "type": "string" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["status", "code", "message", "request_id"]
+    },
+    "Amenity": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "category", "name"]
+    },
+    "AmenityRef": {
+      "type": "object",
+      "description": "The amenity shape carried inline on listing-list responses: id only.",
+      "properties": {
+        "id": { "type": "string" }
+      },
+      "required": ["id"]
+    },
+    "ListingSummary": {
+      "type": "object",
+      "description": "The shape returned by list routes: amenities are AmenityRef (id only).",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "costPerNight": { "type": "number" },
+        "hostId": { "type": "string" },
+        "locationType": { "type": "string", "enum": ["APARTMENT", "CAMPSITE", "HOUSE", "SPACESHIP"], "description": "Closed by selection.yaml decision D-0001: only these 4 values have ever been observed (across 8+ samples and 2 probed writes), and this is fixed Odyssey course data, not open user input." },
+        "numOfBeds": { "type": "integer" },
+        "photoThumbnail": { "type": "string" },
+        "isFeatured": { "type": "boolean" },
+        "latitude": { "type": ["number", "null"] },
+        "longitude": { "type": ["number", "null"] },
+        "closedForBookings": { "type": "boolean" },
+        "amenities": { "type": "array", "items": { "$ref": "#/shapes/AmenityRef" } }
+      },
+      "required": ["id", "title", "description", "costPerNight", "hostId", "locationType", "numOfBeds", "photoThumbnail", "isFeatured", "closedForBookings", "amenities"]
+    },
+    "ListingBare": {
+      "type": "object",
+      "description": "The shape returned by GET /user/{userId}/listings: every Listing column, no amenities key at all.",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "costPerNight": { "type": "number" },
+        "hostId": { "type": "string" },
+        "locationType": { "type": "string", "enum": ["APARTMENT", "CAMPSITE", "HOUSE", "SPACESHIP"] },
+        "numOfBeds": { "type": "integer" },
+        "photoThumbnail": { "type": "string" },
+        "isFeatured": { "type": "boolean" },
+        "latitude": { "type": ["number", "null"] },
+        "longitude": { "type": ["number", "null"] },
+        "closedForBookings": { "type": "boolean" }
+      },
+      "required": ["id", "title", "description", "costPerNight", "hostId", "locationType", "numOfBeds", "photoThumbnail", "isFeatured", "closedForBookings"]
+    },
+    "Listing": {
+      "type": "object",
+      "description": "The shape returned by GET/POST/PATCH on a single listing: amenities are the full Amenity shape.",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "costPerNight": { "type": "number" },
+        "hostId": { "type": "string" },
+        "locationType": { "type": "string", "enum": ["APARTMENT", "CAMPSITE", "HOUSE", "SPACESHIP"] },
+        "numOfBeds": { "type": "integer" },
+        "photoThumbnail": { "type": "string" },
+        "isFeatured": { "type": "boolean" },
+        "latitude": { "type": ["number", "null"] },
+        "longitude": { "type": ["number", "null"] },
+        "closedForBookings": { "type": "boolean" },
+        "amenities": { "type": "array", "items": { "$ref": "#/shapes/Amenity" } }
+      },
+      "required": ["id", "title", "description", "costPerNight", "hostId", "locationType", "numOfBeds", "photoThumbnail", "isFeatured", "closedForBookings"]
+    },
+    "ListListingsResponse": {
+      "type": "array",
+      "items": { "$ref": "#/shapes/ListingSummary" }
+    },
+    "ListFeaturedListingsResponse": {
+      "type": "array",
+      "items": { "$ref": "#/shapes/ListingSummary" }
+    },
+    "ListUserListingsResponse": {
+      "type": "array",
+      "items": { "$ref": "#/shapes/ListingBare" }
+    },
+    "GetListingAmenitiesResponse": {
+      "type": "array",
+      "items": { "$ref": "#/shapes/Amenity" }
+    },
+    "GetAmenitiesResponse": {
+      "type": "array",
+      "items": { "$ref": "#/shapes/Amenity" }
+    },
+    "ListAllAmenitiesResponse": {
+      "type": "array",
+      "items": { "$ref": "#/shapes/Amenity" }
+    },
+    "GetAmenitiesForListingsResponse": {
+      "type": "array",
+      "description": "One array per requested listing id, same order as ids.",
+      "items": { "type": "array", "items": { "$ref": "#/shapes/Amenity" } }
+    },
+    "TotalCostResponse": {
+      "type": "object",
+      "properties": {
+        "totalCost": { "type": "number" }
+      },
+      "required": ["totalCost"]
+    },
+    "CoordinatesResponse": {
+      "type": "object",
+      "properties": {
+        "coordinates": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" }
+          },
+          "required": ["latitude", "longitude"]
+        }
+      },
+      "required": ["coordinates"]
+    },
+    "CreateListingRequest": {
+      "type": "object",
+      "properties": {
+        "listing": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "description": { "type": "string", "default": "" },
+            "costPerNight": { "type": "number", "default": 0 },
+            "numOfBeds": { "type": "integer" },
+            "hostId": { "type": "string", "default": "user-4" },
+            "locationType": { "type": "string", "enum": ["APARTMENT", "CAMPSITE", "HOUSE", "SPACESHIP"], "default": "CAMPSITE" },
+            "photoThumbnail": { "type": "string", "default": "https://res.cloudinary.com/apollographql/image/upload/v1644353890/odyssey/federation-course2/illustrations/listings-10.png" },
+            "isFeatured": { "type": "boolean", "default": false },
+            "closedForBookings": { "type": "boolean", "default": false },
+            "amenities": { "type": "array", "items": { "type": "string" }, "description": "Amenity ids to associate; omitted means none." }
+          },
+          "required": ["title", "numOfBeds"]
+        }
+      },
+      "required": ["listing"]
+    },
+    "UpdateListingRequest": {
+      "type": "object",
+      "properties": {
+        "listing": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "costPerNight": { "type": "number" },
+            "numOfBeds": { "type": "integer" },
+            "hostId": { "type": "string" },
+            "locationType": { "type": "string", "enum": ["APARTMENT", "CAMPSITE", "HOUSE", "SPACESHIP"] },
+            "photoThumbnail": { "type": "string" },
+            "isFeatured": { "type": "boolean" },
+            "closedForBookings": { "type": "boolean" },
+            "amenities": { "type": "array", "items": { "type": "string" }, "description": "Required by the source: listing.amenities is dereferenced unconditionally." }
+          },
+          "required": ["amenities"]
+        }
+      },
+      "required": ["listing"]
+    }
+  },
+  "unresolved": []
+}

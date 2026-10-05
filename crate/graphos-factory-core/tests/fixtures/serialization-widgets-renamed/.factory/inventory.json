@@ -1,0 +1,66 @@
+{
+  "operations": [
+    {
+      "key": "get:/gizmos",
+      "method": "GET",
+      "path": "/gizmos"
+    },
+    {
+      "key": "post:/gizmos/search",
+      "method": "POST",
+      "path": "/gizmos/search",
+      "request_body": {
+        "shape_ref": "#/shapes/SearchGizmosRequest"
+      }
+    },
+    {
+      "key": "patch:/gizmos/{id}",
+      "method": "PATCH",
+      "path": "/gizmos/{id}",
+      "request_body": {
+        "shape_ref": "#/shapes/UpdateGizmoRequest"
+      }
+    }
+  ],
+  "shapes": {
+    "SearchGizmosRequest": {
+      "type": "object",
+      "properties": {
+        "phrase": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array"
+        }
+      }
+    },
+    "UpdateGizmoRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "memo": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array"
+        },
+        "site": {
+          "$ref": "#/shapes/Site"
+        }
+      }
+    },
+    "Site": {
+      "type": "object",
+      "properties": {
+        "town": {
+          "type": "string"
+        },
+        "postal": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

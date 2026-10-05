@@ -1,0 +1,1 @@
+mutation { relay_crm_updateContact(id: "c1", displayName: null, attributes: null, location: null) { id displayName } }

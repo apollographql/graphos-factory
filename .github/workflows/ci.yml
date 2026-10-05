@@ -1,0 +1,79 @@
+name: ci
+
+# The public tree's own checks. This repository is a push-only mirror, so the
+# workflow runs on each snapshot pushed to main; pull requests are closed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  crate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crate
+      - name: Format
+        run: cargo fmt --manifest-path crate/Cargo.toml --all --check
+      - name: Test
+        run: cargo test --manifest-path crate/Cargo.toml --workspace --locked
+      - name: Build
+        # The graphos-factory binary: the one product src/bin/ holds here.
+        run: cargo build --manifest-path crate/Cargo.toml --release --locked -p graphos-factory-targets
+      - uses: actions/upload-artifact@v4
+        with:
+          name: graphos-factory-bin
+          path: crate/target/release/graphos-factory
+          retention-days: 1
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: shellcheck
+        run: |
+          shellcheck --version
+          git ls-files -z '*.sh' | xargs -0 --no-run-if-empty shellcheck -x
+
+  # The offline layers on every public pilot: lint clean, validate, reconcile
+  # clean, and no hand edit since the applied lock.
+  pilots:
+    needs: crate
+    runs-on: ubuntu-latest
+    env:
+      GRAPHOS_FACTORY_CORE_CACHE: ${{ github.workspace }}/.toolchain-cache
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: graphos-factory-bin
+          path: ${{ runner.temp }}/bin
+      - name: Install the toolchain
+        run: |
+          bash graphos-factory-core/scripts/toolchain.sh
+          bash graphos-factory-core/scripts/toolchain.sh --check
+          echo "$HOME/.rover/bin" >> "$GITHUB_PATH"
+      - name: Offline layers
+        run: |
+          BIN="$RUNNER_TEMP/bin/graphos-factory"
+          chmod +x "$BIN"
+          found=0
+          for p in pilots/graphos/*/; do
+            [ -d "$p" ] || continue
+            found=1
+            p="${p%/}"
+            echo "::group::$p"
+            "$BIN" lint "$p"
+            "$BIN" validate "$p"
+            "$BIN" reconcile "$p"
+            "$BIN" lock "$p" --check --provenance
+            echo "::endgroup::"
+          done
+          [ "$found" -eq 1 ] || { echo "no pilots under pilots/graphos/" >&2; exit 1; }

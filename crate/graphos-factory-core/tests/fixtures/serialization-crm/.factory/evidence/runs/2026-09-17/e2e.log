@@ -1,0 +1,12 @@
+e2e: 11 passed, 0 failed
+PASS: list_contacts
+PASS: search_contacts_full
+PASS: search_contacts_required
+PASS: update_contact_full
+PASS: update_contact_required
+PASS: update_contact_bio_null
+PASS: update_contact_attributes_empty
+PASS: update_contact_attributes_one
+PASS: update_contact_attributes_badkey
+PASS: update_contact_nulls
+PASS: search_contacts_statuses_null

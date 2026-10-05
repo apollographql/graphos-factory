@@ -1,0 +1,12 @@
+query {
+  gitea_searchRepos(q: "fixture", limit: 5) {
+    ok
+    data {
+      id
+      fullName
+      htmlUrl
+      owner { login }
+      permissions { pull }
+    }
+  }
+}

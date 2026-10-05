@@ -1,0 +1,36 @@
+[package]
+name = "graphos-factory-core"
+description = "The target-agnostic core of the factories: inventory, selection, reconcile, lock, codify, scaffold, lint, conformance, inference, fixtures, evidence"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+name = "graphos_factory_core"
+path = "src/lib.rs"
+
+# The core alone, against `target::BARE`: the binary the core suite spawns.
+# Never installed; the products are graphos-factory-targets' binaries.
+[[bin]]
+name = "graphos-factory-bare"
+path = "src/bin/graphos-factory-bare.rs"
+test = false
+doc = false
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+regex.workspace = true
+url.workspace = true
+time.workspace = true
+sha2.workspace = true
+apollo-compiler.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

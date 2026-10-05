@@ -1,0 +1,1 @@
+query { relay_crm_listContacts(emails: ["a@x.test", "b@x.test"]) { id displayName } }

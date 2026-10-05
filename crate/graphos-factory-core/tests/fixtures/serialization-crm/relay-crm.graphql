@@ -1,0 +1,80 @@
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.14", import: ["@key", "@tag"])
+  @link(url: "https://specs.apollo.dev/connect/v0.4", import: ["@source", "@connect"])
+
+@source(
+  name: "relay_crm"
+  http: {
+    baseURL: "{{BASE_URL}}"
+    headers: [{ name: "X-Api-Key", value: "{{AUTH_EXPR}}" }]
+  }
+)
+
+scalar Relay_Crm_JSON
+
+input Relay_Crm_AttributeEntryInput {
+  key: String!
+  value: Relay_Crm_JSON
+}
+
+input Relay_Crm_LocationInput {
+  region: String
+  country: String
+}
+
+type Relay_Crm_Contact {
+  id: ID
+  displayName: String
+}
+
+type Query {
+  "List contacts by a bulk set of email addresses."
+  relay_crm_listContacts(emails: [String!]): [Relay_Crm_Contact]
+    @connect(
+      source: "relay_crm"
+      http: { GET: "/contacts", queryParams: "emails: $args.emails" }
+      selection: "id displayName"
+    )
+
+  """
+  Search contacts. The vendor documents this as a POST (the filter payload
+  is structured) but it is a read: no state changes.
+  """
+  relay_crm_searchContacts(query: String!, statuses: [String!]): [Relay_Crm_Contact]
+    @connect(
+      source: "relay_crm"
+      http: {
+        POST: "/contacts/search"
+        body: """
+        query: $args.query
+        statuses: $args.statuses
+        """
+      }
+      selection: "$.matches { id displayName }"
+    )
+}
+
+type Mutation {
+  "Update a contact."
+  relay_crm_updateContact(
+    id: ID!
+    displayName: String
+    bio: String
+    attributes: [Relay_Crm_AttributeEntryInput!]
+    location: Relay_Crm_LocationInput
+  ): Relay_Crm_Contact
+    @tag(name: "beta")
+    @connect(
+      source: "relay_crm"
+      http: {
+        PATCH: "/contacts/{$args.id}"
+        body: """
+        displayName: $args.displayName
+        bio: $args.bio
+        attributes: $args.attributes
+        location: $args.location
+        """
+      }
+      selection: "id displayName"
+    )
+}

@@ -1,0 +1,10 @@
+contract_version: 1
+operations:
+  get:/user/{username}:
+    include: true
+    response: { envelope: null, confirmed: true }
+    graphql: { root: query, name: user, entity: true, key: username }
+  get:/pet/{petId}:
+    include: true
+    response: { envelope: null, confirmed: true }
+    graphql: { root: query, name: pet, entity: true, key: id }

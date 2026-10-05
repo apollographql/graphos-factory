@@ -1,0 +1,21 @@
+contract_version: 1
+service: gitea
+directory: gitea
+type_prefix: Gitea
+field_prefix: gitea
+skill:
+  name: graphos-factory
+  version: 0.3.0
+source_kind: rest
+connect_spec: v0.4
+federation_version: "2.15.2"
+federation_spec_version: "2.12"
+intake: spec
+created_at: 2026-09-10T19:30:00Z
+base_url_default: http://127.0.0.1:3000/api/v1
+notes: >-
+  CI fixture for the live layer, built for the graphos-factory target.
+  Gitea is a self-hosted, open-source forge with a free Swagger 2.0
+  description and a single static binary, so CI runs a real instance, seeds
+  it, and exercises every selected operation live -- reads and the one
+  write -- with no vendor account and no shared credential.

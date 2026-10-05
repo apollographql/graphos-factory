@@ -1,0 +1,20 @@
+{
+  "request": {
+    "headers": {
+      "Authorization": {
+        "equalTo": "token test-token"
+      }
+    },
+    "method": "GET",
+    "urlPath": "/version"
+  },
+  "response": {
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "version": "1.25.0"
+    },
+    "status": 200
+  }
+}

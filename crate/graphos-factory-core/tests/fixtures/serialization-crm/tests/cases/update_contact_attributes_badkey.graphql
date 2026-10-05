@@ -1,0 +1,1 @@
+mutation { relay_crm_updateContact(id: "c1", attributes: [{key: "not a graphql name", value: "x"}]) { id displayName } }

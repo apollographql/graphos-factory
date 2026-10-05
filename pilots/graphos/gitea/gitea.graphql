@@ -1,0 +1,1145 @@
+# Gitea REST API v1 — Apollo Connectors subgraph.
+#
+# Authored by the factory skill as its CI live fixture: CI runs a
+# real Gitea instance from the static binary, seeds it, and exercises every
+# operation below against it. This file is the artifact: edit it directly.
+# Selection lives in .factory/selection.yaml, the reasoning in
+# .factory/decisions.md (D-nnnn references below).
+#
+# Auth: Authorization: token <access token>. BASE_URL carries the /api/v1
+# path (the Swagger basePath), e.g. http://127.0.0.1:3000/api/v1.
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.12", import: ["@key", "@tag"])
+  @link(url: "https://specs.apollo.dev/connect/v0.4", import: ["@source", "@connect"])
+
+@source(
+  name: "gitea"
+  http: {
+    baseURL: "{{BASE_URL}}"
+    headers: [
+      { name: "Authorization", value: "token {{AUTH_EXPR}}" }
+      { name: "Accept", value: "application/json" }
+      { name: "Content-Type", value: "application/json" }
+      { name: "User-Agent", value: "Apollo Connector Factory" }
+    ]
+  }
+  # Gitea error bodies are `{ message, url, errors }` (D-0004); `errors` is
+  # null unless a validation failed, and `url` points at the Swagger UI.
+  errors: {
+    message: "$($.message ?? 'Gitea request failed')"
+    extensions: """
+    httpStatus: $status
+    details: $.errors
+    """
+  }
+)
+
+# ─── Shared shapes ───────────────────────────────────────────────────────────
+
+"""
+Issue and milestone state, in Gitea's wire casing (D-0003). The spec types
+`StateType` as a bare string; the API only ever sends these two values.
+"""
+enum Gitea_StateType {
+  open
+  closed
+}
+
+"""
+The hash algorithm a repository's Git objects are named with, in Gitea's wire
+casing (D-0003): the spec enumerates exactly `sha1` and `sha256`.
+"""
+enum Gitea_ObjectFormatName {
+  sha1
+  sha256
+}
+
+"A Gitea user, as embedded in repositories and issues or fetched directly."
+type Gitea_User {
+  "the user's id"
+  id: ID
+  "The login name; what `gitea_user(username:)` takes."
+  login: String
+  "The identity provider's login name when the user is not local."
+  loginName: String
+  "Authentication source id; 0 for a local account."
+  sourceId: ID
+  "the user's full name"
+  fullName: String
+  email: String
+  "URL to the user's avatar"
+  avatarUrl: String
+  "URL to the user's gitea page"
+  htmlUrl: String
+  "User locale"
+  language: String
+  "Is the user an administrator"
+  isAdmin: Boolean
+  lastLogin: String
+  created: String
+  "Is user restricted"
+  restricted: Boolean
+  "Is user active"
+  active: Boolean
+  "Is user login prohibited"
+  prohibitLogin: Boolean
+  "the user's location"
+  location: String
+  "the user's website"
+  website: String
+  "the user's description"
+  description: String
+  "`public`, `limited` or `private`."
+  visibility: String
+  "Follower count. int64 in the API; String keeps the value exact and a null stays null."
+  followersCount: String
+  "How many users this user follows. int64 in the API; String keeps the value exact and a null stays null."
+  followingCount: String
+  "How many repositories this user has starred. int64 in the API; String keeps the value exact and a null stays null."
+  starredReposCount: String
+}
+
+"What the token's user may do in a repository."
+type Gitea_Permission {
+  admin: Boolean
+  push: Boolean
+  pull: Boolean
+}
+
+"""
+A repository. Merge-strategy switches, tracker/wiki integration settings,
+the mirror schedule, the fork parent and a pending transfer are not exposed
+(D-0005); everything else the API returns is.
+"""
+type Gitea_Repository {
+  id: ID
+  owner: Gitea_User
+  name: String
+  "`owner/name`."
+  fullName: String
+  description: String
+  empty: Boolean
+  private: Boolean
+  fork: Boolean
+  template: Boolean
+  mirror: Boolean
+  "Size in kilobytes. int64 in the API; String keeps the value exact and a null stays null."
+  size: String
+  language: String
+  languagesUrl: String
+  htmlUrl: String
+  "API URL of the repository."
+  url: String
+  link: String
+  sshUrl: String
+  cloneUrl: String
+  originalUrl: String
+  website: String
+  "Star count. int64 in the API; String keeps the value exact and a null stays null."
+  starsCount: String
+  "Fork count. int64 in the API; String keeps the value exact and a null stays null."
+  forksCount: String
+  "Watcher count. int64 in the API; String keeps the value exact and a null stays null."
+  watchersCount: String
+  "Open issue count. int64 in the API; String keeps the value exact and a null stays null."
+  openIssuesCount: String
+  "Open pull-request count. int64 in the API; String keeps the value exact and a null stays null."
+  openPrCounter: String
+  "Release count. int64 in the API; String keeps the value exact and a null stays null."
+  releaseCounter: String
+  defaultBranch: String
+  archived: Boolean
+  archivedAt: String
+  createdAt: String
+  updatedAt: String
+  permissions: Gitea_Permission
+  hasCode: Boolean
+  hasIssues: Boolean
+  hasWiki: Boolean
+  hasPullRequests: Boolean
+  hasProjects: Boolean
+  hasReleases: Boolean
+  hasPackages: Boolean
+  hasActions: Boolean
+  "`all`, `repo`, `owner` or `none`."
+  projectsMode: String
+  topics: [String]
+  licenses: [String]
+  avatarUrl: String
+  internal: Boolean
+  "`sha1` or `sha256`."
+  objectFormatName: Gitea_ObjectFormatName
+}
+
+"The result of a repository search: the page of repositories and whether the search succeeded."
+type Gitea_RepositorySearchResult {
+  "OK indicates if the search was successful"
+  ok: Boolean
+  "Data contains the repository search results"
+  data: [Gitea_Repository]
+}
+
+"A label attached to an issue."
+type Gitea_Label {
+  "ID is the unique identifier for the label"
+  id: ID
+  "Name is the display name of the label"
+  name: String
+  "Hex colour without the leading `#`."
+  color: String
+  "Description provides additional context about the label's purpose"
+  description: String
+  exclusive: Boolean
+  isArchived: Boolean
+  "URL is the API endpoint for accessing this label"
+  url: String
+}
+
+"A milestone an issue belongs to."
+type Gitea_Milestone {
+  "ID is the unique identifier for the milestone"
+  id: ID
+  "Title is the title of the milestone"
+  title: String
+  "Description provides details about the milestone"
+  description: String
+  state: Gitea_StateType
+  "Open issues in this milestone. int64 in the API; String keeps the value exact and a null stays null."
+  openIssues: String
+  "Closed issues in this milestone. int64 in the API; String keeps the value exact and a null stays null."
+  closedIssues: String
+  createdAt: String
+  updatedAt: String
+  closedAt: String
+  dueOn: String
+}
+
+"Present on an issue that is a pull request; null otherwise."
+type Gitea_PullRequestMeta {
+  draft: Boolean
+  htmlUrl: String
+  merged: Boolean
+  mergedAt: String
+}
+
+"The repository an issue belongs to, in brief."
+type Gitea_RepositoryMeta {
+  id: ID
+  name: String
+  "The owner's login."
+  owner: String
+  fullName: String
+  """
+  The Gitea_User referenced by `owner`, fetched by the router through get:/users/{username}, one request per Gitea_RepositoryMeta that selects it; select this instead of calling Query.gitea_user per item.
+  """
+  ownerUser: Gitea_User
+    @connect(
+      source: "gitea"
+      http: { GET: "/users/{$this.owner}" }
+      isSuccess: "$($this.owner ?! 0)->match([null, true], [@, $status->gte(200)->and($status->lt(300))])"
+      selection: """
+      $($this.owner ?! 0)->match([null, null], [@, $ {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }])
+      """
+    )
+
+}
+
+"A file attached to an issue."
+type Gitea_Attachment {
+  "ID is the unique identifier for the attachment"
+  id: ID
+  "UUID is the unique identifier for the attachment file"
+  uuid: String
+  "Name is the filename of the attachment"
+  name: String
+  "Size in bytes. int64 in the API; String keeps the value exact and a null stays null."
+  size: String
+  "Download count. int64 in the API; String keeps the value exact and a null stays null."
+  downloadCount: String
+  createdAt: String
+  "DownloadURL is the URL to download the attachment"
+  browserDownloadUrl: String
+}
+
+"An issue in a repository. Pull requests are issues too; `pullRequest` says which."
+type Gitea_Issue {
+  id: ID
+  "The issue number within its repository; what `gitea_issue(index:)` takes. int64 in the API; String keeps the value exact and a null stays null."
+  number: String
+  url: String
+  htmlUrl: String
+  title: String
+  body: String
+  state: Gitea_StateType
+  isLocked: Boolean
+  "Comment count. int64 in the API; String keeps the value exact and a null stays null."
+  comments: String
+  user: Gitea_User
+  originalAuthor: String
+  originalAuthorId: ID
+  assignee: Gitea_User
+  assignees: [Gitea_User]
+  labels: [Gitea_Label]
+  milestone: Gitea_Milestone
+  assets: [Gitea_Attachment]
+  pullRequest: Gitea_PullRequestMeta
+  repository: Gitea_RepositoryMeta
+  ref: String
+  "Estimated time in seconds. int64 in the API; String keeps the value exact and a null stays null."
+  timeEstimate: String
+  "Pin position, 0 when not pinned. int64 in the API; String keeps the value exact and a null stays null."
+  pinOrder: String
+  createdAt: String
+  updatedAt: String
+  closedAt: String
+  dueDate: String
+}
+
+"`issues`, `pulls`, or both when omitted."
+enum Gitea_IssueType {
+  issues
+  pulls
+}
+
+"Issue state filter; `all` is only valid as a filter, never as a state."
+enum Gitea_IssueStateFilter {
+  open
+  closed
+  all
+}
+
+# ─── Queries ─────────────────────────────────────────────────────────────────
+
+type Query {
+  "The Gitea server's version string, e.g. `1.25.0`."
+  gitea_version: String
+    @connect(
+      source: "gitea"
+      http: { GET: "/version" }
+      selection: "$.version"
+    )
+
+  """
+  Search repositories visible to the token. `q` matches name (and description
+  with `includeDesc`); `page`/`limit` paginate (D-0002).
+
+  One page, not the whole collection: iterate with `page` until a short or
+  empty page.
+
+  Returns: ok, data.
+  Each item in `data` has: id,
+  owner { id, login, loginName, sourceId, fullName, email (+16 more) },
+  name, fullName, description, empty, private, fork, template, mirror, size,
+  language, languagesUrl, htmlUrl (+32 more).
+  """
+  gitea_searchRepos(
+    "keyword"
+    q: String
+    "Limit search to repositories with keyword as topic"
+    topic: Boolean
+    "include search of keyword within repository description"
+    includeDesc: Boolean
+    "search only for repos that the user with the given id owns or contributes to"
+    uid: ID
+    "repo owner to prioritize in the results"
+    priorityOwnerId: ID
+    "search only for repos that belong to the given team id"
+    teamId: ID
+    "search only for repos that the user with the given id has starred"
+    starredBy: ID
+    "include private repositories this user has access to (defaults to true)"
+    private: Boolean
+    "show only pubic, private or all repositories (defaults to all)"
+    isPrivate: Boolean
+    "include template repositories this user has access to (defaults to true)"
+    template: Boolean
+    "show only archived, non-archived or all repositories (defaults to all)"
+    archived: Boolean
+    "`fork`, `source`, `mirror` or `collaborative`."
+    mode: String
+    "if `uid` is given, search only for repos that the user owns"
+    exclusive: Boolean
+    "`alpha`, `created`, `updated`, `size`, `git_size`, `lfs_size`, `stars`, `forks` or `id`. Default is \"alpha\"."
+    sort: String
+    "`asc` or `desc`."
+    order: String
+    page: Int
+    limit: Int
+  ): Gitea_RepositorySearchResult
+    @connect(
+      source: "gitea"
+      http: {
+        GET: "/repos/search"
+        queryParams: """
+        q: $args.q
+        topic: $args.topic
+        includeDesc: $args.includeDesc
+        uid: $args.uid
+        priority_owner_id: $args.priorityOwnerId
+        team_id: $args.teamId
+        starredBy: $args.starredBy
+        private: $args.private
+        is_private: $args.isPrivate
+        template: $args.template
+        archived: $args.archived
+        mode: $args.mode
+        exclusive: $args.exclusive
+        sort: $args.sort
+        order: $args.order
+        page: $args.page
+        limit: $args.limit
+        """
+      }
+      selection: """
+      ok
+      data {
+        id
+        owner {
+          id
+          login
+          loginName: login_name
+          sourceId: source_id
+          fullName: full_name
+          email
+          avatarUrl: avatar_url
+          htmlUrl: html_url
+          language
+          isAdmin: is_admin
+          lastLogin: last_login
+          created
+          restricted
+          active
+          prohibitLogin: prohibit_login
+          location
+          website
+          description
+          visibility
+          followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+          followingCount: following_count->match([null, null], [@, @->jsonStringify])
+          starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+        }
+        name
+        fullName: full_name
+        description
+        empty
+        private
+        fork
+        template
+        mirror
+        size: size->match([null, null], [@, @->jsonStringify])
+        language
+        languagesUrl: languages_url
+        htmlUrl: html_url
+        url
+        link
+        sshUrl: ssh_url
+        cloneUrl: clone_url
+        originalUrl: original_url
+        website
+        starsCount: stars_count->match([null, null], [@, @->jsonStringify])
+        forksCount: forks_count->match([null, null], [@, @->jsonStringify])
+        watchersCount: watchers_count->match([null, null], [@, @->jsonStringify])
+        openIssuesCount: open_issues_count->match([null, null], [@, @->jsonStringify])
+        openPrCounter: open_pr_counter->match([null, null], [@, @->jsonStringify])
+        releaseCounter: release_counter->match([null, null], [@, @->jsonStringify])
+        defaultBranch: default_branch
+        archived
+        archivedAt: archived_at
+        createdAt: created_at
+        updatedAt: updated_at
+        permissions { admin push pull }
+        hasCode: has_code
+        hasIssues: has_issues
+        hasWiki: has_wiki
+        hasPullRequests: has_pull_requests
+        hasProjects: has_projects
+        hasReleases: has_releases
+        hasPackages: has_packages
+        hasActions: has_actions
+        projectsMode: projects_mode
+        topics
+        licenses
+        avatarUrl: avatar_url
+        internal
+        objectFormatName: object_format_name
+      }
+      """
+    )
+
+  """
+  One repository by owner login and name.
+
+  Returns: id,
+  owner { id, login, loginName, sourceId, fullName, email (+16 more) },
+  name, fullName, description, empty, private, fork, template, mirror, size,
+  language, languagesUrl, htmlUrl (+32 more).
+  """
+  gitea_repo(
+    "owner of the repo"
+    owner: String!
+    "name of the repo"
+    repo: String!
+  ): Gitea_Repository
+    @connect(
+      source: "gitea"
+      http: { GET: "/repos/{$args.owner}/{$args.repo}" }
+      selection: """
+      id
+      owner {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }
+      name
+      fullName: full_name
+      description
+      empty
+      private
+      fork
+      template
+      mirror
+      size: size->match([null, null], [@, @->jsonStringify])
+      language
+      languagesUrl: languages_url
+      htmlUrl: html_url
+      url
+      link
+      sshUrl: ssh_url
+      cloneUrl: clone_url
+      originalUrl: original_url
+      website
+      starsCount: stars_count->match([null, null], [@, @->jsonStringify])
+      forksCount: forks_count->match([null, null], [@, @->jsonStringify])
+      watchersCount: watchers_count->match([null, null], [@, @->jsonStringify])
+      openIssuesCount: open_issues_count->match([null, null], [@, @->jsonStringify])
+      openPrCounter: open_pr_counter->match([null, null], [@, @->jsonStringify])
+      releaseCounter: release_counter->match([null, null], [@, @->jsonStringify])
+      defaultBranch: default_branch
+      archived
+      archivedAt: archived_at
+      createdAt: created_at
+      updatedAt: updated_at
+      permissions { admin push pull }
+      hasCode: has_code
+      hasIssues: has_issues
+      hasWiki: has_wiki
+      hasPullRequests: has_pull_requests
+      hasProjects: has_projects
+      hasReleases: has_releases
+      hasPackages: has_packages
+      hasActions: has_actions
+      projectsMode: projects_mode
+      topics
+      licenses
+      avatarUrl: avatar_url
+      internal
+      objectFormatName: object_format_name
+      """
+    )
+
+  """
+  Issues (and pull requests, per `type`) of one repository. `labels` and
+  `milestones` are comma-separated names, as the API takes them (D-0006);
+  `page`/`limit` paginate (D-0002).
+
+  One page, not the whole collection: iterate with `page` until a short or
+  empty page.
+
+  Returns a list of items with: id, number, url, htmlUrl, title, body, state,
+  isLocked, comments,
+  user { id, login, loginName, sourceId, fullName, email (+16 more) },
+  originalAuthor, originalAuthorId,
+  assignee { id, login, loginName, sourceId, fullName, email (+16 more) },
+  assignees { id, login, loginName, sourceId, fullName, email (+16 more) }
+  (+12 more).
+  """
+  gitea_listIssues(
+    "owner of the repo"
+    owner: String!
+    "name of the repo"
+    repo: String!
+    "Issue state filter (one of closed|open|all)."
+    state: Gitea_IssueStateFilter
+    "comma separated list of labels."
+    labels: String
+    "search string"
+    q: String
+    "Return issues, pull requests, or both when omitted (one of issues|pulls)."
+    type: Gitea_IssueType
+    "comma separated list of milestone names or ids."
+    milestones: String
+    "Only show items updated after the given time."
+    since: String
+    "Only show items updated before the given time."
+    before: String
+    "Only show items which were created by the given user"
+    createdBy: String
+    "Only show items for which the given user is assigned"
+    assignedBy: String
+    "Only show items in which the given user was mentioned"
+    mentionedBy: String
+    page: Int
+    limit: Int
+  ): [Gitea_Issue]
+    @connect(
+      source: "gitea"
+      http: {
+        GET: "/repos/{$args.owner}/{$args.repo}/issues"
+        queryParams: """
+        state: $args.state
+        labels: $args.labels
+        q: $args.q
+        type: $args.type
+        milestones: $args.milestones
+        since: $args.since
+        before: $args.before
+        created_by: $args.createdBy
+        assigned_by: $args.assignedBy
+        mentioned_by: $args.mentionedBy
+        page: $args.page
+        limit: $args.limit
+        """
+      }
+      selection: """
+      id
+      number: number->match([null, null], [@, @->jsonStringify])
+      url
+      htmlUrl: html_url
+      title
+      body
+      state
+      isLocked: is_locked
+      comments: comments->match([null, null], [@, @->jsonStringify])
+      user {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }
+      originalAuthor: original_author
+      originalAuthorId: original_author_id
+      assignee {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }
+      assignees {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }
+      labels { id name color description exclusive isArchived: is_archived url }
+      milestone {
+        id
+        title
+        description
+        state
+        openIssues: open_issues->match([null, null], [@, @->jsonStringify])
+        closedIssues: closed_issues->match([null, null], [@, @->jsonStringify])
+        createdAt: created_at
+        updatedAt: updated_at
+        closedAt: closed_at
+        dueOn: due_on
+      }
+      assets {
+        id
+        uuid
+        name
+        size: size->match([null, null], [@, @->jsonStringify])
+        downloadCount: download_count->match([null, null], [@, @->jsonStringify])
+        createdAt: created_at
+        browserDownloadUrl: browser_download_url
+      }
+      pullRequest: pull_request { draft htmlUrl: html_url merged mergedAt: merged_at }
+      repository { id name owner fullName: full_name }
+      ref
+      timeEstimate: time_estimate->match([null, null], [@, @->jsonStringify])
+      pinOrder: pin_order->match([null, null], [@, @->jsonStringify])
+      createdAt: created_at
+      updatedAt: updated_at
+      closedAt: closed_at
+      dueDate: due_date
+      """
+    )
+
+  """
+  One issue by its number within the repository.
+
+  Returns: id, number, url, htmlUrl, title, body, state, isLocked, comments,
+  user { id, login, loginName, sourceId, fullName, email (+16 more) },
+  originalAuthor, originalAuthorId,
+  assignee { id, login, loginName, sourceId, fullName, email (+16 more) },
+  assignees { id, login, loginName, sourceId, fullName, email (+16 more) }
+  (+12 more).
+  """
+  gitea_issue(
+    "owner of the repo"
+    owner: String!
+    "name of the repo"
+    repo: String!
+    "index of the issue to get"
+    index: ID!
+  ): Gitea_Issue
+    @connect(
+      source: "gitea"
+      http: { GET: "/repos/{$args.owner}/{$args.repo}/issues/{$args.index}" }
+      selection: """
+      id
+      number: number->match([null, null], [@, @->jsonStringify])
+      url
+      htmlUrl: html_url
+      title
+      body
+      state
+      isLocked: is_locked
+      comments: comments->match([null, null], [@, @->jsonStringify])
+      user {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }
+      originalAuthor: original_author
+      originalAuthorId: original_author_id
+      assignee {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }
+      assignees {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }
+      labels { id name color description exclusive isArchived: is_archived url }
+      milestone {
+        id
+        title
+        description
+        state
+        openIssues: open_issues->match([null, null], [@, @->jsonStringify])
+        closedIssues: closed_issues->match([null, null], [@, @->jsonStringify])
+        createdAt: created_at
+        updatedAt: updated_at
+        closedAt: closed_at
+        dueOn: due_on
+      }
+      assets {
+        id
+        uuid
+        name
+        size: size->match([null, null], [@, @->jsonStringify])
+        downloadCount: download_count->match([null, null], [@, @->jsonStringify])
+        createdAt: created_at
+        browserDownloadUrl: browser_download_url
+      }
+      pullRequest: pull_request { draft htmlUrl: html_url merged mergedAt: merged_at }
+      repository { id name owner fullName: full_name }
+      ref
+      timeEstimate: time_estimate->match([null, null], [@, @->jsonStringify])
+      pinOrder: pin_order->match([null, null], [@, @->jsonStringify])
+      createdAt: created_at
+      updatedAt: updated_at
+      closedAt: closed_at
+      dueDate: due_date
+      """
+    )
+
+  """
+  The user the access token belongs to.
+
+  Returns: id, login, loginName, sourceId, fullName, email, avatarUrl,
+  htmlUrl, language, isAdmin, lastLogin, created, restricted, active
+  (+8 more).
+  """
+  gitea_currentUser: Gitea_User
+    @connect(
+      source: "gitea"
+      http: { GET: "/user" }
+      selection: """
+      id
+      login
+      loginName: login_name
+      sourceId: source_id
+      fullName: full_name
+      email
+      avatarUrl: avatar_url
+      htmlUrl: html_url
+      language
+      isAdmin: is_admin
+      lastLogin: last_login
+      created
+      restricted
+      active
+      prohibitLogin: prohibit_login
+      location
+      website
+      description
+      visibility
+      followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+      followingCount: following_count->match([null, null], [@, @->jsonStringify])
+      starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      """
+    )
+
+  """
+  One user by login name.
+
+  Returns: id, login, loginName, sourceId, fullName, email, avatarUrl,
+  htmlUrl, language, isAdmin, lastLogin, created, restricted, active
+  (+8 more).
+  """
+  gitea_user(
+    "username of the user whose data is to be listed"
+    username: String!
+  ): Gitea_User
+    @connect(
+      source: "gitea"
+      http: { GET: "/users/{$args.username}" }
+      selection: """
+      id
+      login
+      loginName: login_name
+      sourceId: source_id
+      fullName: full_name
+      email
+      avatarUrl: avatar_url
+      htmlUrl: html_url
+      language
+      isAdmin: is_admin
+      lastLogin: last_login
+      created
+      restricted
+      active
+      prohibitLogin: prohibit_login
+      location
+      website
+      description
+      visibility
+      followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+      followingCount: following_count->match([null, null], [@, @->jsonStringify])
+      starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      """
+    )
+}
+
+# ─── Mutations ───────────────────────────────────────────────────────────────
+
+type Mutation {
+  """
+  Create an issue. `assignees` are login names, `labels` are label ids and
+  `milestone` a milestone id (D-0007); the deprecated single `assignee`
+  field is not exposed. Null arguments are omitted from the body.
+
+  Returns: id, number, url, htmlUrl, title, body, state, isLocked, comments,
+  user { id, login, loginName, sourceId, fullName, email (+16 more) },
+  originalAuthor, originalAuthorId,
+  assignee { id, login, loginName, sourceId, fullName, email (+16 more) },
+  assignees { id, login, loginName, sourceId, fullName, email (+16 more) }
+  (+12 more).
+  """
+  gitea_createIssue(
+    "owner of the repo"
+    owner: String!
+    "name of the repo"
+    repo: String!
+    title: String!
+    body: String
+    assignees: [String!]
+    labels: [ID!]
+    milestone: ID
+    "RFC 3339 timestamp."
+    dueDate: String
+    ref: String
+    "Create the issue already closed."
+    closed: Boolean
+  ): Gitea_Issue
+    @tag(name: "write")
+    @connect(
+      source: "gitea"
+      http: {
+        POST: "/repos/{$args.owner}/{$args.repo}/issues"
+        body: """
+        title: $args.title
+        body: $args.body?
+        assignees: $args.assignees?
+        labels: $args.labels?
+        milestone: $args.milestone?
+        due_date: $args.dueDate?
+        ref: $args.ref?
+        closed: $args.closed?
+        """
+      }
+      selection: """
+      id
+      number: number->match([null, null], [@, @->jsonStringify])
+      url
+      htmlUrl: html_url
+      title
+      body
+      state
+      isLocked: is_locked
+      comments: comments->match([null, null], [@, @->jsonStringify])
+      user {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }
+      originalAuthor: original_author
+      originalAuthorId: original_author_id
+      assignee {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }
+      assignees {
+        id
+        login
+        loginName: login_name
+        sourceId: source_id
+        fullName: full_name
+        email
+        avatarUrl: avatar_url
+        htmlUrl: html_url
+        language
+        isAdmin: is_admin
+        lastLogin: last_login
+        created
+        restricted
+        active
+        prohibitLogin: prohibit_login
+        location
+        website
+        description
+        visibility
+        followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+        followingCount: following_count->match([null, null], [@, @->jsonStringify])
+        starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      }
+      labels { id name color description exclusive isArchived: is_archived url }
+      milestone {
+        id
+        title
+        description
+        state
+        openIssues: open_issues->match([null, null], [@, @->jsonStringify])
+        closedIssues: closed_issues->match([null, null], [@, @->jsonStringify])
+        createdAt: created_at
+        updatedAt: updated_at
+        closedAt: closed_at
+        dueOn: due_on
+      }
+      assets {
+        id
+        uuid
+        name
+        size: size->match([null, null], [@, @->jsonStringify])
+        downloadCount: download_count->match([null, null], [@, @->jsonStringify])
+        createdAt: created_at
+        browserDownloadUrl: browser_download_url
+      }
+      pullRequest: pull_request { draft htmlUrl: html_url merged mergedAt: merged_at }
+      repository { id name owner fullName: full_name }
+      ref
+      timeEstimate: time_estimate->match([null, null], [@, @->jsonStringify])
+      pinOrder: pin_order->match([null, null], [@, @->jsonStringify])
+      createdAt: created_at
+      updatedAt: updated_at
+      closedAt: closed_at
+      dueDate: due_date
+      """
+    )
+}

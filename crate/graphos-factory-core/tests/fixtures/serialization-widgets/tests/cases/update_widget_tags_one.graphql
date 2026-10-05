@@ -1,0 +1,1 @@
+mutation { widget_co_updateWidget(id: "w1", tags: [{key: "color", value: "red"}]) { id name } }

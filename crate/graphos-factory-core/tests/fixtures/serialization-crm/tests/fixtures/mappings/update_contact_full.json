@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "PATCH",
+    "urlPath": "/contacts/c1",
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "displayName": "Ada Lovelace",
+          "bio": "engineer",
+          "attributes": [
+            {
+              "key": "segment",
+              "value": "enterprise"
+            },
+            {
+              "key": "score",
+              "value": {
+                "model": "v2",
+                "points": 87
+              }
+            }
+          ],
+          "location": {
+            "region": "EMEA",
+            "country": "UK"
+          }
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "id": "c1",
+      "displayName": "Ada Lovelace"
+    }
+  }
+}

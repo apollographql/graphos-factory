@@ -1,0 +1,46 @@
+{
+  "contract_version": 1,
+  "decisions": [
+    {
+      "id": "D-0001",
+      "title": "What an explicit null sends, per nullable body argument",
+      "status": "resolved",
+      "date": "2026-09-29",
+      "context": "PATCH /contacts/{id} documents that an explicit null `bio` clears the stored bio, while omitting `bio` entirely leaves the existing value unchanged -- an explicit-null case for `bio` is required, distinct from omission. Source: vendor docs, \"Updating a contact\" section.",
+      "affects": [
+        "PATCH /contacts/{id}",
+        "POST /contacts/search"
+      ],
+      "resolution": {
+        "decision": "send null for every nullable body argument."
+      },
+      "null_handling": [
+        {
+          "operation": "patch:/contacts/{id}",
+          "argument": "displayName",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "patch:/contacts/{id}",
+          "argument": "bio",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "patch:/contacts/{id}",
+          "argument": "attributes",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "patch:/contacts/{id}",
+          "argument": "location",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "post:/contacts/search",
+          "argument": "statuses",
+          "behavior": "send_null"
+        }
+      ]
+    }
+  ]
+}

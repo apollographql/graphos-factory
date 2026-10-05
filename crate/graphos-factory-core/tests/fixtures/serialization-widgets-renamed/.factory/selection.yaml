@@ -1,0 +1,16 @@
+operations:
+  "get:/gizmos":
+    include: true
+    graphql:
+      root: query
+      name: listGizmos
+  "post:/gizmos/search":
+    include: true
+    graphql:
+      root: query
+      name: searchGizmos
+  "patch:/gizmos/{id}":
+    include: true
+    graphql:
+      root: mutation
+      name: updateGizmo

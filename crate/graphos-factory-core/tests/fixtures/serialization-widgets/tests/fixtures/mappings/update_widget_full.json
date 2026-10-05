@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "PATCH",
+    "urlPath": "/widgets/w1",
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "name": "Chair",
+          "note": "see attached",
+          "tags": [
+            {
+              "key": "color",
+              "value": "red"
+            },
+            {
+              "key": "size",
+              "value": {
+                "units": "cm",
+                "amount": 10
+              }
+            }
+          ],
+          "address": {
+            "city": "NYC",
+            "zip": "10001"
+          }
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "id": "w1",
+      "name": "Chair"
+    }
+  }
+}

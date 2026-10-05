@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/apollographql/graphos-factory/schemas/applied-lock.schema.json",
+  "title": "Applied lock (.factory/applied.lock.yaml)",
+  "description": "The schema as the agent last wrote or acknowledged it: one SHA-256 per span, hashes for pinned inputs, and optional authoring provenance for the skill, binary/toolchain, exact inputs and authored outputs.",
+  "type": "object",
+  "required": ["contract_version", "schema", "written_at", "written_by", "spans"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": { "const": 1 },
+    "schema": { "type": "string", "description": "The schema file the hashes describe, relative to the workspace root." },
+    "written_at": { "type": "string", "format": "date-time" },
+    "written_by": { "type": "string", "description": "`<binary> <version>`: the binary that wrote the file, as it was invoked, and its version." },
+    "spans": {
+      "type": "object",
+      "description": "Span key -> SHA-256 (hex) of the span's exact text. Keys: `header`, `type:<Name>`, `<method>:<path>` (an inventory operation), `Query.<field>` / `Mutation.<field>` (a root field the inventory does not explain).",
+      "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    },
+    "inventory": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 (hex) of `.factory/inventory.json` as compact JSON, so formatting never counts as an edit. The inventory is the tool's own output and is never hand-edited: a correction belongs in the pinned spec (`codify --source`) or, when it is a judgement, in selection.yaml (ADR 0018). A differing hash is reported as `unacknowledged-inventory-edit`; `graphos-factory-core inventory build` refuses to overwrite such a file without `--force`."
+    },
+    "sources": {
+      "type": "object",
+      "description": "Pinned description documents (sources.lock.yaml entries of kind openapi/swagger): working-copy path -> SHA-256 (hex) of the document's compact JSON as last acknowledged, so formatting never counts as an edit. Written by `graphos-factory-core lock` and `sources pin`, refreshed by `codify --source`.",
+      "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recorded_at", "skill", "authoring_agent", "binary", "toolchain", "inputs", "outputs", "omitted_outputs",
+        "reproducibility"
+      ],
+      "properties": {
+        "recorded_at": { "type": "string", "format": "date-time" },
+        "skill": { "$ref": "#/$defs/gitState" },
+        "authoring_agent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "attested"],
+          "properties": {
+            "model": { "type": "string", "pattern": "\\S" },
+            "attested": { "const": true }
+          }
+        },
+        "binary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "revision", "dirty", "rustc", "target"],
+          "properties": {
+            "name": { "type": "string", "pattern": "\\S", "description": "The binary the lock was written by: the product binary's own name, a constant, never the name it was invoked under (the `graphos-factory-core` link every product installs records the product). Absent from locks written before the name was recorded." },
+            "version": { "type": "string", "pattern": "\\S" },
+            "revision": { "type": "string", "pattern": "\\S", "description": "Git revision of the source tree when Cargo built the binary, or `unknown`." },
+            "dirty": { "type": "boolean", "description": "Whether the source tree was dirty when Cargo built the binary. This is true when Git state was unavailable." },
+            "rustc": { "type": "string", "pattern": "\\S" },
+            "target": { "type": "string", "pattern": "\\S" }
+          }
+        },
+        "toolchain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["connect_spec", "federation", "rover_pin", "router_pin", "wiremock_pin"],
+          "properties": {
+            "connect_spec": { "type": "string", "pattern": "\\S" },
+            "federation": { "type": "string", "pattern": "\\S" },
+            "rover_pin": { "type": "string", "pattern": "\\S" },
+            "router_pin": { "type": "string", "pattern": "\\S" },
+            "wiremock_pin": { "type": "string", "pattern": "\\S" }
+          }
+        },
+        "inputs": { "$ref": "#/$defs/fileMap" },
+        "outputs": { "$ref": "#/$defs/fileMap" },
+        "omitted_outputs": {
+          "type": "object",
+          "description": "Authored output paths that were not hashed. Test-tree symlinks are listed here and are never followed.",
+          "additionalProperties": { "const": "symlink not followed" }
+        },
+        "reproducibility": { "type": "string", "pattern": "\\S" }
+      }
+    }
+  },
+  "$defs": {
+    "gitState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "dirty", "source"],
+      "properties": {
+        "revision": { "type": "string", "pattern": "\\S" },
+        "dirty": { "type": "boolean" },
+        "source": {
+          "description": "What named the skill checkout: `--skill-dir`, `binary-build` (the binary's own build), or the environment variable the root was read under, GRAPHOS_FACTORY_CORE_SKILL_ROOT or GRAPHOS_FACTORY_CORE_SCRIPTS today. Any variable ending in _SKILL_ROOT or _SCRIPTS is accepted, so a lock an older binary wrote under its own spelling stays valid.",
+          "type": "string",
+          "pattern": "^(--skill-dir|binary-build|[A-Z][A-Z0-9_]*_(SKILL_ROOT|SCRIPTS))$"
+        }
+      }
+    },
+    "fileHash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "bytes"],
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "fileMap": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/fileHash" }
+    }
+  }
+}

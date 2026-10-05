@@ -1,0 +1,268 @@
+{
+  "contract_version": 2,
+  "commit": "c5fa5712-dirty",
+  "run_at": "2026-10-01T23:13:19.316Z",
+  "toolchain": {
+    "rover": "0.41.0",
+    "federation": "2.15.2",
+    "connect_spec": "v0.4",
+    "wiremock": "3.13.2",
+    "service_factory": "0.7.0",
+    "router": "2.17.0",
+    "java": "26.0.2.1"
+  },
+  "layers": {
+    "compose": {
+      "status": "pass",
+      "command": "compose.sh pilots/graphos/gitea",
+      "exit_code": 0,
+      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/compose.log",
+      "findings": [
+        "compose: Rover 0.41.0, federation 2.15.2, connect v0.4",
+        "compose: pass —      546 lines of supergraph SDL"
+      ]
+    },
+    "connector_unit": {
+      "status": "pass",
+      "command": "unit.sh pilots/graphos/gitea",
+      "exit_code": 0,
+      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/unit.log",
+      "findings": [
+        "TEST RESULTS: SUCCESSFUL 51  passed; 0 failed; 0 skipped"
+      ],
+      "cases": 51,
+      "failed": 0
+    },
+    "wiremock_e2e": {
+      "status": "pass",
+      "command": "e2e.sh pilots/graphos/gitea",
+      "exit_code": 0,
+      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/e2e.log",
+      "findings": [
+        "e2e: 22 passed, 0 failed"
+      ],
+      "cases": 22,
+      "failed": 0,
+      "error_coverage": {
+        "get:/repos/search": {
+          "documented": [
+            "422"
+          ],
+          "executed": [
+            "422"
+          ],
+          "not_run": []
+        },
+        "get:/repos/{owner}/{repo}": {
+          "documented": [
+            "404"
+          ],
+          "executed": [
+            "404"
+          ],
+          "not_run": []
+        },
+        "get:/repos/{owner}/{repo}/issues": {
+          "documented": [
+            "404"
+          ],
+          "executed": [
+            "404"
+          ],
+          "not_run": []
+        },
+        "get:/repos/{owner}/{repo}/issues/{index}": {
+          "documented": [
+            "404"
+          ],
+          "executed": [
+            "404"
+          ],
+          "not_run": []
+        },
+        "post:/repos/{owner}/{repo}/issues": {
+          "documented": [
+            "403",
+            "404",
+            "412",
+            "422",
+            "423"
+          ],
+          "executed": [
+            "403",
+            "404",
+            "412",
+            "422",
+            "423"
+          ],
+          "not_run": []
+        },
+        "get:/users/{username}": {
+          "documented": [
+            "404"
+          ],
+          "executed": [
+            "404"
+          ],
+          "not_run": []
+        }
+      },
+      "case_proofs": {
+        "create_issue": {
+          "verdict": "pass",
+          "findings": []
+        },
+        "create_issue_403": {
+          "verdict": "pass",
+          "findings": []
+        },
+        "create_issue_404": {
+          "verdict": "pass",
+          "findings": []
+        },
+        "create_issue_412": {
+          "verdict": "pass",
+          "findings": []
+        },
+        "create_issue_423": {
+          "verdict": "pass",
+          "findings": []
+        },
+        "create_issue_invalid": {
+          "verdict": "pass",
+          "findings": []
+        },
+        "create_issue_minimal": {
+          "verdict": "pass",
+          "findings": []
+        },
+        "create_issue_nulls": {
+          "verdict": "pass",
+          "findings": []
+        }
+      }
+    },
+    "write_body_proof": {
+      "status": "pass",
+      "command": "factory serialization (in-process, same-run)",
+      "exit_code": 0,
+      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/serialization.log",
+      "findings": [
+        "pass  47 of 47 required outbound assertion(s) executed and proven",
+        "pass  2 of 2 required outbound assertion(s) executed and proven",
+        "pass  16 of 16 required outbound assertion(s) executed and proven",
+        "pass  1 of 1 required outbound assertion(s) executed and proven"
+      ],
+      "cases": 1,
+      "failed": 0,
+      "write_gaps": 0,
+      "read_gaps": 0
+    },
+    "conformance": {
+      "status": "pass",
+      "command": "factory validate pilots/graphos/gitea --json",
+      "exit_code": 0,
+      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/conformance.log",
+      "findings": [
+        "31 bodies conform, 0 do not, 8 unchecked, 3 waived"
+      ],
+      "oracle": "swagger.json",
+      "cases": 42,
+      "failed": 0
+    },
+    "lint": {
+      "status": "pass",
+      "command": "factory lint pilots/graphos/gitea --json --skip-evidence",
+      "exit_code": 0,
+      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/lint.log",
+      "findings": [
+        "warn [pagination-bounds-unknown] get:/repos/search: `limit` has no documented default or maximum in the source; state 'no documented maximum' in the argument doc comment (schema-authoring.md)",
+        "warn [pagination-bounds-unknown] get:/repos/{owner}/{repo}/issues: `limit` has no documented default or maximum in the source; state 'no documented maximum' in the argument doc comment (schema-authoring.md)"
+      ]
+    },
+    "json_accounting": {
+      "status": "pass",
+      "command": "factory spans json-accounting pilots/graphos/gitea --json --check",
+      "exit_code": 0,
+      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/json_accounting.log",
+      "findings": [],
+      "counts": {
+        "total_fields": 140,
+        "json_fields": 0,
+        "accounted": 0,
+        "unaccounted": 0,
+        "stale": 0,
+        "recoverable": 0,
+        "unresolved": 0,
+        "by_type": {}
+      }
+    },
+    "live": {
+      "status": "not_run",
+      "command": "live.sh pilots/graphos/gitea",
+      "exit_code": 3,
+      "log": ".factory/evidence/runs/2026-10-01T23-13-19-316Z/live.log",
+      "findings": [
+        "live: GITEA_TOKEN is not set — skipping live smoke (not_run)"
+      ],
+      "reason": "live: GITEA_TOKEN is not set — skipping live smoke (not_run)"
+    }
+  },
+  "operations": {
+    "get:/version": {
+      "unit": "pass",
+      "e2e": "pass",
+      "conformance": "pass",
+      "live": "not_run"
+    },
+    "get:/repos/search": {
+      "unit": "pass",
+      "e2e": "pass",
+      "conformance": "pass",
+      "live": "not_run"
+    },
+    "get:/repos/{owner}/{repo}": {
+      "unit": "pass",
+      "e2e": "pass",
+      "conformance": "pass",
+      "live": "not_run"
+    },
+    "get:/repos/{owner}/{repo}/issues": {
+      "unit": "pass",
+      "e2e": "pass",
+      "conformance": "pass",
+      "live": "not_run"
+    },
+    "get:/repos/{owner}/{repo}/issues/{index}": {
+      "unit": "pass",
+      "e2e": "pass",
+      "conformance": "pass",
+      "live": "not_run"
+    },
+    "post:/repos/{owner}/{repo}/issues": {
+      "unit": "pass",
+      "e2e": "pass",
+      "conformance": "pass",
+      "live": "not_run"
+    },
+    "get:/user": {
+      "unit": "pass",
+      "e2e": "pass",
+      "conformance": "pass",
+      "live": "not_run"
+    },
+    "get:/users/{username}": {
+      "unit": "pass",
+      "e2e": "pass",
+      "conformance": "pass",
+      "live": "not_run"
+    }
+  },
+  "target_evidence_layers": {
+    "supergraph_check": {
+      "status": "not_run",
+      "reason": "not built: composing against the user's supergraph is decided in the next pass (skills/connector-factory/references/verification.md)",
+      "target": "connector-factory"
+    }
+  }
+}

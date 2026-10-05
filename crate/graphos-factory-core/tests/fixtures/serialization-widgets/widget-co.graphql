@@ -1,0 +1,80 @@
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.14", import: ["@key", "@tag"])
+  @link(url: "https://specs.apollo.dev/connect/v0.4", import: ["@source", "@connect"])
+
+@source(
+  name: "widget_co"
+  http: {
+    baseURL: "{{BASE_URL}}"
+    headers: [{ name: "Authorization", value: "Bearer {{AUTH_EXPR}}" }]
+  }
+)
+
+scalar Widget_Co_JSON
+
+input Widget_Co_TagEntryInput {
+  key: String!
+  value: Widget_Co_JSON
+}
+
+input Widget_Co_AddressInput {
+  city: String
+  zip: String
+}
+
+type Widget_Co_Widget {
+  id: ID
+  name: String
+}
+
+type Query {
+  "List widgets, optionally filtered to a bulk set of ids."
+  widget_co_listWidgets(ids: [ID!]): [Widget_Co_Widget]
+    @connect(
+      source: "widget_co"
+      http: { GET: "/widgets", queryParams: "ids: $args.ids" }
+      selection: "id name"
+    )
+
+  """
+  Search widgets. The vendor documents this as a POST (its filter payload
+  is too large for a query string) but it is a read: no state changes.
+  """
+  widget_co_searchWidgets(term: String!, tags: [String!]): [Widget_Co_Widget]
+    @connect(
+      source: "widget_co"
+      http: {
+        POST: "/widgets/search"
+        body: """
+        term: $args.term
+        tags: $args.tags
+        """
+      }
+      selection: "$.results { id name }"
+    )
+}
+
+type Mutation {
+  "Update a widget."
+  widget_co_updateWidget(
+    id: ID!
+    name: String
+    note: String
+    tags: [Widget_Co_TagEntryInput!]
+    address: Widget_Co_AddressInput
+  ): Widget_Co_Widget
+    @tag(name: "beta")
+    @connect(
+      source: "widget_co"
+      http: {
+        PATCH: "/widgets/{$args.id}"
+        body: """
+        name: $args.name
+        note: $args.note
+        tags: $args.tags
+        address: $args.address
+        """
+      }
+      selection: "id name"
+    )
+}

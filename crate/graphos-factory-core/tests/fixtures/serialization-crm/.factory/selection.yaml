@@ -1,0 +1,16 @@
+operations:
+  "get:/contacts":
+    include: true
+    graphql:
+      root: query
+      name: listContacts
+  "post:/contacts/search":
+    include: true
+    graphql:
+      root: query
+      name: searchContacts
+  "patch:/contacts/{id}":
+    include: true
+    graphql:
+      root: mutation
+      name: updateContact

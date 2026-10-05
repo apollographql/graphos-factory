@@ -1,0 +1,39 @@
+# The relationship field Gitea_RepositoryMeta.ownerUser (D-0017): the parent
+# stub (issue.json) returns repository.owner = "fixture", and the router
+# resolves ownerUser through the by-id stub keyed on that login (user.json,
+# urlPath /users/fixture). Both stubs list this case in x-cases.
+query {
+  gitea_issue(owner: "fixture", repo: "fixture-repo", index: 1) {
+    number
+    repository {
+      id
+      name
+      owner
+      fullName
+      ownerUser {
+        id
+        login
+        loginName
+        sourceId
+        fullName
+        email
+        avatarUrl
+        htmlUrl
+        language
+        isAdmin
+        lastLogin
+        created
+        restricted
+        active
+        prohibitLogin
+        location
+        website
+        description
+        visibility
+        followersCount
+        followingCount
+        starredReposCount
+      }
+    }
+  }
+}

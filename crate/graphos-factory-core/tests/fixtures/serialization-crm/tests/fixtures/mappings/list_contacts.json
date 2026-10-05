@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/contacts",
+    "queryParameters": {
+      "emails": {
+        "hasExactly": [
+          {
+            "equalTo": "a@x.test"
+          },
+          {
+            "equalTo": "b@x.test"
+          }
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "contacts": []
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "request": {
+    "headers": {
+      "Authorization": {
+        "equalTo": "token test-token"
+      }
+    },
+    "method": "GET",
+    "urlPath": "/repos/fixture/nope"
+  },
+  "response": {
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "errors": null,
+      "message": "not found",
+      "url": "http://127.0.0.1:3000/api/swagger"
+    },
+    "status": 404
+  }
+}

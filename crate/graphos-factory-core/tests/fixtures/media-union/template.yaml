@@ -1,0 +1,4 @@
+variables:
+  - name: BASE_URL
+    description: "Base URL of the Media API"
+    test_default: "https://media.test"

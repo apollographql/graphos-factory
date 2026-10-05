@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/gizmos/search",
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "phrase": "chair",
+          "labels": null
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "results": []
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "data": null,
+  "errors": [
+    {
+      "extensions": {
+        "code": "CONNECTOR_FETCH",
+        "connector": {
+          "coordinate": "gitea:Mutation.gitea_createIssue[0]"
+        },
+        "http": {
+          "status": 412
+        },
+        "httpStatus": 412,
+        "service": "gitea"
+      },
+      "message": "Gitea request failed",
+      "path": [
+        "gitea_createIssue"
+      ]
+    }
+  ]
+}

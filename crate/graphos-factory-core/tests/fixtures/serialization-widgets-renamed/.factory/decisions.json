@@ -1,0 +1,46 @@
+{
+  "contract_version": 1,
+  "decisions": [
+    {
+      "id": "D-0001",
+      "title": "What an explicit null sends, per nullable body argument",
+      "status": "resolved",
+      "date": "2026-09-29",
+      "context": "PATCH /gizmos/{id} documents that an explicit null `memo` clears the stored memo, while omitting `memo` entirely leaves the existing value unchanged -- an explicit-null case for `memo` is required, distinct from omission. Source: vendor docs, \"Updating a gizmo\" section.",
+      "affects": [
+        "PATCH /gizmos/{id}",
+        "POST /gizmos/search"
+      ],
+      "resolution": {
+        "decision": "send null for every nullable body argument."
+      },
+      "null_handling": [
+        {
+          "operation": "patch:/gizmos/{id}",
+          "argument": "name",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "patch:/gizmos/{id}",
+          "argument": "memo",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "patch:/gizmos/{id}",
+          "argument": "labels",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "patch:/gizmos/{id}",
+          "argument": "site",
+          "behavior": "send_null"
+        },
+        {
+          "operation": "post:/gizmos/search",
+          "argument": "labels",
+          "behavior": "send_null"
+        }
+      ]
+    }
+  ]
+}

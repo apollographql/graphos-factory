@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/gizmos",
+    "queryParameters": {
+      "refs": {
+        "hasExactly": [
+          {
+            "equalTo": "w1"
+          },
+          {
+            "equalTo": "w2"
+          }
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "gizmos": []
+    }
+  }
+}

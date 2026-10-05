@@ -1,0 +1,12 @@
+contract_version: 1
+service: stay_listings
+directory: stay-listings
+type_prefix: Stay_Listings
+field_prefix: stay_listings
+skill: { name: example, version: 0.5.0 }
+source_kind: rest
+connect_spec: v0.3
+federation_version: "2.12.0"
+intake: discovered
+context_mode: generic
+created_at: 2026-09-22T00:00:00Z

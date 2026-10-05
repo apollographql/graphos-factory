@@ -1,0 +1,60 @@
+# A spec-backed probe of the abstract-type idiom (ADR 0058): a discriminated
+# `oneOf` mapped as a union, once as a list with the shared fields beside the
+# spread, once as one object with `$ { … }` arms. Composes at 2.15.2.
+
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.15", import: ["@key"])
+  @link(url: "https://specs.apollo.dev/connect/v0.4", import: ["@source", "@connect"])
+
+@source(name: "media", http: { baseURL: "{{BASE_URL}}" })
+
+enum Media_Rating {
+  G
+  PG
+  R
+}
+
+type Media_Book {
+  id: ID!
+  title: String
+  pages: Int
+}
+
+type Media_Movie {
+  id: ID!
+  title: String
+  minutes: Int
+  rating: Media_Rating
+}
+
+"An item, told apart by the wire's `kind`."
+union Media_Media = Media_Book | Media_Movie
+
+type Query {
+  media_media: [Media_Media]
+    @connect(
+      source: "media"
+      http: { GET: "/media" }
+      selection: """
+      id
+      title
+      ... kind->match(
+        ["book", { __typename: "Media_Book", pages: pages }],
+        ["movie", { __typename: "Media_Movie", minutes, rating }],
+        [@, null]
+      )
+      """
+    )
+  media_mediaById(id: ID!): Media_Media
+    @connect(
+      source: "media"
+      http: { GET: "/media/{$args.id}" }
+      selection: """
+      ... kind->match(
+        ['book', $ { __typename: $('Media_Book') id title pages }],
+        ['movie', $ { __typename: $('Media_Movie') id title minutes rating }],
+        [@, null]
+      )
+      """
+    )
+}

@@ -1,0 +1,16 @@
+mutation {
+  gitea_createIssue(
+    owner: "fixture"
+    repo: "fixture-repo"
+    title: "Live smoke"
+    body: "Created by tests/live.yaml."
+    labels: [1]
+  ) {
+    number
+    title
+    body
+    state
+    user { login }
+    labels { name }
+  }
+}

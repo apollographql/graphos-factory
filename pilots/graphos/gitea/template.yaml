@@ -1,0 +1,7 @@
+variables:
+  - name: BASE_URL
+    description: "Base URL of the Gitea instance's REST API, including the /api/v1 path"
+    test_default: "http://127.0.0.1:3000/api/v1"
+  - name: AUTH_EXPR
+    description: "Complete Connectors authentication expression for a Gitea access token (sent as `Authorization: token <token>`)"
+    test_default: "{$env.GITEA_TOKEN}"

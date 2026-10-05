@@ -1,0 +1,25 @@
+# Every nullable argument passed as an explicit null: the `?` on each body
+# member drops a null, so the body must be exactly {"title"}, the same as
+# leaving them out and what the spec's non-nullable members require
+# (measured 2026-09-30; without the `?` the router sends each as JSON null).
+# D-0019 to D-0025 record the choice per argument.
+mutation {
+  gitea_createIssue(
+    owner: "fixture"
+    repo: "fixture-repo"
+    title: "Nulls"
+    body: null
+    assignees: null
+    labels: null
+    milestone: null
+    dueDate: null
+    ref: null
+    closed: null
+  ) {
+    id
+    number
+    title
+    body
+    state
+  }
+}

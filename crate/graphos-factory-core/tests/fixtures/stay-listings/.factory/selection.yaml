@@ -1,0 +1,135 @@
+contract_version: 1
+defaults:
+  fields: all
+  max_depth: 6
+  opaque_json_policy: forbid
+
+operations:
+  # Listings
+  get:/listings:
+    include: true
+    response:
+      envelope: null
+      confirmed: true
+    graphql:
+      root: query
+      name: listings
+      description: null
+    pagination:
+      expose: [page, limit]
+      next_cursor: null
+
+  get:/featured-listings:
+    include: true
+    response:
+      envelope: null
+      confirmed: true
+    graphql:
+      root: query
+      name: featuredListings
+      description: null
+
+  get:/user/{userId}/listings:
+    include: true
+    response:
+      envelope: null
+      confirmed: true
+    graphql:
+      root: query
+      name: userListings
+      description: null
+
+  get:/listings/{listingId}:
+    include: true
+    response:
+      envelope: null
+      confirmed: true
+    graphql:
+      root: query
+      name: listing
+      description: null
+      entity: true
+      key: id
+
+  get:/listings/{listingId}/totalCost:
+    include: true
+    response:
+      envelope: totalCost
+      confirmed: true
+    graphql:
+      root: query
+      name: listingTotalCost
+      description: null
+
+  get:/listings/{listingId}/coordinates:
+    include: true
+    response:
+      envelope: coordinates
+      confirmed: true
+    graphql:
+      root: query
+      name: listingCoordinates
+      description: null
+
+  post:/listings:
+    include: true
+    response:
+      envelope: null
+      confirmed: true
+    graphql:
+      root: mutation
+      name: createListing
+      description: null
+    tags: [beta]
+
+  patch:/listings/{listingId}:
+    include: true
+    response:
+      envelope: null
+      confirmed: true
+    graphql:
+      root: mutation
+      name: updateListing
+      description: null
+    tags: [beta]
+
+  # Amenities
+  get:/amenities:
+    include: true
+    response:
+      envelope: null
+      confirmed: true
+    graphql:
+      root: query
+      name: amenities
+      description: null
+
+  get:/listing/amenities:
+    include: true
+    response:
+      envelope: null
+      confirmed: true
+    graphql:
+      root: query
+      name: allAmenities
+      description: null
+
+  get:/listings/{listingId}/amenities:
+    include: true
+    response:
+      envelope: null
+      confirmed: true
+    graphql:
+      root: query
+      name: listingAmenities
+      description: null
+
+  get:/amenities/listings:
+    include: true
+    response:
+      envelope: null
+      confirmed: true
+    graphql:
+      root: query
+      name: amenitiesForListings
+      description: null

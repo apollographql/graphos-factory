@@ -1,0 +1,1 @@
+query { gizmo_co_searchGizmos(phrase: "chair") { id name } }

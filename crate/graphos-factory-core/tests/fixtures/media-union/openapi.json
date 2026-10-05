@@ -1,0 +1,62 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "Media", "version": "1" },
+  "servers": [{ "url": "https://media.test" }],
+  "paths": {
+    "/media": {
+      "get": {
+        "operationId": "listMedia",
+        "responses": {
+          "200": {
+            "description": "Every item, books and movies alike",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Media" } } } }
+          }
+        }
+      }
+    },
+    "/media/{id}": {
+      "get": {
+        "operationId": "getMedia",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "One item",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Media" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Media": {
+        "oneOf": [{ "$ref": "#/components/schemas/Book" }, { "$ref": "#/components/schemas/Movie" }],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": { "book": "#/components/schemas/Book", "movie": "#/components/schemas/Movie" }
+        }
+      },
+      "Book": {
+        "type": "object",
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["book"] },
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "pages": { "type": "integer" }
+        }
+      },
+      "Movie": {
+        "type": "object",
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["movie"] },
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "minutes": { "type": "integer", "format": "int32" },
+          "rating": { "type": "string", "enum": ["G", "PG", "R"] }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "request": {
+    "headers": {
+      "Authorization": {
+        "equalTo": "token test-token"
+      }
+    },
+    "method": "GET",
+    "queryParameters": {
+      "labels": {
+        "equalTo": "bug,enhancement"
+      },
+      "limit": {
+        "equalTo": "10"
+      },
+      "state": {
+        "equalTo": "open"
+      },
+      "type": {
+        "equalTo": "issues"
+      }
+    },
+    "urlPath": "/repos/fixture/fixture-repo/issues"
+  },
+  "response": {
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": [
+      {
+        "assets": [],
+        "assignee": null,
+        "assignees": null,
+        "body": "Seeded by the pilot bootstrap.",
+        "closed_at": null,
+        "comments": 0,
+        "created_at": "2026-09-10T19:00:27Z",
+        "due_date": null,
+        "html_url": "http://127.0.0.1:3000/fixture/fixture-repo/issues/1",
+        "id": 1,
+        "is_locked": false,
+        "labels": [],
+        "milestone": null,
+        "number": 1,
+        "original_author": "",
+        "original_author_id": 0,
+        "pin_order": 0,
+        "pull_request": null,
+        "ref": "",
+        "repository": {
+          "full_name": "fixture/fixture-repo",
+          "id": 1,
+          "name": "fixture-repo",
+          "owner": "fixture"
+        },
+        "state": "open",
+        "time_estimate": 0,
+        "title": "First fixture issue",
+        "updated_at": "2026-09-10T19:00:27Z",
+        "url": "http://127.0.0.1:3000/api/v1/repos/fixture/fixture-repo/issues/1",
+        "user": {
+          "active": true,
+          "avatar_url": "http://127.0.0.1:3000/avatars/a403c50e83dfc222f341e532d0f4a6e2",
+          "created": "2026-09-10T19:00:26Z",
+          "description": "",
+          "email": "fixture@example.invalid",
+          "followers_count": 0,
+          "following_count": 0,
+          "full_name": "",
+          "html_url": "http://127.0.0.1:3000/fixture",
+          "id": 1,
+          "is_admin": true,
+          "language": "",
+          "last_login": "1970-01-01T00:00:00Z",
+          "location": "",
+          "login": "fixture",
+          "login_name": "",
+          "prohibit_login": false,
+          "restricted": false,
+          "source_id": 0,
+          "starred_repos_count": 0,
+          "username": "fixture",
+          "visibility": "public",
+          "website": ""
+        }
+      }
+    ],
+    "status": 200
+  }
+}

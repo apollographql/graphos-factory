@@ -1,0 +1,7 @@
+query {
+  gitea_user(username: "fixture") {
+    id
+    login
+    htmlUrl
+  }
+}

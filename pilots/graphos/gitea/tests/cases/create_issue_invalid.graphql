@@ -1,0 +1,8 @@
+# expect-upstream-status: 422
+# Asserts the errors mapping on a 422 validation failure (D-0004).
+mutation {
+  gitea_createIssue(owner: "fixture", repo: "fixture-repo", title: "") {
+    id
+    title
+  }
+}

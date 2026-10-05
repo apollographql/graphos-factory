@@ -1,0 +1,80 @@
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.14", import: ["@key", "@tag"])
+  @link(url: "https://specs.apollo.dev/connect/v0.4", import: ["@source", "@connect"])
+
+@source(
+  name: "gizmo_co"
+  http: {
+    baseURL: "{{BASE_URL}}"
+    headers: [{ name: "Authorization", value: "Bearer {{AUTH_EXPR}}" }]
+  }
+)
+
+scalar Gizmo_Co_JSON
+
+input Gizmo_Co_LabelEntryInput {
+  key: String!
+  value: Gizmo_Co_JSON
+}
+
+input Gizmo_Co_SiteInput {
+  town: String
+  postal: String
+}
+
+type Gizmo_Co_Gizmo {
+  id: ID
+  name: String
+}
+
+type Query {
+  "List gizmos, optionally filtered to a bulk set of refs."
+  gizmo_co_listGizmos(refs: [ID!]): [Gizmo_Co_Gizmo]
+    @connect(
+      source: "gizmo_co"
+      http: { GET: "/gizmos", queryParams: "refs: $args.refs" }
+      selection: "id name"
+    )
+
+  """
+  Search gizmos. The vendor documents this as a POST (its filter payload
+  is too large for a query string) but it is a read: no state changes.
+  """
+  gizmo_co_searchGizmos(phrase: String!, labels: [String!]): [Gizmo_Co_Gizmo]
+    @connect(
+      source: "gizmo_co"
+      http: {
+        POST: "/gizmos/search"
+        body: """
+        phrase: $args.phrase
+        labels: $args.labels
+        """
+      }
+      selection: "$.results { id name }"
+    )
+}
+
+type Mutation {
+  "Update a gizmo."
+  gizmo_co_updateGizmo(
+    id: ID!
+    name: String
+    memo: String
+    labels: [Gizmo_Co_LabelEntryInput!]
+    site: Gizmo_Co_SiteInput
+  ): Gizmo_Co_Gizmo
+    @tag(name: "beta")
+    @connect(
+      source: "gizmo_co"
+      http: {
+        PATCH: "/gizmos/{$args.id}"
+        body: """
+        name: $args.name
+        memo: $args.memo
+        labels: $args.labels
+        site: $args.site
+        """
+      }
+      selection: "id name"
+    )
+}

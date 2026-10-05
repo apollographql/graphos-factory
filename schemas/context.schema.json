@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/apollographql/graphos-factory/schemas/context.schema.json",
+  "title": "Customer-context requirements",
+  "description": "Optional companion to workspace.yaml, present only when an assessment has requirements to track. The generic/specialized/undecided decision itself lives in workspace.yaml's context_mode (ADR 0022). Additive capture fields preserve local artifact provenance without invalidating existing v1 files.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "intent",
+    "inputs",
+    "requirements"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": 1
+    },
+    "intent": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/snapshot"
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/requirement"
+      }
+    }
+  },
+  "$defs": {
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "byte_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Exact byte count captured before parsing. This supplements the existing raw-byte SHA-256 record."
+        },
+        "representation": {
+          "enum": ["raw", "derived", "transcribed"]
+        },
+        "authority": {
+          "enum": ["authoritative", "supporting"]
+        },
+        "format": {
+          "enum": ["opaque", "json", "yaml"]
+        },
+        "captured_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "capture_method": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "source": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "\\S" }
+        },
+        "refresh_by": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "derived_from": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["representation"] },
+          "then": {
+            "required": [
+              "id", "byte_count", "authority", "format", "captured_at",
+              "capture_method", "source", "scope"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": { "representation": { "enum": ["derived", "transcribed"] } },
+            "required": ["representation"]
+          },
+          "then": { "required": ["derived_from"] }
+        },
+        {
+          "if": {
+            "properties": { "authority": { "const": "authoritative" } },
+            "required": ["authority"]
+          },
+          "then": {
+            "properties": { "representation": { "const": "raw" } },
+            "required": ["representation"]
+          }
+        }
+      ]
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "phase",
+        "affects",
+        "reason",
+        "resolve_with",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "phase": {
+          "enum": [
+            "build",
+            "live"
+          ]
+        },
+        "affects": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "\\S"
+          }
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "resolve_with": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "status": {
+          "enum": [
+            "missing",
+            "resolved",
+            "stale"
+          ]
+        },
+        "resolution": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/snapshot"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "resolved"
+          }
+        }
+      },
+      "then": { "required": ["resolution"] }
+    }
+  }
+}

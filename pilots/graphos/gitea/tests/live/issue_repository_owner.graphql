@@ -1,0 +1,10 @@
+query {
+  gitea_issue(owner: "fixture", repo: "fixture-repo", index: 1) {
+    number
+    repository {
+      owner
+      fullName
+      ownerUser { id login htmlUrl }
+    }
+  }
+}

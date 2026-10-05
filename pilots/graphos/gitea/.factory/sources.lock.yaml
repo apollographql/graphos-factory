@@ -1,0 +1,34 @@
+contract_version: 1
+sources:
+  - kind: swagger
+    version: "2.0"
+    url: https://raw.githubusercontent.com/go-gitea/gitea/v1.25.0/templates/swagger/v1_json.tmpl
+    retrieved_at: 2026-09-10T18:40:00Z
+    path: swagger.json
+    upstream: .factory/sources/swagger.upstream.json
+    upstream_sha256: 13a4d55f0e0aed7690345d29fbaaf2c403f63484e79e4a8be47d972f15d6f45b
+    patches:
+      - op: add
+        path: "/definitions/Issue/properties/assignee/x-nullable"
+        value: true
+        reason: "The seeded instance returns null for assignee, assignees, milestone, pull_request, closed_at and due_date on an issue with none (tests/fixtures/mappings/issue.json, recorded 2026-09-10); the spec types them non-nullable. x-nullable so the conformance oracle accepts the recorded bodies."
+      - op: add
+        path: "/definitions/Issue/properties/assignees/x-nullable"
+        value: true
+        reason: "The seeded instance returns null for assignee, assignees, milestone, pull_request, closed_at and due_date on an issue with none (tests/fixtures/mappings/issue.json, recorded 2026-09-10); the spec types them non-nullable. x-nullable so the conformance oracle accepts the recorded bodies."
+      - op: add
+        path: "/definitions/Issue/properties/closed_at/x-nullable"
+        value: true
+        reason: "The seeded instance returns null for assignee, assignees, milestone, pull_request, closed_at and due_date on an issue with none (tests/fixtures/mappings/issue.json, recorded 2026-09-10); the spec types them non-nullable. x-nullable so the conformance oracle accepts the recorded bodies."
+      - op: add
+        path: "/definitions/Issue/properties/due_date/x-nullable"
+        value: true
+        reason: "The seeded instance returns null for assignee, assignees, milestone, pull_request, closed_at and due_date on an issue with none (tests/fixtures/mappings/issue.json, recorded 2026-09-10); the spec types them non-nullable. x-nullable so the conformance oracle accepts the recorded bodies."
+      - op: add
+        path: "/definitions/Issue/properties/milestone/x-nullable"
+        value: true
+        reason: "The seeded instance returns null for assignee, assignees, milestone, pull_request, closed_at and due_date on an issue with none (tests/fixtures/mappings/issue.json, recorded 2026-09-10); the spec types them non-nullable. x-nullable so the conformance oracle accepts the recorded bodies."
+      - op: add
+        path: "/definitions/Issue/properties/pull_request/x-nullable"
+        value: true
+        reason: "The seeded instance returns null for assignee, assignees, milestone, pull_request, closed_at and due_date on an issue with none (tests/fixtures/mappings/issue.json, recorded 2026-09-10); the spec types them non-nullable. x-nullable so the conformance oracle accepts the recorded bodies."

@@ -1,0 +1,1 @@
+mutation { gizmo_co_updateGizmo(id: "w1", name: "Chair", memo: "see attached", labels: [{key: "hue", value: "red"}, {key: "size", value: {measure: "cm", qty: 10}}], site: {town: "NYC", postal: "10001"}) { id name } }

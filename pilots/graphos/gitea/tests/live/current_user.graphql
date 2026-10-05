@@ -1,0 +1,8 @@
+query {
+  gitea_currentUser {
+    login
+    email
+    isAdmin
+    active
+  }
+}

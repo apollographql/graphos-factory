@@ -1,0 +1,10 @@
+query {
+  gitea_issue(owner: "fixture", repo: "fixture-repo", index: 1) {
+    number
+    title
+    state
+    user { login }
+    labels { name }
+    pullRequest { merged }
+  }
+}

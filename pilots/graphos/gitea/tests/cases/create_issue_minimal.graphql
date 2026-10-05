@@ -1,0 +1,13 @@
+# Only the required argument: the body must be exactly {"title"} — the
+# optional arguments are left out, so nothing is sent for them. (Passing them
+# as explicit null is `create_issue_nulls`; a null is dropped only by the `?`
+# on each body member, D-0007 amended, D-0019 to D-0025.)
+mutation {
+  gitea_createIssue(owner: "fixture", repo: "fixture-repo", title: "Minimal") {
+    id
+    number
+    title
+    body
+    state
+  }
+}

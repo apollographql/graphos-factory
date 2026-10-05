@@ -1,0 +1,16 @@
+operations:
+  "get:/widgets":
+    include: true
+    graphql:
+      root: query
+      name: listWidgets
+  "post:/widgets/search":
+    include: true
+    graphql:
+      root: query
+      name: searchWidgets
+  "patch:/widgets/{id}":
+    include: true
+    graphql:
+      root: mutation
+      name: updateWidget

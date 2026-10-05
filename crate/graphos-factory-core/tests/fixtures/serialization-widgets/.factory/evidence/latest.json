@@ -1,0 +1,9 @@
+{
+  "layers": {
+    "wiremock_e2e": {
+      "status": "pass",
+      "log": ".factory/evidence/runs/2026-09-17/e2e.log"
+    }
+  },
+  "operations": {}
+}

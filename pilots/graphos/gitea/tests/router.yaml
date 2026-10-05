@@ -1,0 +1,6 @@
+connectors:
+  sources:
+    gitea.gitea:
+      override_url: "http://localhost:8080"
+include_subgraph_errors:
+  all: true

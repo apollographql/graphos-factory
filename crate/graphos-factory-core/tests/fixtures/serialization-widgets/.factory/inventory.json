@@ -1,0 +1,66 @@
+{
+  "operations": [
+    {
+      "key": "get:/widgets",
+      "method": "GET",
+      "path": "/widgets"
+    },
+    {
+      "key": "post:/widgets/search",
+      "method": "POST",
+      "path": "/widgets/search",
+      "request_body": {
+        "shape_ref": "#/shapes/SearchWidgetsRequest"
+      }
+    },
+    {
+      "key": "patch:/widgets/{id}",
+      "method": "PATCH",
+      "path": "/widgets/{id}",
+      "request_body": {
+        "shape_ref": "#/shapes/UpdateWidgetRequest"
+      }
+    }
+  ],
+  "shapes": {
+    "SearchWidgetsRequest": {
+      "type": "object",
+      "properties": {
+        "term": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array"
+        }
+      }
+    },
+    "UpdateWidgetRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array"
+        },
+        "address": {
+          "$ref": "#/shapes/Address"
+        }
+      }
+    },
+    "Address": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string"
+        },
+        "zip": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

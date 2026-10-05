@@ -1,0 +1,31 @@
+[package]
+name = "graphos-factory-targets"
+description = "The product binaries: the core plus the one target each composition root registers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+name = "graphos_factory_targets"
+path = "src/lib.rs"
+
+# The binaries are `src/bin/*.rs`, found by cargo's auto-discovery: each
+# registers exactly one target, and a tree that leaves a file out builds the
+# others from this same manifest.
+
+[dependencies]
+graphos-factory-core = { path = "../graphos-factory-core" }
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+regex.workspace = true
+url.workspace = true
+time.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+# The on_pilots scaffold sweep validates the cases it writes (phase 8e).
+apollo-compiler.workspace = true

@@ -1,0 +1,738 @@
+contract_version: 2
+defaults:
+  fields: all
+  max_depth: 4
+  opaque_json_policy: forbid
+operations:
+  # ── Selected: eight operations across four resources (D-0001) ─────────────
+  "get:/version":
+    response:
+      envelope: "version"
+      confirmed: true
+    include: true
+    graphql: { root: query, name: version }   # flattened to the bare String (D-0002)
+  "get:/repos/search":
+    response:
+      envelope: "data"
+      confirmed: true
+    include: true
+    graphql: { root: query, name: searchRepos }
+    fields:
+      exclude:
+        - "data[]>allow_fast_forward_only_merge"
+        - "data[]>allow_manual_merge"
+        - "data[]>allow_merge_commits"
+        - "data[]>allow_rebase"
+        - "data[]>allow_rebase_explicit"
+        - "data[]>allow_rebase_update"
+        - "data[]>allow_squash_merge"
+        - "data[]>autodetect_manual_merge"
+        - "data[]>default_allow_maintainer_edit"
+        - "data[]>default_delete_branch_after_merge"
+        - "data[]>default_merge_style"
+        - "data[]>ignore_whitespace_conflicts"
+        - "data[]>internal_tracker"
+        - "data[]>external_tracker"
+        - "data[]>external_wiki"
+        - "data[]>repo_transfer"
+        - "data[]>parent"
+        - "data[]>mirror_interval"
+        - "data[]>mirror_updated"
+      rename:
+        "data[]>full_name": fullName
+        "data[]>languages_url": languagesUrl
+        "data[]>html_url": htmlUrl
+        "data[]>ssh_url": sshUrl
+        "data[]>clone_url": cloneUrl
+        "data[]>original_url": originalUrl
+        "data[]>stars_count": starsCount
+        "data[]>forks_count": forksCount
+        "data[]>watchers_count": watchersCount
+        "data[]>open_issues_count": openIssuesCount
+        "data[]>open_pr_counter": openPrCounter
+        "data[]>release_counter": releaseCounter
+        "data[]>default_branch": defaultBranch
+        "data[]>archived_at": archivedAt
+        "data[]>created_at": createdAt
+        "data[]>updated_at": updatedAt
+        "data[]>has_code": hasCode
+        "data[]>has_issues": hasIssues
+        "data[]>has_wiki": hasWiki
+        "data[]>has_pull_requests": hasPullRequests
+        "data[]>has_projects": hasProjects
+        "data[]>has_releases": hasReleases
+        "data[]>has_packages": hasPackages
+        "data[]>has_actions": hasActions
+        "data[]>projects_mode": projectsMode
+        "data[]>avatar_url": avatarUrl
+        "data[]>object_format_name": objectFormatName
+    pagination: { expose: [page, limit], next_cursor: null }
+  "get:/repos/{owner}/{repo}":
+    response:
+      envelope: null
+      confirmed: true
+    include: true
+    graphql: { root: query, name: repo }
+    fields:
+      exclude:
+        - "allow_fast_forward_only_merge"
+        - "allow_manual_merge"
+        - "allow_merge_commits"
+        - "allow_rebase"
+        - "allow_rebase_explicit"
+        - "allow_rebase_update"
+        - "allow_squash_merge"
+        - "autodetect_manual_merge"
+        - "default_allow_maintainer_edit"
+        - "default_delete_branch_after_merge"
+        - "default_merge_style"
+        - "ignore_whitespace_conflicts"
+        - "internal_tracker"
+        - "external_tracker"
+        - "external_wiki"
+        - "repo_transfer"
+        - "parent"
+        - "mirror_interval"
+        - "mirror_updated"
+      rename:
+        "full_name": fullName
+        "languages_url": languagesUrl
+        "html_url": htmlUrl
+        "ssh_url": sshUrl
+        "clone_url": cloneUrl
+        "original_url": originalUrl
+        "stars_count": starsCount
+        "forks_count": forksCount
+        "watchers_count": watchersCount
+        "open_issues_count": openIssuesCount
+        "open_pr_counter": openPrCounter
+        "release_counter": releaseCounter
+        "default_branch": defaultBranch
+        "archived_at": archivedAt
+        "created_at": createdAt
+        "updated_at": updatedAt
+        "has_code": hasCode
+        "has_issues": hasIssues
+        "has_wiki": hasWiki
+        "has_pull_requests": hasPullRequests
+        "has_projects": hasProjects
+        "has_releases": hasReleases
+        "has_packages": hasPackages
+        "has_actions": hasActions
+        "projects_mode": projectsMode
+        "avatar_url": avatarUrl
+        "object_format_name": objectFormatName
+  "get:/repos/{owner}/{repo}/issues":
+    response:
+      envelope: null
+      confirmed: true
+    include: true
+    graphql: { root: query, name: listIssues }
+    fields:
+      rename:
+        "[]>html_url": htmlUrl
+        "[]>is_locked": isLocked
+        "[]>original_author": originalAuthor
+        "[]>original_author_id": originalAuthorId
+        "[]>pull_request": pullRequest
+        "[]>time_estimate": timeEstimate
+        "[]>pin_order": pinOrder
+        "[]>created_at": createdAt
+        "[]>updated_at": updatedAt
+        "[]>closed_at": closedAt
+        "[]>due_date": dueDate
+    pagination: { expose: [page, limit], next_cursor: null }
+  "get:/repos/{owner}/{repo}/issues/{index}":
+    response:
+      envelope: null
+      confirmed: true
+    include: true
+    graphql: { root: query, name: issue }
+    fields:
+      rename:
+        "html_url": htmlUrl
+        "is_locked": isLocked
+        "original_author": originalAuthor
+        "original_author_id": originalAuthorId
+        "pull_request": pullRequest
+        "time_estimate": timeEstimate
+        "pin_order": pinOrder
+        "created_at": createdAt
+        "updated_at": updatedAt
+        "closed_at": closedAt
+        "due_date": dueDate
+  "post:/repos/{owner}/{repo}/issues":
+    response:
+      envelope: null
+      confirmed: true
+    include: true
+    graphql: { root: mutation, name: createIssue }   # a genuine write (D-0007)
+    tags: [write]
+    fields:
+      rename:
+        "html_url": htmlUrl
+        "is_locked": isLocked
+        "original_author": originalAuthor
+        "original_author_id": originalAuthorId
+        "pull_request": pullRequest
+        "time_estimate": timeEstimate
+        "pin_order": pinOrder
+        "created_at": createdAt
+        "updated_at": updatedAt
+        "closed_at": closedAt
+        "due_date": dueDate
+  "get:/user":
+    response:
+      envelope: null
+      confirmed: true
+    include: true
+    graphql: { root: query, name: currentUser }
+    fields:
+      rename:
+        "login_name": loginName
+        "source_id": sourceId
+        "full_name": fullName
+        "avatar_url": avatarUrl
+        "html_url": htmlUrl
+        "is_admin": isAdmin
+        "last_login": lastLogin
+        "prohibit_login": prohibitLogin
+        "followers_count": followersCount
+        "following_count": followingCount
+        "starred_repos_count": starredReposCount
+  "get:/users/{username}":
+    response:
+      envelope: null
+      confirmed: true
+    include: true
+    graphql: { root: query, name: user }
+    fields:
+      rename:
+        "login_name": loginName
+        "source_id": sourceId
+        "full_name": fullName
+        "avatar_url": avatarUrl
+        "html_url": htmlUrl
+        "is_admin": isAdmin
+        "last_login": lastLogin
+        "prohibit_login": prohibitLogin
+        "followers_count": followersCount
+        "following_count": followingCount
+        "starred_repos_count": starredReposCount
+
+  # ── Everything else the API offers is excluded for the fixture. One reason,
+  # stated once, applies to all of them (D-0001); operations the reader marks
+  # unsupported carry its reason instead.
+  # activitypub
+  "get:/activitypub/user-id/{user-id}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/activitypub/user-id/{user-id}/inbox": { include: false, reason: "pilot scope (D-0001)" }
+  # admin
+  "get:/admin/actions/jobs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/actions/runners": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/admin/actions/runners/registration-token": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/actions/runners/{runner_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/admin/actions/runners/{runner_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/actions/runs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/cron": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/admin/cron/{task}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/emails": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/emails/search": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/hooks": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/admin/hooks": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/admin/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/admin/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/orgs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/runners/registration-token": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/unadopted": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/admin/unadopted/{owner}/{repo}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/admin/unadopted/{owner}/{repo}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/users": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/admin/users": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/admin/users/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/admin/users/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/admin/users/{username}/badges": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/admin/users/{username}/badges": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/admin/users/{username}/badges": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/admin/users/{username}/keys": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/admin/users/{username}/keys/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/admin/users/{username}/orgs": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/admin/users/{username}/rename": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/admin/users/{username}/repos": { include: false, reason: "pilot scope (D-0001)" }
+  # issue
+  "get:/repos/issues/search": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/comments": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/comments/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/comments/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/issues/comments/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/comments/{id}/assets": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/comments/{id}/assets": { include: false, reason: "unsupported: request body is multipart/form-data; Apollo Connectors send JSON or form bodies" }
+  "get:/repos/{owner}/{repo}/issues/comments/{id}/assets/{attachment_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/comments/{id}/assets/{attachment_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/issues/comments/{id}/assets/{attachment_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/comments/{id}/reactions": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/comments/{id}/reactions": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/comments/{id}/reactions": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/issues/{index}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/{index}/assets": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/assets": { include: false, reason: "unsupported: request body is multipart/form-data; Apollo Connectors send JSON or form bodies" }
+  "get:/repos/{owner}/{repo}/issues/{index}/assets/{attachment_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/assets/{attachment_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/issues/{index}/assets/{attachment_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/{index}/blocks": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/blocks": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/blocks": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/{index}/comments": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/comments": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/comments/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/issues/{index}/comments/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/deadline": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/{index}/dependencies": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/dependencies": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/dependencies": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/{index}/labels": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/issues/{index}/labels": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/labels": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/labels": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/labels/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/issues/{index}/lock": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/lock": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/pin": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/pin": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/issues/{index}/pin/{position}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/{index}/reactions": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/reactions": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/reactions": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/stopwatch/delete": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/stopwatch/start": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/stopwatch/stop": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/{index}/subscriptions": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/{index}/subscriptions/check": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/issues/{index}/subscriptions/{user}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/subscriptions/{user}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/{index}/timeline": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/{index}/times": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/issues/{index}/times": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/times": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/issues/{index}/times/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/labels": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/labels": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/labels/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/labels/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/labels/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/milestones": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/milestones": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/milestones/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/milestones/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/milestones/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  # miscellaneous
+  "get:/gitignore/templates": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/gitignore/templates/{name}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/label/templates": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/label/templates/{name}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/licenses": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/licenses/{name}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/markdown": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/markdown/raw": { include: false, reason: "unsupported: request body is text/plain; Apollo Connectors send JSON or form bodies" }
+  "post:/markup": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/nodeinfo": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/signing-key.gpg": { include: false, reason: "unsupported: success response is text/plain; Apollo Connectors map JSON responses" }
+  "get:/signing-key.pub": { include: false, reason: "unsupported: success response is text/plain; Apollo Connectors map JSON responses" }
+  # notification
+  "get:/notifications": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/notifications": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/notifications/new": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/notifications/threads/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/notifications/threads/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/notifications": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/notifications": { include: false, reason: "pilot scope (D-0001)" }
+  # organization
+  "post:/org/{org}/repos": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/orgs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/orgs/{org}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/orgs/{org}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/actions/jobs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/actions/runners": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/actions/runners/registration-token": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/orgs/{org}/actions/runners/registration-token": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/actions/runners/{runner_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/orgs/{org}/actions/runners/{runner_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/actions/runs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/actions/secrets": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/orgs/{org}/actions/secrets/{secretname}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/orgs/{org}/actions/secrets/{secretname}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/actions/variables": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/orgs/{org}/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/orgs/{org}/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/orgs/{org}/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/activities/feeds": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/orgs/{org}/avatar": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/orgs/{org}/avatar": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/blocks": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/blocks/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/orgs/{org}/blocks/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/orgs/{org}/blocks/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/hooks": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/orgs/{org}/hooks": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/orgs/{org}/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/orgs/{org}/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/labels": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/orgs/{org}/labels": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/labels/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/orgs/{org}/labels/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/orgs/{org}/labels/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/members": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/members/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/orgs/{org}/members/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/public_members": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/public_members/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/orgs/{org}/public_members/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/orgs/{org}/public_members/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/orgs/{org}/rename": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/repos": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/orgs/{org}/repos": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/teams": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/orgs/{org}/teams": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/orgs/{org}/teams/search": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/teams/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/teams/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/teams/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/teams/{id}/activities/feeds": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/teams/{id}/members": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/teams/{id}/members/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/teams/{id}/members/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/teams/{id}/members/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/teams/{id}/repos": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/teams/{id}/repos/{org}/{repo}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/teams/{id}/repos/{org}/{repo}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/teams/{id}/repos/{org}/{repo}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/orgs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/orgs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/orgs/{org}/permissions": { include: false, reason: "pilot scope (D-0001)" }
+  # package
+  "get:/packages/{owner}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/packages/{owner}/{type}/{name}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/packages/{owner}/{type}/{name}/-/latest": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/packages/{owner}/{type}/{name}/-/link/{repo_name}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/packages/{owner}/{type}/{name}/-/unlink": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/packages/{owner}/{type}/{name}/{version}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/packages/{owner}/{type}/{name}/{version}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/packages/{owner}/{type}/{name}/{version}/files": { include: false, reason: "pilot scope (D-0001)" }
+  # repository
+  "post:/repos/migrate": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/artifacts": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/artifacts/{artifact_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/actions/artifacts/{artifact_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/zip": { include: false, reason: "unsupported: no success response is documented" }
+  "get:/repos/{owner}/{repo}/actions/jobs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/jobs/{job_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/jobs/{job_id}/logs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/runners": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/runners/registration-token": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/actions/runners/registration-token": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/runners/{runner_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/actions/runners/{runner_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/runs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/runs/{run}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/actions/runs/{run}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/runs/{run}/artifacts": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/runs/{run}/jobs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/secrets": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/actions/secrets/{secretname}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/actions/secrets/{secretname}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/tasks": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/variables": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/workflows": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/actions/workflows/{workflow_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/actions/workflows/{workflow_id}/disable": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/actions/workflows/{workflow_id}/enable": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/activities/feeds": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/archive/{archive}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/assignees": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/avatar": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/avatar": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/branch_protections": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/branch_protections": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/branch_protections/priority": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/branch_protections/{name}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/branch_protections/{name}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/branch_protections/{name}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/branches": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/branches": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/branches/{branch}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/branches/{branch}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/branches/{branch}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/collaborators": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/collaborators/{collaborator}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/collaborators/{collaborator}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/collaborators/{collaborator}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/collaborators/{collaborator}/permission": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/commits": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/commits/{ref}/status": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/commits/{ref}/statuses": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/commits/{sha}/pull": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/compare/{basehead}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/contents": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/contents": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/contents-ext/{filepath}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/contents/{filepath}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/contents/{filepath}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/contents/{filepath}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/contents/{filepath}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/diffpatch": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/editorconfig/{filepath}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/file-contents": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/file-contents": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/forks": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/forks": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/git/blobs/{sha}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/git/commits/{sha}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/git/commits/{sha}.{diffType}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/git/notes/{sha}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/git/refs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/git/refs/{ref}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/git/tags/{sha}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/git/trees/{sha}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/hooks": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/hooks": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/hooks/git": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/hooks/git/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/hooks/git/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/hooks/git/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/hooks/{id}/tests": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issue_config": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issue_config/validate": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issue_templates": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/issues/pinned": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/keys": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/keys": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/keys/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/keys/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/languages": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/licenses": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/media/{filepath}": { include: false, reason: "unsupported: success response is application/octet-stream; Apollo Connectors map JSON responses" }
+  "post:/repos/{owner}/{repo}/merge-upstream": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/mirror-sync": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/new_pin_allowed": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/pulls": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls/pinned": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls/{base}/{head}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls/{index}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/pulls/{index}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls/{index}.{diffType}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls/{index}/commits": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls/{index}/files": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls/{index}/merge": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/pulls/{index}/merge": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/pulls/{index}/merge": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/pulls/{index}/requested_reviewers": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/pulls/{index}/requested_reviewers": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls/{index}/reviews": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/pulls/{index}/reviews": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls/{index}/reviews/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/pulls/{index}/reviews/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/pulls/{index}/reviews/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/pulls/{index}/reviews/{id}/comments": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/pulls/{index}/reviews/{id}/dismissals": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/pulls/{index}/reviews/{id}/undismissals": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/pulls/{index}/update": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/push_mirrors": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/push_mirrors": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/push_mirrors-sync": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/push_mirrors/{name}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/push_mirrors/{name}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/raw/{filepath}": { include: false, reason: "unsupported: success response is application/octet-stream; Apollo Connectors map JSON responses" }
+  "get:/repos/{owner}/{repo}/releases": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/releases": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/releases/latest": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/releases/tags/{tag}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/releases/tags/{tag}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/releases/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/releases/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/releases/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/releases/{id}/assets": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/releases/{id}/assets": { include: false, reason: "unsupported: request body is multipart/form-data; Apollo Connectors send JSON or form bodies" }
+  "get:/repos/{owner}/{repo}/releases/{id}/assets/{attachment_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/releases/{id}/assets/{attachment_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/releases/{id}/assets/{attachment_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/reviewers": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/signing-key.gpg": { include: false, reason: "unsupported: success response is text/plain; Apollo Connectors map JSON responses" }
+  "get:/repos/{owner}/{repo}/signing-key.pub": { include: false, reason: "unsupported: success response is text/plain; Apollo Connectors map JSON responses" }
+  "get:/repos/{owner}/{repo}/stargazers": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/statuses/{sha}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/statuses/{sha}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/subscribers": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/subscription": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/subscription": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/subscription": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/tag_protections": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/tag_protections": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/tag_protections/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/tag_protections/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/tag_protections/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/tags": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/tags": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/tags/{tag}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/tags/{tag}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/teams": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/teams/{team}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/teams/{team}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/teams/{team}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/times": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/times/{user}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/topics": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/topics": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/repos/{owner}/{repo}/topics/{topic}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/topics/{topic}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/transfer": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/transfer/accept": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/transfer/reject": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{owner}/{repo}/wiki/new": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/wiki/page/{pageName}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/repos/{owner}/{repo}/wiki/page/{pageName}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/repos/{owner}/{repo}/wiki/page/{pageName}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/wiki/pages": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repos/{owner}/{repo}/wiki/revisions/{pageName}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/repos/{template_owner}/{template_repo}/generate": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/repositories/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/topics/search": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/user/repos": { include: false, reason: "pilot scope (D-0001)" }
+  # settings
+  "get:/settings/api": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/settings/attachment": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/settings/repository": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/settings/ui": { include: false, reason: "pilot scope (D-0001)" }
+  # user
+  "get:/user/actions/jobs": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/actions/runners": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/actions/runners/registration-token": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/user/actions/runners/registration-token": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/actions/runners/{runner_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/actions/runners/{runner_id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/actions/runs": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/user/actions/secrets/{secretname}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/actions/secrets/{secretname}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/actions/variables": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/user/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/user/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/actions/variables/{variablename}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/applications/oauth2": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/user/applications/oauth2": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/applications/oauth2/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/applications/oauth2/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/user/applications/oauth2/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/user/avatar": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/avatar": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/blocks": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/blocks/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/user/blocks/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/blocks/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/emails": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/user/emails": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/emails": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/followers": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/following": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/following/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/user/following/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/following/{username}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/gpg_key_token": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/user/gpg_key_verify": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/gpg_keys": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/user/gpg_keys": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/gpg_keys/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/gpg_keys/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/hooks": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/user/hooks": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/user/hooks/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/keys": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/user/keys": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/keys/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/keys/{id}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/repos": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/settings": { include: false, reason: "pilot scope (D-0001)" }
+  "patch:/user/settings": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/starred": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/starred/{owner}/{repo}": { include: false, reason: "pilot scope (D-0001)" }
+  "put:/user/starred/{owner}/{repo}": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/user/starred/{owner}/{repo}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/stopwatches": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/subscriptions": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/teams": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/user/times": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/search": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/activities/feeds": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/followers": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/following": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/following/{target}": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/gpg_keys": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/heatmap": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/keys": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/repos": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/starred": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/subscriptions": { include: false, reason: "pilot scope (D-0001)" }
+  "get:/users/{username}/tokens": { include: false, reason: "pilot scope (D-0001)" }
+  "post:/users/{username}/tokens": { include: false, reason: "pilot scope (D-0001)" }
+  "delete:/users/{username}/tokens/{token}": { include: false, reason: "pilot scope (D-0001)" }
+
+# Conformance gaps accepted by `factory codify --waive`: bodies the oracle could
+# not judge (unchecked) or could not match (unmatched), each with its reason and decision.
+waivers:
+  - where: tests/fixtures/mappings/repo_not_found.json
+    status: unchecked
+    reason: "Gitea documents no 404 body for this route; the fixture carries the body observed live on 2026-09-10 and the e2e case asserts the error mapping (D-0004)."
+    decision: D-0010
+    until: "Gitea documents the notFound response body"
+  - where: tests/fixtures/mappings/create_issue_invalid.json
+    status: unchecked
+    reason: "Gitea documents no 422 body for issue creation; the fixture carries the validation error observed live on 2026-09-10 and the e2e case asserts the mapping (D-0004)."
+    decision: D-0010
+    until: "Gitea documents the validationError response body"
+  - where: tests/fixtures/mappings/user_empty_segment.json
+    status: unmatched
+    reason: "The empty-segment GET /users/ the router sends for a null owner; the null guard maps the answer to a null ownerUser but does not skip the request (ADR 0084). No operation describes it. The body is what the seeded Gitea 1.25.0 answered with curl on 2026-09-30 (404, text/plain) (D-0018)."
+    decision: D-0018
+    until: "never: a null owner always sends this request, and no spec operation describes an empty segment"
+# ── Relationship fields (ADR 0069) ────────────────────────────────────────
+# RepositoryMeta.owner is the owner's login; the inventory's fact matched it
+# to get:/packages/{owner} (a list route), so the entry names the by-id read
+# it actually keys (D-0017). Since ADR 0085 no fact backs it at all: Gitea's
+# User spells the key `login`, so inventory links refuses get:/users/{username}.
+# The entry is a judgement, kept with a null guard (D-0018).
+links:
+  - shape: RepositoryMeta
+    path: owner
+    operation: "get:/users/{username}"
+    parameter: username
+    field: ownerUser
+    include: true
+    confirmed: true
+    reason: "owner is the login GET /users/{username} keys; the user it returns has login == owner (live case). No fact backs it since ADR 0085, whose rule looks for `username` in a response that spells it `login` (D-0017, D-0018)."
+    decision: D-0018
+  - shape: Organization
+    path: username
+    operation: "get:/users/{username}"
+    parameter: username
+    field: user
+    include: false
+    confirmed: true
+    reason: "no host: Organization is reached only through Repository.repo_transfer, which the selection excludes, and the name is the organisation's own (D-0017)"
+    decision: D-0017

@@ -1,0 +1,38 @@
+{
+  "request": {
+    "method": "PATCH",
+    "urlPath": "/gizmos/w1",
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "name": "Chair",
+          "memo": "see attached",
+          "labels": [
+            {
+              "key": "hue",
+              "value": "red"
+            },
+            {
+              "key": "size",
+              "value": {
+                "measure": "cm",
+                "qty": 10
+              }
+            }
+          ],
+          "site": {
+            "town": "NYC",
+            "postal": "10001"
+          }
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "id": "w1",
+      "name": "Chair"
+    }
+  }
+}

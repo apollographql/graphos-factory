@@ -1,0 +1,1 @@
+query { widget_co_listWidgets(ids: ["w1", "w2"]) { id name } }

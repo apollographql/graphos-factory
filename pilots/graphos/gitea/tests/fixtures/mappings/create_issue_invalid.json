@@ -1,0 +1,26 @@
+{
+  "request": {
+    "bodyPatterns": [
+      {
+        "equalToJson": "{\"title\": \"\"}"
+      }
+    ],
+    "headers": {
+      "Authorization": {
+        "equalTo": "token test-token"
+      }
+    },
+    "method": "POST",
+    "urlPath": "/repos/fixture/fixture-repo/issues"
+  },
+  "response": {
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "message": "[Title]: Required",
+      "url": "http://127.0.0.1:3000/api/swagger"
+    },
+    "status": 422
+  }
+}

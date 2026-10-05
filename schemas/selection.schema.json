@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/apollographql/graphos-factory/schemas/selection.schema.json",
+  "title": "Connector selection (.factory/selection.yaml)",
+  "description": "What the user chose. Written by the UI or by the agent on the user's instruction; read by the agent when applying. Durable: a discover run refreshes the inventory and never rewrites this file.",
+  "type": "object",
+  "required": ["contract_version", "operations"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "enum": [1, 2],
+      "description": "2 since ADR 0113: an override or waiver may carry `context`, and its `decision:` is optional. A version-1 file is read the same way and carries no `context`; every writer that adds one writes 2."
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fields": { "enum": ["all", "none"] },
+        "max_depth": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "opaque_json_policy": {
+          "enum": ["forbid", "allow_with_reason"],
+          "description": "'forbid' fails lint on any JSON scalar without a doc comment giving its reason."
+        },
+        "null_handling": {
+          "enum": ["send_null", "omit"],
+          "description": "What the connector sends when a caller passes a nullable body argument as an explicit null: send_null (the key as JSON null) or omit (the key dropped). A judgement for the whole workspace; a resolved decisions.json null_handling entry overrides it for one argument (ADR 0079)."
+        }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "description": "Keyed by inventory operation key ({method}:{path}).",
+      "patternProperties": { "^(get|put|post|delete|patch|head|options|trace):/": { "$ref": "#/$defs/entry" } },
+      "additionalProperties": false
+    },
+    "waivers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/waiver" },
+      "description": "Conformance results the engineer has accepted. `graphos-factory-core validate` reports a body it could not judge as `unchecked` (nothing to compare against) or `unmatched` (could not find the operation or read the body); a waiver names one body (`where`) or every such body of one operation (`operation`), the status it accepts, why, and the decision. Written by `graphos-factory-core codify --waive`; lint reports a waiver that matches nothing or has expired."
+    },
+    "overrides": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/override" },
+      "description": "Hand edits, codified. Each entry names a schema span (an operation key, `type:<Name>`, or `Query.<field>` / `Mutation.<field>`), says why the engineer edited it (`reason`, with optional `context`), may point at a decision, and asserts what must stay true. `graphos-factory-core reconcile` reports the span's drift from the selection instead of counting it as work, checks every assertion, and the agent may still change the span when the selection or inventory changes — as long as the assertions hold. Written by `graphos-factory-core codify`; replaces the retired `customized` list."
+    },
+    "links": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/link" },
+      "description": "Relationship fields the user chose to expose (ADR 0069): a property that carries another resource's id becomes a field on its host type, resolved by that resource's GET-by-id operation through a field-level @connect keyed by $this — no @key, no second @source, and exactly the credential that operation's root connector carries (derived from the schema at read time, never stored here). Drafted by `graphos-factory-core selection draft` from the inventory's candidate_entity_link facts with `confirmed: false`; a draft never governs until it is confirmed. Keyed by `shape` + `path`; the host GraphQL type is derived at read time from the root fields that return the shape and is never stored here."
+    }
+  },
+  "if": { "properties": { "contract_version": { "const": 1 } } },
+  "then": {
+    "properties": {
+      "overrides": { "items": { "not": { "required": ["context"] } } },
+      "waivers": { "items": { "not": { "required": ["context"] } } }
+    }
+  },
+  "$defs": {
+    "waiver": {
+      "type": "object",
+      "required": ["status", "reason"],
+      "additionalProperties": false,
+      "oneOf": [
+        { "required": ["where"], "not": { "required": ["operation"] } },
+        { "required": ["operation"], "not": { "required": ["where"] } }
+      ],
+      "properties": {
+        "where": {
+          "type": "string",
+          "description": "One body: a fixture path (`tests/fixtures/mappings/<case>.json`) or a unit entry (`tests/<suite>.connector.yaml#<entry name>`)."
+        },
+        "operation": {
+          "type": "string",
+          "pattern": "^(get|put|post|delete|patch|head|options|trace):/",
+          "description": "Every body of this inventory operation that has the accepted status."
+        },
+        "status": {
+          "enum": ["unchecked", "unmatched"],
+          "description": "The status being accepted. A waiver for `unchecked` never hides a later `unmatched`."
+        },
+        "reason": { "type": "string", "minLength": 1, "description": "Why the gap is acceptable, in one or two sentences. Surfaces in every validate report." },
+        "decision": { "type": "string", "pattern": "^D-\\d{4}$", "description": "Optional: the decisions.json decision this waiver carries out, when it is one (ADR 0113). `reason` carries the why." },
+        "context": { "type": "string", "minLength": 1, "description": "Optional background beyond the reason, in prose (`codify --context`, ADR 0113)." },
+        "until": { "type": ["string", "null"], "description": "Free text: the condition under which the waiver should be revisited (the vendor documents the shape, a spec version)." },
+        "expires": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Machine-checked: after this date lint reports the waiver as expired." }
+      }
+    },
+    "override": {
+      "type": "object",
+      "required": ["key", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^((get|put|post|delete|patch|head|options|trace):/|type:[A-Za-z_][A-Za-z0-9_]*$|(Query|Mutation)\\.[A-Za-z_][A-Za-z0-9_]*$|header$)",
+          "description": "The span: an inventory operation key, `type:<Name>`, `Query.<field>` / `Mutation.<field>`, or `header`."
+        },
+        "reason": { "type": "string", "minLength": 1, "description": "Why the edit was made, in one or two sentences. Surfaces in every reconcile report." },
+        "decision": { "type": "string", "pattern": "^D-\\d{4}$", "description": "Optional: the decisions.json decision this override carries out, when it is one (ADR 0113). `reason` carries the why." },
+        "context": { "type": "string", "minLength": 1, "description": "Optional background beyond the reason, in prose (`codify --context`, ADR 0113). Read it, with the reason, before touching the span." },
+        "assert": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/assertion" },
+          "description": "What must remain true of the span's text. Empty or absent = pinned: byte-for-byte only, and the agent must not change the span."
+        },
+        "until": { "type": ["string", "null"], "description": "Free text: the condition under which the override should be revisited (a vendor fix, a spec version)." },
+        "expires": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Machine-checked: after this date reconcile reports the override as expired and is no longer clean." }
+      }
+    },
+    "assertion": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "contains": { "type": "string", "description": "The span's text contains this, comparing runs of whitespace as one space." },
+        "not_contains": { "type": "string" },
+        "matches": { "type": "string", "description": "A regular expression the span's raw text matches." },
+        "tag": { "type": "string", "description": "The span carries @tag(name: <value>)." },
+        "arg": { "type": "string", "description": "A root field span declares this argument." },
+        "no_arg": { "type": "string" },
+        "field": { "type": "string", "description": "A type span declares this field." },
+        "no_field": { "type": "string" }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["include"],
+      "additionalProperties": false,
+      "properties": {
+        "include": { "type": "boolean" },
+        "reason": {
+          "type": ["string", "null"],
+          "description": "Why an operation is excluded. Surfaces in the README's Limitations & exclusions section."
+        },
+        "force_reason": {
+          "type": ["string", "null"],
+          "description": "Required to include an operation the inventory marks unsupported."
+        },
+        "graphql": { "$ref": "#/$defs/graphql" },
+        "response": { "$ref": "#/$defs/response" },
+        "fields": { "$ref": "#/$defs/fields" },
+        "pagination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "expose": { "type": "array", "items": { "type": "string" } },
+            "next_cursor": { "type": ["string", "null"] }
+          }
+        },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "@tag values on the root field." }
+      }
+    },
+    "response": {
+      "type": "object",
+      "description": "How this operation's payload is read. The envelope decides whether the field returns the list or the wrapper, so it is a judgement and lives here, never in inventory.json (ADR 0018). `graphos-factory-core selection draft` proposes one from the inventory's response facts and marks it `confirmed: false`; the agent confirms it with the user at `select`.",
+      "required": ["envelope"],
+      "additionalProperties": false,
+      "properties": {
+        "envelope": {
+          "type": ["string", "null"],
+          "description": "The single root property the payload's useful content sits under, or null for none (the field returns the whole body). Must name a root property of the operation's response shape."
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "false while the value is still the tool's draft: `selection draft` writes it, lint warns (`response-envelope-unconfirmed`) until the agent has agreed the envelope with the user and set it true or removed the key. Absent means confirmed — a hand-written selection is the user's word."
+        },
+        "referenced_shape": {
+          "type": "string",
+          "description": "ADR 0080: which branch of a two-branch success/error oneOf/anyOf is the actual payload, for a response the SOURCE document leaves ambiguous (inventory.json's own `response.referenced_shape` fact is absent) but a human or agent has since reviewed. A judgement, never a fact: inventory build never writes this, and recording it here never changes inventory.json. scaffold and reconcile read the inventory fact first and fall back to this only when the fact is absent."
+        }
+      }
+    },
+    "graphql": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "root": {
+          "enum": ["query", "mutation"],
+          "description": "Explicit and reviewable: the root decides what reads and what writes, so this is never derived from the HTTP method."
+        },
+        "name": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*$", "description": "Unprefixed; the field prefix is added on emit." },
+        "description": { "type": ["string", "null"] },
+        "entity": { "type": "boolean", "description": "Emit @key on the result type so other subgraphs can resolve it." },
+        "batch": { "type": "boolean", "description": "For an entity: resolve its references through a type-level `$batch` connector against the bulk-by-keys operation `graphos-factory-core batch find` reports (true), or keep the singular `$this` lookup (false, a recorded decline that silences lint's batchable-entity-unbatched). Omitted means not yet decided (ADR 0068)." },
+        "key": { "type": "string", "description": "The @key fields selection when entity is true." },
+        "type_name": { "type": ["string", "null"], "description": "Override for the generated result type name, unprefixed." }
+      }
+    },
+    "fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Field paths in the UI's `>`-separated grammar, e.g. 'incidents[]>id'. '**' means everything below."
+        },
+        "exclude": { "type": "array", "items": { "type": "string" } },
+        "rename": { "type": "object", "additionalProperties": { "type": "string" } },
+        "tags": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } }
+      }
+    },
+    "link": {
+      "type": "object",
+      "description": "One relationship. `shape`, `path`, `operation` and `parameter` reference an inventory fact and stay verifiable against it; `include`, `field`, `confirmed`, `reason` and `decision` are the judgement.",
+      "required": ["shape", "path", "operation", "include"],
+      "additionalProperties": false,
+      "properties": {
+        "shape": {
+          "type": "string",
+          "description": "The inventory shape whose property carries the foreign key, by its bare name: the key under `shapes` in inventory.json (`Song`), not a `#/shapes/Song` reference."
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^((\\[\\])+>)?[^>\\[\\]\\s]+(\\[\\])*(>[^>\\[\\]\\s]+(\\[\\])*)*$",
+          "description": "the foreign-key property's path from the shape's root as the inventory records it: wire-name segments joined by `>`, each followed by one `[]` per list level (`album_id`, `[]>album_id`, `[][]>owner_id`, `songs[]>album_id`, `matrix[][]>owner_id`, `owner>account_id`)"
+        },
+        "operation": {
+          "type": "string",
+          "pattern": "^get:/",
+          "description": "The by-id operation key the field resolves through. It must itself be included in `operations`: it is the field's provenance."
+        },
+        "parameter": {
+          "type": "string",
+          "description": "That operation's trailing path parameter, by wire name. Optional; defaults to the fact's."
+        },
+        "include": { "type": "boolean", "description": "false declines the relationship; keep the entry so the next draft does not propose it again." },
+        "field": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z0-9]*$",
+          "description": "The GraphQL field name on the host type. Absent, it is the derived name (`link_field_name`): the camelCased singular of the operation's last static path segment (`/payment_cards/{id}` → `paymentCard`), which is also what the draft writes."
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "false while the entry is still the tool's draft: `selection draft` writes it, lint warns (`link-unconfirmed`) and reconcile notes it until the agent has agreed the link with the user and set it true or removed the key. Absent means confirmed — a hand-written entry is the user's word."
+        },
+        "reason": { "type": "string", "description": "Why the relationship is exposed or declined, in one or two sentences." },
+        "decision": { "type": "string", "pattern": "^D-[0-9]{4}$", "description": "The decisions.json record that captures the context." }
+      }
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/apollographql/graphos-factory/schemas/sources-lock.schema.json",
+  "title": "Sources lock (.factory/sources.lock.yaml)",
+  "description": "Where every input to the workspace came from, and — for a pinned description document — the vendor's pristine copy, the working copy the agent and the engineer may edit, and the patch set that turns one into the other. Kinds: `openapi` (OpenAPI 3.x) and `swagger` (Swagger 2.0) are pinned documents; `docs` and `probe` record pages read and live requests made. `postman` and `har` are planned.",
+  "type": "object",
+  "required": ["contract_version", "sources"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": { "const": 1 },
+    "sources": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/document" },
+          { "$ref": "#/$defs/docs" },
+          { "$ref": "#/$defs/probe" }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "document": {
+      "type": "object",
+      "required": ["kind", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["openapi", "swagger"], "description": "openapi = OpenAPI 3.x; swagger = Swagger 2.0. `graphos-factory-core sources pin` detects it from the document." },
+        "version": { "type": "string", "description": "The version the document declares (`3.0.2`, `2.0`)." },
+        "url": { "type": "string" },
+        "retrieved_at": { "type": "string" },
+        "path": { "type": "string", "description": "The working copy, relative to the workspace root: what `inventory build` reads and what people edit. Never under `.factory/sources/` (reserved for vendor copies) and never another entry's `upstream`." },
+        "upstream": { "type": "string", "description": "The vendor's bytes as retrieved: a file directly under `.factory/sources/` (default `.factory/sources/<name>.upstream.<ext>`), never elsewhere, so `sources pin --force` cannot overwrite a working copy or the schema. Never edited: a change here is an error, not a hand edit." },
+        "upstream_sha256": { "$ref": "#/$defs/sha256", "description": "SHA-256 of the upstream file's bytes." },
+        "sha256": { "$ref": "#/$defs/sha256", "description": "Legacy: SHA-256 of the spec bytes before upstream/working copies were distinguished. Superseded by upstream_sha256; kept readable." },
+        "note": { "type": "string" },
+        "patches": {
+          "type": "array",
+          "description": "JSON Patch (RFC 6902) operations that turn the upstream document into the working copy, each with the reason it exists. Written by `graphos-factory-core codify --source`; the hand edit is refused by lint until it is here. `was` keeps the value an operation replaced or removed so a refresh can tell a vendor change from a still-valid patch.",
+          "items": {
+            "type": "object",
+            "required": ["op", "path", "reason"],
+            "additionalProperties": false,
+            "properties": {
+              "op": { "enum": ["add", "remove", "replace"] },
+              "path": { "type": "string", "pattern": "^(/.*)?$" },
+              "value": {},
+              "was": {},
+              "reason": { "type": "string", "minLength": 1 },
+              "decision": { "type": "string", "pattern": "^D-\\d{4}$", "description": "Optional: the decisions.json decision this patch carries out, when it is one (ADR 0113). `reason` carries the why." },
+              "context": { "type": "string", "minLength": 1, "description": "Optional background beyond the reason, in prose (`codify --source --context`, ADR 0113)." },
+              "verified": { "type": ["object", "string"], "description": "How the patch was verified against the real API (a recorded sample, a docs page)." }
+            }
+          }
+        }
+      }
+    },
+    "docs": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "docs" },
+        "url": { "type": "string" },
+        "retrieved_at": { "type": "string" },
+        "sha256": { "$ref": "#/$defs/sha256", "description": "SHA-256 of the page as retrieved, when the agent recorded one." },
+        "used_for": { "type": "array", "items": { "type": "string" } },
+        "note": { "type": "string" }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "probe" },
+        "base_url": { "type": "string" },
+        "retrieved_at": { "type": "string" },
+        "operations": { "type": "array", "items": { "type": "string" } },
+        "credential": { "type": "string", "description": "The environment variable's name, never its value." },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

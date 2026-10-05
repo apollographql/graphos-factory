@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "PATCH",
+    "urlPath": "/widgets/w1",
+    "bodyPatterns": [
+      {
+        "equalToJson": {}
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "id": "w1",
+      "name": "Chair"
+    }
+  }
+}

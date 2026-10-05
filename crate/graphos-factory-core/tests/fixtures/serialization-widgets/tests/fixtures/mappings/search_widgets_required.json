@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/widgets/search",
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "term": "chair"
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "results": []
+    }
+  }
+}

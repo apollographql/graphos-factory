@@ -1,0 +1,18 @@
+contract_version: 1
+defaults:
+  fields: all
+  max_depth: 4
+  opaque_json_policy: forbid
+operations:
+  "get:/media":
+    response:
+      envelope: null
+      confirmed: true
+    include: true
+    graphql: { root: query, name: media }
+  "get:/media/{id}":
+    response:
+      envelope: null
+      confirmed: true
+    include: true
+    graphql: { root: query, name: mediaById }

@@ -1,0 +1,9 @@
+# Build output of the cargo workspace.
+crate/target/
+# Raw logs of the last few evidence runs; latest.json is the record.
+pilots/*/*/.factory/evidence/runs/
+# Local workspace incarnation identity, not deterministic inventory.
+**/.factory/.root-id
+**/.factory/.root-id-*
+# Local live-layer credentials; never committed.
+**/smoke.env

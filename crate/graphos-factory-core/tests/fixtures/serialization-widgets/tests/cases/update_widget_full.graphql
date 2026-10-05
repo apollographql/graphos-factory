@@ -1,0 +1,1 @@
+mutation { widget_co_updateWidget(id: "w1", name: "Chair", note: "see attached", tags: [{key: "color", value: "red"}, {key: "size", value: {units: "cm", amount: 10}}], address: {city: "NYC", zip: "10001"}) { id name } }

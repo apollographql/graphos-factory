@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/contacts/search",
+    "bodyPatterns": [
+      {
+        "equalToJson": {
+          "query": "acme"
+        }
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "matches": []
+    }
+  }
+}
