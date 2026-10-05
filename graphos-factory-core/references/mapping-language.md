@@ -42,8 +42,9 @@ Three version numbers matter, and they are independent:
 | `@link(url: ".../federation/vX")` | `v2.15` | the schema |
 | `@link(url: ".../connect/vX")` | `v0.4` | the schema, pinned by `workspace.yaml` |
 
-The router's version (2.17) and `federation_version` are separate lines; 2.15.2
-is the newest composition release.
+The router's version (2.17) and `federation_version` are separate lines. 2.15.2
+was the newest composition release when this file was measured; 2.15.3 and
+2.15.4 have not been measured here.
 
 **`connect/v0.4` needs `federation_version` 2.13 or later**, and a
 `federation_version` accepts a `federation/` link no newer than itself:
@@ -267,7 +268,8 @@ a missing key, so `radius->match([null, …], …)` yields `null` for every
 `Rect`.
 
 **At v0.3** a union or interface is `CONNECTORS_UNSUPPORTED_ABSTRACT_TYPE`,
-and `...` fails with "Spread syntax (...) is planned for connect/v0.4". A
+and `...` fails with "Spread syntax (...) is not supported in connect/v0.3
+(use connect/v0.4)". A
 polymorphic payload is a documented JSON scalar there.
 
 **What the skill's tools see** (ADR 0058). `rover connector test` asserts a
@@ -361,9 +363,13 @@ with the leading `->`. The set is closed.
 
 ### Which methods run
 
-The router that executes the connector decides which methods exist. Router 2.17
-runs **39 of the language's 40 public methods**, whatever the
-composition pin; the one missing is `->withError`. `->typeof`, `->matchIf`,
+The router that executes the connector decides which methods exist, not
+the connect version. Routers 2.17 and 2.18 run the same **39 public
+methods**, whatever the composition pin. `->withError` and `->withWarning`
+are in no 2.x release up to 2.18.0, so do not use either. The connect
+version decides how an existing method behaves: a breaking change to a
+method applies only from the connect version that introduced it, so a
+schema opts in by moving its link. `->typeof`, `->matchIf`,
 `->has`, `->keys` and `->values` are not exposed at any release, so never reach
 for them however they are documented elsewhere. An unavailable method is
 neither a build error nor a runtime error: the field comes back `null`.
@@ -395,14 +401,21 @@ values, `->not` inverts.
 **Combining conditions inside `->filter` or `->find` needs `->as`.** `@` rebinds in
 every method, so in `@.active->and(@.age->gt(30))` the inner `@` is the boolean
 `@.active`, and the router returns `null` for the whole field with no error.
-Bind the element first:
+If the first condition is itself a method call (`@.a->eq("x")->and(…)`),
+composition fails instead, with a misleading `CONNECTORS_UNRESOLVED_FIELD`
+on every field of the type. Bind the element first:
 
 ```graphql
 adults: users->filter(@->as($u)->echo($u.active)->and($u.age->gt(30)))
 ```
 
-Chaining two filters, `users->filter(@.active)->filter(@.age->gt(30))`, gives
-the same result and is easier to read when the conditions are independent.
+Use the `->as` form unless the router the service runs on is 2.18.0 or
+later. Before 2.18.0, a `->filter` or `->find` after another list-producing
+method, followed by a sub-selection
+(`users->filter(@.active)->filter(@.age->gt(30)) { id name }`,
+`users->filter(@.active)->find(@.age->gt(30)) { id name }`), composes, and
+then the router will not start ("… all of its members are @inaccessible").
+Without a sub-selection (`…->filter(…)->map(@.name)`) the chain works.
 
 ### Strings
 

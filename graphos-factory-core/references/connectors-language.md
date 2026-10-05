@@ -6,7 +6,11 @@ connector. The mapping language that goes *inside* them (`selection`, `body`,
 [mapping-language.md](mapping-language.md).
 
 The hosted GraphOS MCP server's `ApolloConnectorsSpec` tool has worked
-examples worth reading.
+examples worth reading, but it is written for `connect/v0.3` and
+federation 2.12. Some of its rules (every literal needs `$( )`, a bare-brace
+body does not compose) hold only at v0.3, and its `rover connector run` step
+is not evidence ([testing.md](testing.md)). Where it disagrees with this
+file, this file wins.
 
 ## Linking the spec
 
@@ -17,7 +21,9 @@ extend schema
 ```
 
 That is the target: `connect/v0.4`, composed at `federation_version: =2.15.2`,
-served by Apollo Router 2.17. A workspace created before the move may still
+served by Apollo Router 2.17. Since Router 2.18.0, v0.4 is no longer a
+preview version (Router 2.16.0 and later need no opt-in for it). Never link `connect/v0.5` unless the user asks for it
+([v0.5](#v05-preview-do-not-link)). A workspace created before the move may still
 link `federation/v2.12` and `connect/v0.3` at `federation_version: =2.12.0`
 until someone moves the pin
 ([mapping-language.md](mapping-language.md#moving-a-workspace-from-v03-to-v04)),
@@ -234,6 +240,25 @@ read through the selection, so `pet { id: pet_id }` carries `id`.
 
 Only make a type an entity when a decision records why in `decisions.json`
 (`graphos-factory-core decisions`); entities widen the supergraph's contract.
+
+### At v0.4, a `Query` connector can hijack entity resolution
+
+Suppose an entity has a type-level `@connect` that resolves it from `$this`
+or `$batch`,
+and a `Query` field `@connect` (mapping from `$args`, without
+`entity: true`) also returns that type. At v0.4 the router may resolve
+references to the entity through the `Query` connector. `$args` is empty
+there, so the request goes out without its parameters and fails, usually as
+a `400` reported as `CONNECTOR_FETCH`. v0.3 does not do this, so changing
+only the `@link` to v0.4 can break a schema that worked.
+
+The fix ([router#9853](https://github.com/apollographql/router/pull/9853))
+is not in a release yet; Router 2.18.0 does not have it. Whether a given
+schema misroutes is up to the query planner, so a passing run does not
+prove it is safe. An e2e case whose stub for the entity's own connector is
+`x-required` catches it ([testing.md](testing.md)).
+[Finding a `$batch` candidate](#finding-a-batch-candidate) has a case where
+it happened.
 
 ## Relationship fields
 
@@ -718,11 +743,10 @@ through another Query connector on the type (`GET /listing/amenities`,
 then `GET /amenities/listings` once that field was removed), not through
 the `$batch` connector. The cause is a router bug, fixed on `dev` by
 [apollographql/router#9853](https://github.com/apollographql/router/pull/9853)
-(6826337d91, merged 2026-09-16) and in no release as of 2026-09-29: the
-v0.4 connector expansion copies the type's `@key` as resolvable onto every
-root connector that returns it, so the planner may resolve references
-through any of them — a Mutation connector included (a read of
-`userListings { id amenities { id } }` sent `POST /listings`). v0.3 is not
+and not yet in a release (Router 2.18.0 does not have it); see
+[At v0.4, a `Query` connector can hijack entity resolution](#at-v04-a-query-connector-can-hijack-entity-resolution).
+On this fixture a Mutation connector was used too: a read of
+`userListings { id amenities { id } }` sent `POST /listings`. v0.3 is not
 affected. Until the pinned router contains that commit, a `$batch` draft is
 proven at v0.3 only; on v0.4 the `x-required` case catches the misroute.
 
@@ -753,8 +777,9 @@ and 2.15.2 but not at 2.14.0
 - **A looser mapping grammar**: comma-separated selection lists, literals
   written bare after an alias (`kind: "Book"`), operator chains without `$( )`,
   bare-brace request bodies, and `...` spread.
-- Not more methods: those belong to the router, not the spec. Router 2.17
-  runs 39 of the 40 whichever connect version the schema links
+- Not new methods. Methods arrive with router releases, not connect
+  versions, but a breaking change to an existing method applies only from
+  the connect version that introduced it
   ([mapping-language.md](mapping-language.md#which-methods-run)).
 
 One piece of that grammar changes meaning silently: at v0.3 a quoted string,
@@ -762,13 +787,32 @@ One piece of that grammar changes meaning silently: at v0.3 a quoted string,
 v0.4 it is a literal. [mapping-language.md](mapping-language.md) has the
 details and how to move a v0.3 workspace with `connect-migrate`.
 
+## v0.5: preview, do not link
+
+Router 2.18.0 (2026-09-30) added `connect/v0.5` as a preview spec version.
+The router will not start with a schema that links it unless `router.yaml`
+sets `connectors.preview_connect_v0_5: true`. Nothing here sets that or has
+run a v0.5 schema, so stay on v0.4 unless the user asks for v0.5, and record
+the decision.
+
+Its main behaviour change: a response whose shape does not match the
+field's type (an object where a list is declared, the reverse, or `null` for
+a non-null field) is a `CONNECTORS_RESPONSE_SHAPE` error instead of a silent
+`null`. At v0.4 those mismatches pass without an error, so a test has to
+assert the mapped values, not just the absence of errors
+([testing.md](testing.md)).
+
 ## What connectors cannot express
 
 Record any of these as `unsupported` or `needs_review` in the inventory
 rather than approximating them:
 
 - A non-JSON response body (NDJSON, CSV, binary, SSE streams).
-- `deepObject` / exploded object query parameters.
+- Query parameters whose keys are open-ended (a `deepObject` or exploded
+  object with `additionalProperties`). A `deepObject` that declares its
+  properties is expressible by spelling each key, quoted:
+  `"filter[status]": $args.status`. Passing a whole input object
+  (`filter: $args.f`) composes but fails every request at runtime.
 - Object-valued arguments in a `rover connector test` unit entry — see
   [testing.md](testing.md); the write still works at runtime, it just
   cannot be asserted at that layer.

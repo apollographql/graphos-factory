@@ -413,6 +413,14 @@ Stub bodies answer an **expansion boundary** the way the source does:
 - **`rover connector test` exits 0 even when suites fail.** The
   `TEST RESULTS: FAILED` / `SUCCESSFUL` summary line is the verdict;
   `unit.sh` reads it and fails closed when no summary appears at all.
+  [rover#3746](https://github.com/apollographql/rover/pull/3746) makes it
+  exit 1 but is not released yet (rover 0.41.0 is current); keep reading the
+  summary line either way.
+- **Never cite `rover connector run` as evidence.** When the connector
+  fails it still exits 0, and `--format json` says `"success": true`;
+  mapping problems and 4xx/5xx responses do not fail it either. Use it to
+  look at one request by hand, and prove the connector with a unit or e2e
+  case.
 - **Remove `"persistent": true` from any imported mapping.** WireMock
   restores persistent stubs after the `POST /__admin/reset` the runner does
   between cases, so stubs accumulate and an earlier fixture answers a later
