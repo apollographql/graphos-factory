@@ -1,8 +1,8 @@
 # Contract schemas
 
 JSON Schemas for the nine machine-readable files in a service workspace's
-`.factory/` directory. They are the **UI ↔ skill interface**: the UI writes
-`selection.yaml` and reads `inventory.json` and `evidence/latest.json`, and
+`.factory/` directory. They are also the **interface between the skill and
+any host UI**: such a UI writes `selection.yaml` and reads `inventory.json` and `evidence/latest.json`, and
 the skill refuses to act on a file that does not satisfy its schema.
 
 Each schema's `$id` is `https://github.com/apollographql/graphos-factory/schemas/<file>`:
@@ -14,7 +14,7 @@ name; nothing fetches it.
 |---|---|---|
 | [`workspace.schema.json`](workspace.schema.json) | `.factory/workspace.yaml` | the skill, at `init` |
 | [`inventory.schema.json`](inventory.schema.json) | `.factory/inventory.json` | `graphos-factory-core inventory`, at `discover` |
-| [`selection.schema.json`](selection.schema.json) | `.factory/selection.yaml` | the user, the UI, or the skill on the user's instruction |
+| [`selection.schema.json`](selection.schema.json) | `.factory/selection.yaml` | the user (by hand or through a host UI), or the skill on the user's instruction |
 | [`evidence.schema.json`](evidence.schema.json) | `.factory/evidence/latest.json` | the skill, at `validate` |
 | [`applied-lock.schema.json`](applied-lock.schema.json) | `.factory/applied.lock.yaml` | `graphos-factory-core lock` at the end of every `apply`. New locks include optional skill, binary, toolchain, input, and output provenance. |
 | [`sources-lock.schema.json`](sources-lock.schema.json) | `.factory/sources.lock.yaml` | the skill at `init` and `discover` (docs/probe entries); `graphos-factory-core sources pin` (kind, version, upstream, hashes) and `codify --source` (`patches`) for pinned documents |

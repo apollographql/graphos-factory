@@ -2,13 +2,15 @@
 //! records the name, a workspace runs against the target its `skill.name`
 //! names, the two `@source` rules this target relaxes, the
 //! `supergraph_check` evidence layer, `--help` grouping its commands, and a
-//! workspace naming no registered target refused. One binary, as each
-//! suite is (ADR 0061).
+//! workspace naming no registered target refused, and `export` (its own
+//! module, `export.rs`). One binary, as each suite is (ADR 0061).
 //!
 //! It runs the `graphos-factory` binary, which registers this target
 //! alone (phase 8f), and passes in the public tree, which builds no other.
 //! What needs the other product's binary beside this one is the other
 //! target's suite's (`targets.rs` there).
+
+mod export;
 
 use graphos_factory_targets::targets::graphos::{self, TARGET};
 use serde_json::Value;
@@ -85,16 +87,17 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 #[test]
-fn the_target_is_a_skeleton_with_the_cores_two_placeholders() {
+fn the_target_has_the_cores_two_placeholders_and_one_command() {
     assert_eq!(TARGET.name, "graphos-factory");
     assert_eq!(TARGET.placeholders, &["BASE_URL", "AUTH_EXPR"]);
     assert!(TARGET.variables_file_required);
     assert!(TARGET.required_files.is_empty());
     assert!(TARGET.output_files.is_empty());
-    assert!(TARGET.commands.is_empty());
+    let commands: Vec<&str> = TARGET.commands.iter().map(|c| c.name).collect();
+    assert_eq!(commands, vec!["export"]);
     assert!(TARGET.lint_rules.is_empty());
     assert!((TARGET.tag_vocabulary)().is_empty());
-    assert!(TARGET.export_gate.is_none());
+    assert!(TARGET.export_gate.is_some());
     assert!(TARGET.embedded_schemas.is_empty());
     assert!(TARGET.compose.federation_spec_version.is_none());
     assert_eq!(
@@ -349,9 +352,8 @@ fn help_lists_this_target_under_its_name() {
             .find(needle)
             .unwrap_or_else(|| panic!("{} missing: {}", needle, stdout))
     };
-    assert!(
-        at("\n  error-statuses ") < at("\n  [target graphos-factory]  no commands of its own\n")
-    );
+    assert!(at("\n  error-statuses ") < at("\n  [target graphos-factory]\n"));
+    assert!(at("\n  [target graphos-factory]\n") < at("\n  export "));
     assert!(stdout.ends_with("\n  version\n"), "{}", stdout);
     // init's own usage names the flag that picks one.
     let (code, stdout, _) = run(&["init", "--help"]);

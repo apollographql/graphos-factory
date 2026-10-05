@@ -173,7 +173,7 @@ fn selection_rejects_the_retired_customized_list_and_malformed_overrides() {
     );
 }
 
-/// ADR 0073, Adam's rule: a per-field reason is a decisions.json record, so
+/// ADR 0073, the decisions-only rule: a per-field reason is a decisions.json record, so
 /// the selection has no `json_fields` map (nor a `json_reasons` one).
 #[test]
 fn selection_refuses_a_per_field_json_reason() {

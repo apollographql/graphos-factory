@@ -234,7 +234,7 @@ fn lint_schema(
             findings.error(
                 "unknown-placeholder",
                 format!(
-                    "{{{{{}}}}} is not one of this target's placeholders ({}); unknown placeholders fail the render",
+                    "{{{{{}}}}} is not one of this target's placeholders ({}); an unknown placeholder cannot be rendered",
                     p.name,
                     target.placeholders.join(", ")
                 ),
@@ -2129,7 +2129,7 @@ fn suite_targets(suites: &[PathBuf]) -> HashSet<String> {
 /// lints clean. Unlike `missing-unit`, the unit half is asked for when the
 /// workspace has no suite at all, so a field with no test of either kind
 /// reads as having neither. A warning, as `missing-unit` is: the
-/// tests are hand-written until Phase 7as (c)/(d) scaffolds them, and a
+/// tests are hand-written until `scaffold` drafts them, and a
 /// field with neither is reported as not validated (ADR 0069), which the
 /// message and evidence's report both say.
 fn lint_link_coverage(dir: &Path, sdl: &str, schema_file: &str, findings: &mut Findings) {
@@ -2215,7 +2215,7 @@ fn lint_link_coverage(dir: &Path, sdl: &str, schema_file: &str, findings: &mut F
         findings.warn(
             "link-untested",
             format!(
-                "{} is a relationship field with {}; {} — write {} by hand (connectors-language.md § Relationship fields; Phase 7as (c)/(d) will scaffold them)",
+                "{} is a relationship field with {}; {} — write {} by hand (connectors-language.md § Relationship fields; `scaffold` does not draft them yet)",
                 coordinate,
                 missing.join(" and "),
                 if missing.len() == 2 {

@@ -616,7 +616,7 @@ Learned on the pagerduty pilot (rover 0.40.0); each cost a run to find.
   `@connect` keyed by `$this` (connectors-language.md § Relationship
   fields) — with `target: "<Type>.<field>"`, `variables.$this` carrying the
   host's foreign-key field and, under per-call auth, `variables.$args` the
-  mirrored credential. Until Phase 7as (c)/(d), `scaffold` drafts neither
+  mirrored credential. `scaffold` does not yet draft either
   test and `evidence/latest.json` has no row for the field: write this unit
   entry by hand, and one e2e case selecting the parent root field with the
   nested field inside it, served by a WireMock mapping for the by-id GET
@@ -906,10 +906,8 @@ word immediately before them to be credential-shaped when compound; a bare
 still fires unconditionally.
 
 **No layer runs an OAuth flow.** Every layer here renders
-`{{AUTH_EXPR}}` from one env var; a link → exchange → refresh loop runs
-only on a deployed runtime. A target that drafts and lints a signed-in
-caller's OAuth configuration checks its structure only: report such a
-workspace as validated on its shared-credential path, with that
+`{{AUTH_EXPR}}` from one env var, so an OAuth configuration a workspace
+carries is checked for structure only: report such a workspace as validated on its shared-credential path, with that
 configuration unverified — never as validated end to end.
 
 ## What the conformance oracle could not judge

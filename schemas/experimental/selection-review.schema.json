@@ -30,7 +30,7 @@
     },
     "changed_sections": {"type": "array", "items": {"enum": ["defaults", "overrides", "waivers", "links"]}},
     "unconfirmed_responses": {"type": "array", "items": {"type": "string"}},
-    "unconfirmed_links": {"type": "array", "items": {"type": "string"}, "description": "`<shape> > <path>` of every included link still marked confirmed: false in the candidate (ADR 0069). Emitted by `selection review` from Phase 7as (b) on."},
+    "unconfirmed_links": {"type": "array", "items": {"type": "string"}, "description": "`<shape> > <path>` of every included link still marked confirmed: false in the candidate (ADR 0069). Emitted by `selection review`."},
     "query_write_decisions": {"type": "array", "items": {"type": "string"}}
   },
   "if": {"required": ["candidate_yaml"]},

@@ -3,7 +3,7 @@
 //! against a recorded reason on a **resolved** `.factory/decisions.json`
 //! record (a `json_reasons` entry, ADR 0073), from the closed vocabulary in
 //! [`REASONS`]. The reason lives in decisions, never in `selection.yaml` or
-//! a schema doc comment: Adam's rule, the same one `null_handling` (ADR
+//! a schema doc comment: the decisions-only rule, the same one `null_handling` (ADR
 //! 0070) already follows — a reason interleaved with the schema the agent
 //! reads to author was mistaken for an instruction or a fact.
 //!
@@ -747,7 +747,7 @@ struct JsonReasonEntry {
 /// Every `json_reasons` entry on a **resolved** decision in
 /// `.factory/decisions.json` (ADR 0073). An open or superseded record's
 /// entries do not count; the schema/selection are never read for this —
-/// per-field reasons live only here (Adam's rule).
+/// per-field reasons live only here (the decisions-only rule).
 fn json_reason_decisions(doc: &Value) -> Vec<JsonReasonEntry> {
     get_arr(doc, "decisions")
         .into_iter()
@@ -791,7 +791,7 @@ pub fn build(dir: &Path) -> Result<Report, String> {
     let sdl = read_schema(dir, &schema_file)?;
 
     // Per-field reasons live only in decisions.json, never selection.yaml or
-    // a schema doc comment (ADR 0073, Adam's rule). A missing log is normal
+    // a schema doc comment (ADR 0073, the decisions-only rule). A missing log is normal
     // (no reason has ever been recorded), same as a missing selection used
     // to be for this instrument.
     let json_reasons = match crate::decisions::load_present(dir, None)
@@ -1089,7 +1089,7 @@ type Query {
         assert!(err.contains("decisions.json"), "{}", err);
     }
 
-    /// ADR 0073 / Adam's rule: only a **resolved** decision's `json_reasons`
+    /// ADR 0073, the decisions-only rule: only a **resolved** decision's `json_reasons`
     /// count. An open record's entry is exactly as if nothing were recorded.
     #[test]
     fn only_a_resolved_decisions_json_reasons_count() {

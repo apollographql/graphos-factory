@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/apollographql/graphos-factory/schemas/selection.schema.json",
   "title": "Connector selection (.factory/selection.yaml)",
-  "description": "What the user chose. Written by the UI or by the agent on the user's instruction; read by the agent when applying. Durable: a discover run refreshes the inventory and never rewrites this file.",
+  "description": "What the user chose. Written by the user (by hand or through a host UI) or by the agent on the user's instruction; read by the agent when applying. Durable: a discover run refreshes the inventory and never rewrites this file.",
   "type": "object",
   "required": ["contract_version", "operations"],
   "additionalProperties": false,
@@ -195,7 +195,7 @@
         "include": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Field paths in the UI's `>`-separated grammar, e.g. 'incidents[]>id'. '**' means everything below."
+          "description": "Field paths in a `>`-separated grammar, e.g. 'incidents[]>id'. '**' means everything below."
         },
         "exclude": { "type": "array", "items": { "type": "string" } },
         "rename": { "type": "object", "additionalProperties": { "type": "string" } },

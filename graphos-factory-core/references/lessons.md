@@ -25,9 +25,8 @@ before the next apply; it is never silently corrected.
 
 Deriving an authorization decision from schema shape (grep for
 `type Mutation` → enable writes) reads as a safe default, but no human ever
-approved it and it moves silently when the schema moves. It disabled the
-entire write surface of every service for weeks while every check stayed
-green.
+approved it and it moves silently when the schema moves: the decision flips
+with no diff for anyone to review, while every check stays green.
 
 **Rule:** decisions with a blast radius live in a committed file where they
 appear in a diff — `selection.yaml`, `decisions.json`, a target's own config — not in
@@ -35,11 +34,12 @@ a heuristic.
 
 ## Config surfaces need executed verification too
 
-Five layers of schema testing all stopped at the router, so the generated
-MCP config had zero executed coverage and shipped broken.
+When every layer of schema testing stops at the router, a configuration file
+generated for something downstream has no executed coverage and can ship
+broken with every check green.
 
 **Rule:** anything generated that something else consumes — router config,
-MCP config, what a target hands on — needs a test that executes it, not one that
+generated client or tool config, what a target hands on — needs a test that executes it, not one that
 inspects it.
 
 ## Untyped beats unreachable

@@ -1,53 +1,171 @@
-# Federation subgraph: entities and composition
+# Federation subgraph: versions, directives, composition
 
-This reference is owned by the next pass, the one that writes the
-graphos-factory instructions, and it is not written yet. This page holds
-the open questions so that pass has a place to answer them. Nothing below is
-a decision, and an agent following this skill must not treat a question as
-guidance.
+A subgraph this target builds joins a supergraph the user already runs. Their
+router and their build pipeline decide what the schema may use. The layers
+run one pinned toolchain, and a pass at that pin says nothing yet about the
+user's graph. Read this before `init` and before adding any Federation
+directive beyond what the core references describe.
 
-## Which operations become entities, and which directives apply
+## Versions: the user's graph decides, not the toolchain
 
-The question has two halves. First, which operations become `@key` entities
-by default: every GET-by-id that the inventory finds, only those a person
-selects, or only those another selected type refers to. Second, when each of
-`@shareable`, `@external`, `@requires` and `@provides` applies to a field
-the skill generates, and what in a workspace tells the skill to apply it.
-This touches `connectors-language.md § Entities` (in the shared core), which
-today describes the entity form (`@key` plus a type-level `@connect`) and the
-`resolvable_key` rule, and it touches the `entity-*` lint rules, which assume
-a subgraph that owns each entity it declares.
+Before `init`, ask the user for two versions, and record each answer as a
+decision (`graphos-factory-core decisions add`, then `decisions resolve` with
+what they said):
 
-## A relationship field whose target type lives in another subgraph
+1. The Apollo Router version serving the supergraph. With several
+   deployments, the oldest one counts.
+2. The federation version the variant's build pipeline composes with (the
+   `federation_version` of their composition, or the version GraphOS builds
+   the variant at).
 
-Today the `links:` block in `selection.yaml` proposes a field that points at
-a type this same subgraph owns, and `links apply --dry-run` prints the
-field-level `{$this.<fk>}` connector for it. The question is how a link
-differs when the target type is defined in another subgraph: whether the
-field returns a stub entity carrying only the key, whether the target type
-is declared here with `@key(resolvable: false)`, and whether the host-type
-and credential checks in the `link-*` lint rules still apply when no
-by-id connector exists in this subgraph. The `links:` block, its lint rules
-and the `candidate_entity_link` fact in the inventory are all in the core.
+Pick the connect spec from Apollo's documented minimums
+([version requirements](https://www.apollographql.com/docs/graphos/connectors/getting-started/version-requirements)):
 
-## More than one `@source` in a workspace
+| `connect/` | Apollo Router at least | build pipeline at least |
+|---|---|---|
+| `v0.4` | 2.15.0 | 2.14.1 |
+| `v0.3` | 2.8 | 2.12 |
+| `v0.2` | 2.3 | 2.11 |
+| `v0.1` | 2.0 | 2.10 |
 
-The core models one host and one credential per workspace, and its lint
-reports a second `@source` as a finding whose severity a target sets. A
-Federation subgraph can legitimately wrap several upstream hosts, so the
-question is whether this target models multiple sources at all, and if so
-what changes: the workspace contract's single `source` entry, the
-`{{BASE_URL}}`-style variables per source, the per-source credential, and the
-unit and end-to-end fixtures that name a source. Until this is answered the
-target reports a second `@source` as a warning (`multiple-sources`, downgraded
-from the core's error) and turns `commented-source` off: unmodelled, not
-forbidden.
+- Use the newest connect spec that both of the user's versions meet, and
+  never `v0.5` (a preview: connectors-language.md § v0.5). Below Router
+  2.16.0, `v0.4` was still a preview the router had to opt into
+  (connectors-language.md § Linking the spec); ask whether their router
+  configuration does.
+- Link `federation/vX.Y` no newer than the version their pipeline composes
+  with. A link older than the workspace's `federation_version` pin is
+  recorded as `federation_spec_version` (workspace-contract.md).
+- `init` writes `connect/v0.4` and `federation_version: "2.15.2"`, and the
+  layers run Apollo Router 2.17.0 (`toolchain.sh`). When the user's router
+  is older than 2.15.0 or their pipeline older than 2.14.1, do not ask them
+  to upgrade production to fit one subgraph. Move the workspace to `v0.3`
+  instead: run mapping-language.md § Moving a workspace from v0.3 to v0.4
+  in reverse. Set `connect_spec: v0.3` and a `federation_version` no newer
+  than their pipeline (`"2.12.0"` is the pin earlier workspaces used) in
+  `.factory/workspace.yaml` and `supergraph.yaml`, link `connect/v0.3`, and
+  rewrite what v0.3 reads differently or cannot parse: mapping-language.md
+  § Literals (a quoted string, `true`, `false` or `null` after an alias reads
+  a property at v0.3), § Abstract types (no unions or interfaces; a
+  documented JSON scalar instead) and § What v0.3 lacks. Record the move as
+  a decision, then compose and run the e2e layer.
+- Below Router 2.8 or a pipeline below 2.12, nothing in this skill has been
+  run. Say so and ask the user before going further.
+- Every report names both sides: the pins the layers ran at (connect spec,
+  `federation_version`, router 2.17.0) and the versions the user runs. Where
+  they differ, the layers' result is evidence at the pin only. The subgraph
+  is unverified on the user's versions, never a pass.
 
-## Directive imports in `ComposeConfig`
+## Directives a connector subgraph may carry
 
-A related open point is which directives the generated `@link` must import
-for this target, and whether the Federation spec version is pinned or taken
-from the user's existing graph. `ComposeConfig` supplies both, together with
-any extra compose inputs, and the core's `federation-drift` lint checks the
-import list against it. A second `@source` would also change what compose
-has to be given.
+Apply each of these only after the user has answered the question it raises
+and you have recorded the answer as a decision. Never add one speculatively,
+"in case".
+
+Every directive the schema applies must be in the federation `@link`'s
+`import` list. Compose rejects one that is not ("add "@inaccessible" to the
+`import` argument of the @link"). Lint's `federation-drift` checks the import
+only for `@key`, `@shareable`, `@requires`, `@provides` and `@external`; for
+any other directive the compose layer is the check.
+
+Measured at `federation_version` 2.15.2 with Apollo Router 2.17.0 and no
+license: `@inaccessible`, `@listSize` and `@cost` compose, and the router
+starts and serves them. `@authenticated` and `@requiresScopes` compose, but
+the router refuses to start ("license violation, the router is using
+features not available for your license").
+
+- **`@inaccessible`** hides a field from clients while the router can still
+  fetch it. Two uses:
+  - Staging a new root field: ship it inaccessible, and remove the directive
+    when the user says clients may use it.
+  - Hiding a foreign-key field kept only so a relationship field can read it
+    through `$this`. Measured: a field-level connector reading
+    `$this.owner_id`, with `owner_id` inaccessible, resolves.
+
+  An e2e or live case cannot select an inaccessible field (the router
+  answers `GRAPHQL_VALIDATION_FAILED`, "Cannot query field"), so test it
+  through the field that reads it.
+- **`@shareable`**: only when the user's other subgraph defines the same
+  type and field, and only after they name it. This subgraph's prefixed
+  types never collide with another subgraph's, so the need is rare. Fields in
+  an entity's `@key` are already shareable and need no directive.
+- **`@listSize`** and **`@cost`**: only when the user's router enforces
+  demand control
+  ([demand control](https://www.apollographql.com/docs/graphos/routing/security/demand-control)),
+  a feature tied to their plan (ask them to check theirs). On a list field
+  whose size an argument sets, write
+  `@listSize(slicingArguments: ["limit"])`. Add
+  `requireOneSlicingArgument: false` when that argument is optional, because
+  the default is `true` and the router would then reject a query that
+  omits it. On a field returning an object that wraps the list, add
+  `sizedFields: ["<list field>"]`. When the API fixes the page size, write
+  `assumedSize:` instead. Take the values from the inventory, never a guess:
+  the operation's `pagination.size_param` names the argument, and that
+  parameter's `default` and `maximum` are the source's numbers (lint's
+  `pagination-bounds-unknown` already warns when the source documents
+  neither). With neither documented, ask the user for the number and record
+  it. `@cost(weight:)` likewise: only a weight the user gives you.
+- **`@authenticated`, `@requiresScopes`, `@policy`**: the router enforces
+  them whichever subgraph carries them, and only with router authorization
+  configured (JWT authentication or a coprocessor supplying the claims). The
+  connector calls the vendor with one service credential, so every caller
+  the supergraph lets through reads with that credential. Ask whether a field
+  must require the router's authentication, and use only scope or policy
+  names the router already checks. These are licensed router features: the
+  user should check their plan, and the layers' unlicensed router does not
+  start with them (above; `@policy` was not measured). A workspace carrying
+  one cannot pass e2e or live today. Record the requirement as a decision,
+  leave the directive out of the workspace schema, and tell the user it is a
+  change they make in their own graph, outside what this skill validated.
+- **`@tag`**: see § `@tag` and contracts.
+- **`@key`** and the entity form are in connectors-language.md § Entities.
+  `@requires` with `@external`, and `@provides`, only mean something across
+  subgraphs, which this target does not build yet (§ Open).
+
+### Never
+
+- `@context` or `@fromContext`: connectors do not support them.
+- `@cacheTag`, or any reliance on entity caching: the router's entity
+  cache does not fully support connectors.
+- `@connect` on a `Subscription` field: connectors serve `Query` and
+  `Mutation` only.
+- `@override` that moves a field from this connector subgraph back to a
+  resolver subgraph. Connectors support `@override` only in the other
+  direction.
+- A `@provides` claiming fields the connector's response does not carry.
+
+The connector-side list is Apollo's
+[limitations](https://www.apollographql.com/docs/graphos/connectors/reference/limitations).
+
+## Open
+
+These are not answered yet. Do not promise them to the user and do not fake
+them.
+
+- **Cross-subgraph entities: not supported yet.** Apollo documents adding
+  fields to another subgraph's entity by declaring the owner's type, with
+  its exact name and `@key`, and a field-level `@connect` keyed by `$this`
+  ([entities across subgraphs](https://www.apollographql.com/docs/graphos/connectors/entities/across-subgraphs)).
+  In this skill that fails lint: `type-prefix` is an error on the
+  unprefixed type, and its resolvable `@key` fails `entity-without-lookup`,
+  which wants a by-id lookup this subgraph does not have. So types this subgraph does not own
+  cannot be extended, and a `resolvable: false` stub must carry this
+  subgraph's prefix today. A cross-subgraph join is done from the other
+  subgraph's side, or deferred. The same holds for `@requires`/`@external`,
+  `@provides` and `@interfaceObject` (which connectors support from
+  `connect/v0.4` only), and for an `@override` migration of a field from a
+  resolver subgraph into this one. A `links:` entry whose target type lives
+  in another subgraph is open for the same reason.
+- **Which operations become entities by default**: every GET-by-id the
+  inventory finds, only those the user selects, or only those another
+  selected type refers to. The `entity-*` lint rules assume this subgraph
+  owns each entity it declares.
+- **More than one `@source`.** Connectors allow several; the layers render
+  one host and one credential, so this target reports a second `@source` as
+  a warning (`multiple-sources`) and turns `commented-source` off:
+  unmodelled, not forbidden. Modelling it would change the workspace's
+  single `source` entry, the per-source variables and credential, and the
+  fixtures that name a source.
+- **The import list and the federation version.** Whether lint should check
+  imports beyond the five above, and whether the pin should follow the
+  user's graph instead of `init`'s default.

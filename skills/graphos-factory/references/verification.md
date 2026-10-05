@@ -1,57 +1,79 @@
-# Verification: the evidence layers and lint rules this target adds
+# Verification: what the layers prove, and the check against the user's graph
 
-This reference is owned by the next pass, the one that writes the
-graphos-factory instructions, and it is not written yet. This page holds
-the open questions so that pass has a place to answer them. Nothing below is
-a decision, and an agent following this skill must not treat a question as
-guidance.
+## What the core layers prove
 
-The core keeps six evidence layers (`compose`, `connector_unit`,
-`wiremock_e2e`, `conformance`, `lint`, `live`) and every lint rule about the
-workspace contract and Connectors. A target adds evidence layers and lint
-rules on top, and `testing.md` in the core says a target describes its own
-in its own reference. This is that reference for this target.
+The core layers prove the subgraph on its own: it composes alone at the
+workspace's pin, every connector maps the recorded responses the way the
+cases demand, the requests it sends match the stubs, the responses match the
+source's documented shapes, lint finds nothing blocking, and, when a live
+target is configured, the real API answers. Each layer is blind to something;
+`testing.md` in the core says what, and how to report a layer that was
+skipped or not run. None of them sees the user's other subgraphs.
 
-## The `supergraph_check` evidence layer
+## `supergraph_check` is `not_run`
 
-The target's first added layer is named `supergraph_check`. Until the
-mechanism is decided it is reported `not_run` with the reason, never as a
-pass. The question is what it runs, and there are two candidates:
+`evidence/latest.json` carries this target's own layer, `supergraph_check`,
+and it is `not_run` by design. The compose layer composes this subgraph
+alone, so a type or field another subgraph also defines, or a query the
+combined graph cannot satisfy, does not show up there. A check against the
+user's graph needs either their published supergraph (a GraphOS API key) or
+their other subgraphs' schemas. The binary never touches the network, and you
+never handle the user's `APOLLO_KEY`. Report the layer as not run, never as a
+pass, and say the subgraph has not been checked against their graph.
 
-- `rover subgraph check` against a GraphOS variant, which needs a graph
-  reference and credentials, and which compares the subgraph with the schema
-  already published there.
-- A local composition of this subgraph with the user's other subgraphs,
-  through `rover supergraph compose`, which needs their schemas on disk and
-  no network.
+### The hand-off
 
-The question includes where the layer sits in the order, how its result maps
-onto the per-operation table (one row per operation, or one result for the
-whole subgraph), what `skipped` versus `not_run` mean when the user has no
-other subgraphs, and what `compose.sh` and `ComposeConfig` supply as extra
-inputs.
+The user runs the check; you prepare it. `graphos-factory export . --out DIR`
+writes the rendered schema to `DIR/<directory>.graphql` and prints the
+commands. Give the user one of these:
 
-## Federation lint rules this target adds
+- Against the published supergraph (needs their GraphOS credentials):
 
-Each candidate below is a question, not a rule. A rule needs a stated
-condition, a severity, and a fixture that fails when the rule is reverted.
+  ```bash
+  rover subgraph check <graph>@<variant> --name <subgraph> --schema DIR/<directory>.graphql
+  ```
 
-- Should a lint rule fire on an entity whose `@key` does not match the key
-  that the owning subgraph declares, and how does the skill learn the owning
-  subgraph's key when it only has this subgraph?
-- Should a lint rule fire when `@shareable` is missing on a field that
-  another subgraph also defines, and is that knowable without the other
-  subgraphs' schemas?
-- Should a lint rule fire on an `@external` field that no `@requires` or
-  `@provides` uses?
-- Should a lint rule fire on a `@requires` whose fields cannot be fetched by
-  any connector in this subgraph?
-- Should a lint rule fire on a `@provides` that names a field the connector
-  response does not carry?
-- Should the core's `entity-*` rules and these target rules share one
-  family, and which of them become warnings when the user's other subgraphs
-  are unavailable?
+- Offline, when they have their other subgraphs' SDL on disk: a
+  `supergraph.yaml` at their `federation_version`, naming this subgraph's
+  rendered file and each of theirs (absolute paths, or paths relative to the
+  config file), then
 
-Rule severities and messages can be adjusted per target through the core's
-`rule_overrides`, and every finding records whether the core or this target
-raised it.
+  ```bash
+  rover supergraph compose --config supergraph.yaml
+  ```
+
+Then:
+
+- Report what they ran and its exact output as **theirs**, under their name
+  and with the command, never as an evidence layer and never folded into
+  `evidence/latest.json`.
+- Until one of the two has passed, say plainly that the subgraph is
+  unverified against their graph, whatever the core layers show.
+- Expect the failure, when there is one, to be a shared-type or
+  satisfiability error that only appears with their subgraphs
+  (`INVALID_FIELD_SHARING`, `SATISFIABILITY_ERROR`). Read which type or field
+  both subgraphs define before reaching for `@shareable`
+  (federation-subgraph.md § Directives a connector subgraph may carry), and
+  ask the user whether it is meant to be shared. When it is not, the fix is
+  a name (`type_prefix`, `field_prefix`), not the directive. Record the fix
+  as a decision.
+- Publishing is theirs as well. Never run `rover subgraph publish` yourself.
+
+## Open
+
+Lint rules this target might add. Each needs a stated condition, a severity,
+and a fixture that fails when the rule is reverted; none exists yet.
+
+- An entity whose `@key` differs from the owning subgraph's key. This needs
+  the owner's schema, which the workspace does not have.
+- `@shareable` missing on a field another subgraph defines. Not knowable
+  without the other subgraphs' schemas.
+- An `@external` field no `@requires` or `@provides` uses.
+- A `@requires` whose fields no connector in this subgraph can fetch.
+- A `@provides` naming a field the connector response does not carry.
+- Whether the core's `entity-*` rules and these share one family, and which
+  become warnings when the other subgraphs are unavailable.
+
+Severities and messages of core rules can already be adjusted per target
+through the core's `rule_overrides`, and every finding records whether the
+core or this target raised it.

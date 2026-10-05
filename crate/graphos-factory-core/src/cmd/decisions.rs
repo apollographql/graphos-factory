@@ -1,7 +1,7 @@
 //! `decisions <list|add|resolve|reopen|supersede|migrate>`: the workspace decision log —
 //! judgement calls recorded and open questions still awaiting the user. The
 //! only writer of `.factory/decisions.json` and of `.factory/decisions/`, where
-//! every decision added since ADR 0118 is its own file with a random id, so a headless agent and a desktop
+//! every decision added since ADR 0118 is its own file with a random id, so a headless agent and a host
 //! UI record resolutions through the same command (ADR 0026). `reopen` clears
 //! a recorded answer so the user can revise it (ADR 0060); `supersede` marks
 //! a resolved decision replaced, keeping its answer (ADR 0103).

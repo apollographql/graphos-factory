@@ -1843,7 +1843,7 @@ fn response_shape_closure(operations: &[Pending], resolved_shapes: &Object) -> V
 /// list (`list_context`: false on every fact since ADR 0085 refuses a
 /// target whose response is a list; kept because the contract carries it).
 /// Guidance only: nothing here is enforced or linted; the judgement lives
-/// in selection.yaml `links:` (Phase 7as (b)). Comparisons use raw wire
+/// in selection.yaml `links:`. Comparisons use raw wire
 /// names (pre-rename), so a later GraphQL rename never affects them.
 ///
 /// At the operation counts this repo builds, a plain scan over every

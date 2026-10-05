@@ -3,7 +3,7 @@
 //! free-form `decisions.md` (ADR 0026).
 //!
 //! The agent never hand-edits this file; `graphos-factory-core decisions` is the
-//! only writer, so a headless agent and a desktop UI record resolutions through
+//! only writer, so a headless agent and a host UI record resolutions through
 //! the same path. Every mutation validates against `decisions.schema.json`
 //! before it is written, so an invalid document is never produced.
 
@@ -47,7 +47,7 @@ pub struct SecretField {
 /// keyed the same way `crate::json_accounting` keys a field: the GraphQL
 /// type name and the field name. Read by `crate::json_accounting`, only
 /// from a resolved record (ADR 0073; per-field reasons live here, never in
-/// `selection.yaml` or a schema doc comment — Adam's rule).
+/// `selection.yaml` or a schema doc comment — the decisions-only rule).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonReason {
     pub type_name: String,

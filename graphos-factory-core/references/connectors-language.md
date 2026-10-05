@@ -512,8 +512,8 @@ A stale link **raises a decision** (ADR 0113): an open record for the
 field with the refusal reason as its `context`, choices `keep` and `drop`,
 and `affects: [Type.field]`. Reconcile and lint print the exact `decisions
 add` command in their fix text; run it, name the record on the entry
-(`decision: D-k7m2qx`, the id `add` printed), and settle it with the user (in the desktop panel the
-open record is what `decision_ask` surfaces). While it is open the entry
+(`decision: D-k7m2qx`, the id `add` printed), and settle it with the user (a host UI, if any, shows
+the open record). While it is open the entry
 stays drift, lint keeps reporting it and `links apply` keeps refusing it.
 Then:
 
@@ -532,7 +532,7 @@ Then:
   decision, an unknown id, a finding or a bare `reason:` does not keep it.
   The field still needs its unit entry and e2e case.
 
-**Testing a relationship field (until Phase 7as (c)/(d)).** `scaffold`
+**Testing a relationship field (by hand, for now).** `scaffold`
 drafts no test for a link field, and `evidence/latest.json` has no row for
 it, so every layer can pass while a pasted field has never run. Lint's
 `link-untested` (ADR 0094) warns on each relationship field that lacks a
@@ -764,9 +764,10 @@ the verdict looks wrong.
 
 ## v0.3 vs v0.4
 
-`v0.4` is the target. It needs `federation_version` 2.13 or later; commas,
-bare numbers, unwrapped operator chains and bare-brace bodies compose at 2.15.1
-and 2.15.2 but not at 2.14.0
+`v0.4` is the target. Apollo documents its floor as composition 2.14.1 and
+Apollo Router 2.15.0; the graph the subgraph joins has to meet both, not
+just the pin the layers run at. Commas, bare numbers, unwrapped operator
+chains and bare-brace bodies compose at 2.15.1 and 2.15.2 but not at 2.14.0
 ([mapping-language.md](mapping-language.md#what-your-pin-decides)). It brings:
 
 - **Abstract types**: unions and interfaces mapped from `oneOf` /
@@ -816,5 +817,7 @@ rather than approximating them:
 - Object-valued arguments in a `rover connector test` unit entry — see
   [testing.md](testing.md); the write still works at runtime, it just
   cannot be asserted at that layer.
-- Anything requiring a second `@source` (a different host, a second
-  credential). That needs deployment support first.
+- One `@source` per workspace. Connectors allow several, but the layers
+  render one host and one credential, so anything needing a second host or a
+  second credential is outside the workspace model; lint reports a second
+  `@source`, as a warning or an error depending on the target.

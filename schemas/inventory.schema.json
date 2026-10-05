@@ -63,7 +63,7 @@
     },
     "oauth2": {
       "type": "object",
-      "description": "What an `oauth2` scheme declares about its flows — facts from the document, never a default. What a target derives from the authorization-code flow is its own file; the judgements (which scopes, extra_authorize_params) are the agent's and the user's.",
+      "description": "What an `oauth2` scheme declares about its flows — facts from the document, never a default. What a target derives from the authorization-code flow is its own file; the judgements (which scopes, which extra authorize parameters) are the agent's and the user's.",
       "required": ["flows"],
       "additionalProperties": false,
       "properties": {
@@ -249,7 +249,7 @@
     },
     "candidate_entity_link": {
       "type": "object",
-      "description": "A computed cross-reference found on a shape property node wherever it sits in the shape (properties.<p>, items.properties.<p>, or any inline properties/items below them, in a response shape or a named shape a response reaches through $ref; never on a $ref node itself), not on the parameter: a canonical GET-by-id operation's trailing path parameter — an operation whose success response is one record carrying that key (a property named after the parameter or ending with its name, or an `id` for a parameter ending in id, in the parameter's type family, at the top level or inside a one-property envelope; ADR 0085) — whose case-normalized name (folding snake_case and camelCase) and type family (string/ID-shaped vs integer-shaped, never exact scalar equality) matched this property. A candidate for a field-level relationship connector on the host type, keyed by {$this.<p>} — guidance only, never a lint (ADR 0033, ADR 0069); the judgement lives in selection.yaml `links:` (Phase 7as (b)) and a declined candidate is recorded in decisions.json.",
+      "description": "A computed cross-reference found on a shape property node wherever it sits in the shape (properties.<p>, items.properties.<p>, or any inline properties/items below them, in a response shape or a named shape a response reaches through $ref; never on a $ref node itself), not on the parameter: a canonical GET-by-id operation's trailing path parameter — an operation whose success response is one record carrying that key (a property named after the parameter or ending with its name, or an `id` for a parameter ending in id, in the parameter's type family, at the top level or inside a one-property envelope; ADR 0085) — whose case-normalized name (folding snake_case and camelCase) and type family (string/ID-shaped vs integer-shaped, never exact scalar equality) matched this property. A candidate for a field-level relationship connector on the host type, keyed by {$this.<p>} — guidance only, never a lint (ADR 0033, ADR 0069); the judgement lives in selection.yaml `links:` and a declined candidate is recorded in decisions.json.",
       "required": ["operation", "parameter", "list_context"],
       "additionalProperties": false,
       "properties": {

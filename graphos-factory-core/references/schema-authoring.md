@@ -618,7 +618,7 @@ Emit `Widget_Co_JSON` only when the shape cannot be typed honestly:
 - `additionalProperties`-only maps.
 
 Every JSON-scalar field carries a doc comment saying **why**: a reader of
-the schema, and any `@tag`-based policy that attaches to fields, learns
+the schema, and any policy your supergraph attaches to `@tag`, learns
 nothing about a field typed JSON except from that comment, and a field
 nobody can describe is a field nobody can use with confidence. `graphos-factory-core
 lint` fails on an undocumented one under the default `opaque_json_policy:
@@ -632,8 +632,8 @@ object type and one wrapped in a list at any depth (`[Widget_Co_JSON]`,
 `[Widget_Co_JSON!]!`, …) — and matches each, keyed `"<TypeName>.<fieldName>"`,
 against a `json_reasons` entry on a **resolved** `.factory/decisions.json`
 record (`graphos-factory-core decisions add --json-reason 'Type.field|reason'`;
-never a `selection.yaml` field or a schema doc comment — ADR 0073, Adam's
-rule), for a reason from a closed vocabulary: `free-form-object`,
+never a `selection.yaml` field or a schema doc comment — ADR 0073, the
+decisions-only rule), for a reason from a closed vocabulary: `free-form-object`,
 `recursive`, `vendor-undocumented`, `polymorphic-without-discriminator`,
 `depth-cap`.
 `defaults.fields: all` decides which fields are *selected*; it never counts

@@ -15,7 +15,7 @@
 //! whether a **resolved** `.factory/decisions.json` record's `json_reasons`
 //! names it with a reason from the closed vocabulary
 //! `crate::json_accounting::REASONS` — never `selection.yaml` or a schema
-//! doc comment (ADR 0073, Adam's rule) — `--check` exits 1 when any is
+//! doc comment (ADR 0073, the decisions-only rule) — `--check` exits 1 when any is
 //! unaccounted.
 
 use crate::args::{Args, Flags};

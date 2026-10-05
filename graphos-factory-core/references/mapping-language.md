@@ -46,8 +46,11 @@ The router's version (2.17) and `federation_version` are separate lines. 2.15.2
 was the newest composition release when this file was measured; 2.15.3 and
 2.15.4 have not been measured here.
 
-**`connect/v0.4` needs `federation_version` 2.13 or later**, and a
-`federation_version` accepts a `federation/` link no newer than itself:
+**Apollo documents `connect/v0.4`'s floor as composition 2.14.1 and Apollo
+Router 2.15.0**; below either, use `connect/v0.3` (composition 2.12, Router
+2.8). The table records what composed here, which is not the supported
+floor: the `v0.4` link alone composes from 2.13.0. A `federation_version`
+accepts a `federation/` link no newer than itself:
 
 | `federation_version` | newest `federation/` link | `connect/v0.4` |
 |---|---|---|

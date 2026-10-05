@@ -137,7 +137,7 @@ declares about its flows, verbatim (ADR 0019):
   "scheme_name": "oauth", "source": "spec",
   "oauth2": {
     "flows": ["authorization_code", "client_credentials"],   // every flow named
-    "authorization_code": {                                   // the flow a signed-in caller runs
+    "authorization_code": {                                   // each declared flow, verbatim
       "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth",
       "token_url": "https://oauth2.googleapis.com/token",
       "refresh_url": "…",                                     // when declared

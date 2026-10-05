@@ -43,7 +43,7 @@ fn set(dir: &Path, args: &[&str]) -> i32 {
 }
 
 /// The binary itself, so a `--json` refusal is observed exactly as a machine
-/// caller (the Desktop panel) sees it on stdout.
+/// caller (a host UI) sees it on stdout.
 fn set_json(dir: &Path, args: &[&str]) -> (i32, serde_json::Value) {
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_graphos-factory-bare"))
         .arg("selection")
@@ -172,7 +172,7 @@ fn an_operation_the_selection_does_not_list_is_refused_and_writes_nothing() {
 fn an_unknown_op_refusal_still_emits_the_json_envelope() {
     // A machine caller passing --json must get the same report() envelope on the
     // unknown-op refusal as on the structural-error refusal — not a bare stderr
-    // line it cannot parse (e.g. a stale key removed since the panel loaded).
+    // line it cannot parse (e.g. a stale key removed since a host UI loaded the file).
     let dir = workspace(SELECTION);
     let d = dir.path();
     let before = read(d);

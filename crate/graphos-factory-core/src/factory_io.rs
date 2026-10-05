@@ -1,7 +1,7 @@
 //! Custody for the files under a workspace's `.factory/` directory.
 //!
-//! The Desktop app and its plugin run this binary against a workspace the
-//! user owns, so the one filesystem guarantee no host can give us is the one
+//! A host application may run this binary against a workspace the user
+//! names, so the one filesystem guarantee no host can give us is the one
 //! we have to give ourselves: a `.factory/*` path this binary reads, or
 //! writes in place, is a regular file *inside that workspace*. A
 //! `.factory/selection.yaml` symlinked to `~/.aws/credentials` is refused on

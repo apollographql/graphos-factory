@@ -176,7 +176,7 @@ fn opens_entry(line: &str) -> bool {
 /// `-`) or be indented. A column-0 `#` comment between entries belongs to
 /// the section, as YAML reads it (`is_blank` counts a comment line as
 /// blank). The one walker of the section: `selection set --link`
-/// (`selection_set.rs`; Phase 7as (d), deferred) is to import this and
+/// (`selection_set.rs`; deferred) is to import this and
 /// `link_entries` rather than walk it again (ADR 0069, R18).
 pub(crate) fn links_section(lines: &[&str]) -> Option<(usize, usize)> {
     let start = lines

@@ -1,17 +1,22 @@
 //! The graphos target: connector subgraphs for a GraphOS supergraph the
 //! user already runs (factory-split proposal §5, §5a; ADR 0114, Phase 8c).
 //!
-//! A skeleton. It adds no command, file, lint rule or tag vocabulary; it
-//! relaxes the two core rules about `@source` that only a single-source
-//! renderer needs, names the Federation directives a subgraph composes with,
-//! and registers `supergraph_check`, an evidence layer that reports
-//! `not_run` until the next pass decides how a subgraph is composed against
-//! the user's supergraph. The questions it leaves open are written as
-//! questions in `skills/graphos-factory/references/` (proposal §9).
+//! It adds one command, `export` (Phase 8j): the gate over the evidence,
+//! the core's render with the production values, and the rover hand-off
+//! ([`export`]). It adds no file, lint rule or tag vocabulary; it relaxes
+//! the two core rules about `@source` that only a single-source renderer
+//! needs, names the Federation directives a subgraph composes with, and
+//! registers `supergraph_check`, an evidence layer that reports `not_run`
+//! until the next pass decides how a subgraph is composed against the
+//! user's supergraph. The questions it leaves open are written as questions
+//! in `skills/graphos-factory/references/` (proposal §9).
 
+pub mod export;
+
+use graphos_factory_core::args::Flags;
 use graphos_factory_core::lint::Findings;
 use graphos_factory_core::target::{
-    ComposeConfig, EvidenceLayer, InitInput, LayerInput, LintInput, Override, Target,
+    ComposeConfig, EvidenceLayer, InitInput, LayerInput, LintInput, Override, Target, TargetCommand,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -24,12 +29,9 @@ pub const NAME: &str = "graphos-factory";
 
 /// The placeholders a schema may use: the two the core's layers render.
 ///
-/// Open (proposal §9, question 1): keep `{{BASE_URL}}` / `{{AUTH_EXPR}}`
-/// and `template.yaml`, rendering literals at export, or author literals
-/// and set this to `&[]` (and [`TARGET`]'s `variables_file_required` to
-/// `false`), which takes `render` out of this target's path. Until that is
-/// decided the target keeps the core's pair and requires the variables
-/// file, so a workspace copied from the other target validates unchanged.
+/// Kept (proposal §9, question 1; Phase 8j): `template.yaml` gives each a
+/// local test value the layers run against, and `export` renders them with
+/// the production values.
 pub const PLACEHOLDERS: &[&str] = &["BASE_URL", "AUTH_EXPR"];
 
 /// The Federation directives a connector subgraph composes with: what its
@@ -40,6 +42,10 @@ pub const LINK_IMPORTS: &[&str] = &["@key", "@shareable", "@requires", "@provide
 
 /// Why `supergraph_check` does not run yet.
 pub const SUPERGRAPH_CHECK_REASON: &str = "not built: composing against the user's supergraph is decided in the next pass (skills/graphos-factory/references/verification.md)";
+
+fn export_flags(_: Option<&str>) -> Option<&'static Flags> {
+    Some(&export::FLAGS)
+}
 
 fn no_lint(_: &LintInput, _: &mut Findings) {}
 
@@ -73,7 +79,14 @@ pub const TARGET: Target = Target {
     variables_file_required: true,
     required_files: &[],
     output_files: &[],
-    commands: &[],
+    commands: &[TargetCommand {
+        name: "export",
+        entry: export::main,
+        summary: export::SUMMARY,
+        usage: Some(export::USAGE),
+        verbs: &[],
+        flags: export_flags,
+    }],
     lint: no_lint,
     lint_rules: &[],
     // No tag-based policy reads this target's schemas: every name is allowed.
@@ -94,6 +107,7 @@ pub const TARGET: Target = Target {
         link_imports: LINK_IMPORTS,
     },
     init_files: no_init_files,
-    export_gate: None,
+    // The core never reads it; `export` calls the same function directly.
+    export_gate: Some(export::gate),
     embedded_schemas: &[],
 };

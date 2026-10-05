@@ -201,7 +201,7 @@ fn add_refuses_an_omit_with_an_unknown_reason() {
     assert_nothing_recorded(d);
 }
 
-/// ADR 0073 / Adam's rule: a JSON-scalar field's reason is a
+/// ADR 0073, the decisions-only rule: a JSON-scalar field's reason is a
 /// `decisions.json` record, written only through this CLI, mirroring how
 /// `--null-handling` (ADR 0070) records the other kind of per-item reason.
 #[test]

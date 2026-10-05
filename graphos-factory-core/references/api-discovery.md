@@ -63,17 +63,17 @@ wins and the disagreement goes in `memory.md`.
          { "name": "https://www.googleapis.com/auth/spreadsheets.readonly",
            "description": "…", "source": "docs", "confidence": 0.9 },   // the scopes page
          { "name": "https://www.googleapis.com/auth/drive.readonly",
-           "description": "…", "source": "inferred", "confidence": 0.4 } // a guess: never drafted
+           "description": "…", "source": "inferred", "confidence": 0.4 } // a guess, not documented
        ] } } }
    ```
 
    Record `api.security` / `operations[].security` too when the docs say
-   which scope each operation needs; a target that drafts auth
-   configuration unions them. The endpoints and scopes are `docs` at most
-   (0.9): a probe proves that a *token* works, never that an authorization
-   endpoint or a scope name is right, so anything drafted from a
-   discovered inventory's flow is structure, not a flow anyone has run. A
-   scope you inferred from a sibling stays `inferred` and is not drafted.
+   which scope each operation needs: they are facts like the rest of the
+   inventory. The endpoints and scopes are `docs` at most (0.9): a probe
+   proves that a *token* works, never that an authorization endpoint or a
+   scope name is right, so a discovered inventory's flow records what the
+   docs say, not a flow anyone has run. A scope you inferred from a
+   sibling stays `inferred`; never present it as documented.
 5. **Note the rate limit and the pagination style** before selecting
    anything. They shape every list operation.
 

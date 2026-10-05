@@ -141,7 +141,7 @@ fn a_placeholder_outside_the_targets_set_is_unknown_and_inside_it_is_not() {
     let f = finding(&bare, "unknown-placeholder").expect("REGION is not one of BARE's");
     assert_eq!(
         f.message,
-        "{{REGION}} is not one of this target's placeholders (BASE_URL, AUTH_EXPR); unknown placeholders fail the render"
+        "{{REGION}} is not one of this target's placeholders (BASE_URL, AUTH_EXPR); an unknown placeholder cannot be rendered"
     );
     let example = lint(dir.path(), &EXAMPLE);
     assert!(finding(&example, "unknown-placeholder").is_none());

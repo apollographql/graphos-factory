@@ -19,8 +19,9 @@ requirements and inputs `context.yaml` declares. The
 A *service workspace* is the local git repository the skill creates for one service — one external source wrapped as a Federation subgraph. It is the only durable state the skill
 has: the schema the engineer iterates on, the machine-readable record of
 what the API offers and what the user chose, and the agent's memory of
-decisions and vendor quirks. The UI harness reads and writes the same
-files, so this contract is also the UI ↔ skill interface.
+decisions and vendor quirks. A host UI, if there is one, reads and writes
+the same files, so this contract is also the interface between it and the
+skill.
 
 Three rules the layout is built around:
 
@@ -174,7 +175,7 @@ created_at: 2026-09-08T00:00:00Z
 
 ## `sources.lock.yaml`
 
-Where every input came from (closes BUILD-10, spec origin unrecorded).
+Where every input came from, so no spec's origin goes unrecorded.
 Enforced by `sources-lock.schema.json`. A *document* entry pins a
 description document in two copies: `upstream`, the vendor's bytes exactly
 as retrieved and never edited, and `path`, the working copy the reader reads
@@ -229,7 +230,7 @@ so the agent's notes survive.
 ## `inventory.json`
 
 The API as the skill understands it. Compact enough to load whole for
-medium APIs; for large APIs (hundreds of operations) the UI and the agent page
+medium APIs; for large APIs (hundreds of operations) a host UI and the agent page
 through `operations[]` and fetch one operation's full `shape` on demand
 via the bundled `inventory` script. Operation keys use the same
 `{method}:{path}` form the existing Apollo generator UI uses
@@ -319,14 +320,13 @@ disagree with is written into `selection.yaml`, where it belonged all along.
 
 Every operation the skill ever saw is accounted for as one of
 `supported`, `unsupported` (with reason), or listed under `unresolved`.
-This mirrors the accounting rule the comparison-runner plan already
-enforces (selected / excluded / unsupported / unresolved) so the UI can show
-"what was left on the table", which BUILD-06 identified as missing.
+The same accounting (selected / excluded / unsupported / unresolved) is
+what lets a reader, or a host UI, see "what was left on the table".
 
 ## `selection.yaml`
 
-The durable intent. Written by the UI or by the agent on the user's
-instruction; read by the agent when applying. No command creates it: `init`
+The durable intent. Written by the user (by hand or through a host UI) or
+by the agent on the user's instruction; read by the agent when applying. No command creates it: `init`
 does not, and `selection draft` and `selection set` splice into a file that
 already exists. `selection draft` proposes a `response.envelope` only for
 operations the file already marks `include: true`, and on a fresh workspace
@@ -426,7 +426,7 @@ only when the fact is absent. Absent both, the response types as the
 workspace's JSON scalar and the finding stays open — `scaffold` says so in
 a note naming ADR 0080.
 
-**Field paths** are rooted at the response body and use the UI's
+**Field paths** are rooted at the response body and use a
 `>`-separated grammar with `[]` after a list segment:
 `incidents[]>incident_number` for an item field in a paginated list,
 `incident>pending_actions` for a field under a single-object envelope,
@@ -526,7 +526,7 @@ against the rendered SDL rather than an inventory path — the same span
 namespace `overrides` uses for `type:<Name>`, without the `type:` prefix,
 since a field belongs to exactly one type declaration. The reason is a
 `decisions.json` record, never a `selection.yaml` field or a schema doc
-comment (ADR 0073, Adam's rule — the same rule `null_handling` below
+comment (ADR 0073, the decisions-only rule — the same rule `null_handling` below
 follows): `spans json-accounting` enumerates every field the current SDL
 still types as the workspace's own JSON scalar (nested inside another
 object type, or wrapped in a list at any depth, included) and reports one
@@ -709,7 +709,7 @@ would move to an operation key once the selection names it. `lock` and
 `codify` refuse to record it, and `lock --check` (exit 3) and `lint`
 (`unattributed-span`) report it as a tie to settle in `selection.yaml`
 (schema-authoring.md § Which operation a root field serves; ADR 0044).
-Git history is not the baseline on purpose: engineers and the UI commit
+Git history is not the baseline on purpose: engineers and a host UI commit
 too, and the lock is the one file that means "the agent has seen this".
 
 ## Codifying a hand edit
@@ -805,10 +805,10 @@ Validation rules the skill enforces before applying:
 ## `decisions.json`
 
 The workspace's decision log (`schemas/decisions.schema.json`,
-`contract_version: 1`) and the artifact the desktop's decisions panel
+`contract_version: 1`), which a host UI's decisions view, if any,
 projects. It holds **decisions only** (ADR 0113): calls a reasonable
 engineer could have made the other way, each carrying its alternative, so
-the panel shows the choice taken and the ones not. Two kinds of record share
+a reader sees the choice taken and the ones not. Two kinds of record share
 one shape (ADR 0026):
 
 - an **open question** the service still needs answered — `status: "open"`,
@@ -827,16 +827,16 @@ that names its alternative none of three ways: a `--question`, two or more
 `no-alternative`; a `consumed` or `not-applicable` omit does not count): if
 you cannot name what else you could have done, you are not recording a
 decision. `add --resolved` and `resolve` set
-`resolution.by` to `agent` when `--by` is absent; the desktop passes `--by
-user` on every user path, so the field says who chose. An agent-chosen
+`resolution.by` to `agent` when `--by` is absent; a UI that records on the
+user's behalf passes `--by user`, so the field says who chose. An agent-chosen
 decision's `--note` says why you were confident enough not to ask. An
 `editorial` omit ("deliberately not exposed") lives only on a decision:
 "expose it" is always its alternative.
 
 `graphos-factory-core decisions` is the **only** writer; the file is never
-hand-edited. The same commands serve a headless agent and the desktop panel,
-so a UI resolution is just a message into the primary chat that the agent
-records through the same path:
+hand-edited. The same commands serve a headless agent and an interactive
+host: a choice made in a host UI reaches the agent, which records it
+through the same path:
 
 ```bash
 graphos-factory-core decisions list .   [--open] [--json]     # read the log; --open = questions still awaiting the user
@@ -1038,7 +1038,7 @@ updates every `decision:` reference it moved. Commit the result `decide:`.
     {
       "id": "D-0031",
       "title": "Root for POST /schedules/preview",
-      "status": "open",                        // no resolution yet; the desktop shows it as a live question
+      "status": "open",                        // no resolution yet; a host UI may show it as a live question
       "date": "2026-09-09",
       "phase": "select",
       "question": "This POST reads (renders a preview) but carries a request body. Query or Mutation?",
@@ -1177,10 +1177,9 @@ and nothing covered it; this includes a unit layer that ran zero cases,
 whose empty suite covers no operation by a recorded decision — ADR 0046).
 Only `pass` is proof.
 
-What was proven, per layer, per operation, at which commit. The UI shows
-this next to each operation; the skill refuses to call a workspace
-"validated" when any selected operation lacks executed evidence, which is
-what TEST-02 / TEST-05 asked for.
+What was proven, per layer, per operation, at which commit. A host UI can
+show this next to each operation; the skill refuses to call a workspace
+"validated" when any selected operation lacks executed evidence.
 
 ```jsonc
 {
