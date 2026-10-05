@@ -1,0 +1,37 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "Injected", "version": "1.0.0" },
+  "servers": [{ "url": "/api\ninjected: true\n#" }],
+  "paths": {
+    "/things/{id}": {
+      "get": {
+        "operationId": "getThing",
+        "summary": "One thing by id.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "security": [{ "a\nevil_key: 1": [] }],
+        "responses": {
+          "200": {
+            "description": "The thing.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Thing" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "a\nevil_key: 1": { "type": "http", "scheme": "bearer" },
+      "other second_key: 2\r\u0085third_key: 3": { "type": "apiKey", "in": "header", "name": "X-Key" }
+    },
+    "schemas": {
+      "Thing": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "name": { "type": "string" } }
+      }
+    }
+  }
+}

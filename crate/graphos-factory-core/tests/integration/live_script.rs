@@ -91,6 +91,7 @@ else i=$first; while [ "$i" -ge "$last" ]; do echo "$i"; i=$((i-1)); done; fi"#,
         .env("GRAPHOS_FACTORY_CORE_CACHE", cache.path())
         .env("ROUTER_VERSION", "2.17.0")
         .env("GITEA_TOKEN", "stand-in")
+        .env("APOLLO_ELV2_LICENSE", "accept")
         .env_remove("GRAPHOS_FACTORY_CORE_LIVE_ENV")
         .output()
         .unwrap();

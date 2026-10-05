@@ -48,6 +48,10 @@ jobs:
     needs: crate
     runs-on: ubuntu-latest
     env:
+      # toolchain.sh installs the supergraph plugin only once its Elastic
+      # License v2 is accepted. This is Apollo's CI accepting Apollo's own
+      # licence; the scripts never set it for a user.
+      APOLLO_ELV2_LICENSE: accept
       GRAPHOS_FACTORY_CORE_CACHE: ${{ github.workspace }}/.toolchain-cache
     steps:
       - uses: actions/checkout@v5

@@ -85,6 +85,9 @@ impl Env {
         c.arg(scripts().join(format!("{}.sh", name))).arg(&ws);
         c.env("PATH", path)
             .env("GRAPHOS_FACTORY_CORE_CACHE", &self.cache)
+            // The user's own acceptance of the plugin's ELv2 (elv2.sh); the
+            // gate itself is tested in elv2.rs.
+            .env("APOLLO_ELV2_LICENSE", "accept")
             .env_remove("GRAPHOS_FACTORY_CORE_BIN")
             .env_remove("GRAPHOS_FACTORY_CORE_VERSION");
         if let Some(b) = bin {

@@ -59,7 +59,10 @@
 # before WireMock or the router starts.
 #
 # Exit 127 = a tool is missing (java, curl, jq): the layer is `skipped` in
-# evidence with that reason, never `pass`.
+# evidence with that reason, never `pass`. Exit 3 = the user has not accepted
+# the Elastic License v2 of the composition plugin and the Router
+# (APOLLO_ELV2_LICENSE, see elv2.sh): the layer is `not_run` with that
+# reason, never `pass`, and no Router is downloaded.
 set -euo pipefail
 
 WORKSPACE="."
@@ -93,7 +96,9 @@ CACHE="$GRAPHOS_FACTORY_CORE_CACHE_DIR"
 # the version these scripts pin — see resolve-bin.sh for the order and why.
 # shellcheck source=SCRIPTDIR/resolve-bin.sh
 . "$(dirname "$0")/resolve-bin.sh"
-
+# shellcheck source=SCRIPTDIR/elv2.sh
+. "$(dirname "$0")/elv2.sh"
+elv2_require e2e
 
 OUT="$(mktemp -d)"
 WIREMOCK_PID=""
@@ -158,6 +163,7 @@ if [ ! -f "$WIREMOCK_JAR" ]; then
   echo "e2e: downloading WireMock $WIREMOCK_VERSION"
   curl -sfL "https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/$WIREMOCK_VERSION/wiremock-standalone-$WIREMOCK_VERSION.jar" -o "$WIREMOCK_JAR"
 fi
+# The Router is ELv2-licensed too: this download sits after elv2_require.
 if [ ! -x "$ROUTER_BIN" ]; then
   echo "e2e: downloading Apollo Router $ROUTER_VERSION"
   case "$(uname -s)-$(uname -m)" in
@@ -288,7 +294,7 @@ if [ -n "$AUTH_VAR" ]; then
 fi
 
 SUPERGRAPH="$OUT/supergraph.graphql"
-NO_COLOR=1 rover supergraph compose --elv2-license=accept --config "$COMPOSE_CONFIG" > "$SUPERGRAPH" 2> "$OUT/compose.err" \
+NO_COLOR=1 rover supergraph compose --config "$COMPOSE_CONFIG" > "$SUPERGRAPH" 2> "$OUT/compose.err" \
   || { cat "$OUT/compose.err" >&2; echo "e2e: compose failed" >&2; exit 1; }
 
 # ── Start WireMock and the router ────────────────────────────────────────────

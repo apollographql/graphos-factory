@@ -70,8 +70,8 @@ wrappers its own binary. On 78, re-run `bootstrap.sh` (`--build` in a checkout) 
 root. `graphos-factory-core <command> [verb] --help` (or `-h`) prints that command's usage and reads
 or writes nothing (ADR 0086). A flag the verb does not declare — a typo, or two flags
 quoted into one argument — is refused with exit 2 and nothing runs (ADR 0097); fix the
-spelling, never drop the flag. `rover` is needed for compose, unit and e2e; Java for
-e2e's WireMock; nothing is ever installed into a workspace.
+spelling, never drop the flag. `rover` is needed for compose, unit, e2e and live; Java for
+e2e's WireMock; nothing is ever installed into a workspace. rover's composition plugin is under the Elastic License v2, which only the user accepts, by setting `APOLLO_ELV2_LICENSE=accept`: until then those four layers are `not_run`. Ask once: show the link, and only on an explicit yes set `APOLLO_ELV2_LICENSE=accept` for the commands you run this session (record the consent in memory.md); never set it unasked, and tell them `export` in their shell profile makes it permanent.
 
 ```bash
 S=path/to/graphos-factory-core/scripts

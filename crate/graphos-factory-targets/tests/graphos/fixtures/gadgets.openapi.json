@@ -1,0 +1,40 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "Gadgets", "version": "2.0.0" },
+  "servers": [{ "url": "https://api.gadgets.test/v2/" }],
+  "security": [{ "apiKeyHeader": [] }],
+  "paths": {
+    "/gadgets/{id}": {
+      "get": {
+        "operationId": "getGadget",
+        "summary": "One gadget by id.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "The gadget.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Gadget" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer" },
+      "apiKeyHeader": { "type": "apiKey", "in": "header", "name": "X-API-Key" }
+    },
+    "schemas": {
+      "Gadget": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" }
+        }
+      }
+    }
+  }
+}

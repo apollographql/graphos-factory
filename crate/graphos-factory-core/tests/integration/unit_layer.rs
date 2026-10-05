@@ -133,6 +133,7 @@ fn command(env: &Env, program: &str) -> Command {
         format!("{}:{}", env.bin.display(), std::env::var("PATH").unwrap()),
     )
     .env("HOME", &env.home)
+    .env("APOLLO_ELV2_LICENSE", "accept")
     .env(
         "GRAPHOS_FACTORY_CORE_BIN",
         env!("CARGO_BIN_EXE_graphos-factory-bare"),

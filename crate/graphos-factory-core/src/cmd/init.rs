@@ -5,10 +5,12 @@
 //!
 //! `--target NAME` is the registered target the workspace is for: `init`
 //! writes its name to `skill.name` and adds its `init_files`, and every
-//! later command on the workspace runs against it. Optional with one target
-//! registered (each product binary registers exactly one, so it writes that
-//! one); required when a binary serves more than one (exit 1,
-//! `target-required`, listing them).
+//! later command on the workspace runs against it. A target file that
+//! already exists is left alone and reported (`left_alone`), never
+//! overwritten: it is the caller's, and init does not refuse over it.
+//! `--target` is optional with one target registered (each product binary
+//! registers exactly one, so it writes that one); required when a binary
+//! serves more than one (exit 1, `target-required`, listing them).
 //!
 //! Writes the files a spec-backed workspace starts with (ADR 0056):
 //! `.factory/workspace.yaml`, the working copy (`openapi.<ext>` or
@@ -29,7 +31,8 @@
 //! nothing and reports the very bytes a real run writes. With `--json` both
 //! print `files: [{path, content, sha256, bytes}]` (workspace-relative paths,
 //! exact UTF-8 content — the document must be UTF-8 text, and every other
-//! file is generated text).
+//! file is generated text) and `left_alone: [path]`, the target files that
+//! already existed.
 //!
 //! Exit codes: 0 created (with --dry-run: would create); 1 usage (a missing
 //! or invalid flag, an invalid name; an unknown flag never reaches init —
@@ -145,10 +148,35 @@ struct Plan {
     content_sha256: String,
     inventory: Value,
     files: Vec<PlannedFile>,
+    /// Target files that already exist: not written, not refused.
+    left_alone: Vec<String>,
 }
 
 fn exists(path: &Path) -> bool {
     std::fs::symlink_metadata(path).is_ok()
+}
+
+/// Whether a target file's place is taken: the file itself exists (a dangling
+/// symlink counts), or a directory above it, below `target`, is not a plain
+/// directory (a symlink would carry the write wherever it points; a file
+/// would fail it). Such a file is left alone, never written through.
+fn place_taken(target: &Path, rel: &str) -> bool {
+    let full = target.join(rel);
+    if exists(&full) {
+        return true;
+    }
+    let mut dir = full.parent();
+    while let Some(d) = dir {
+        if d == target {
+            break;
+        }
+        match std::fs::symlink_metadata(d) {
+            Ok(m) if !m.is_dir() => return true,
+            _ => {}
+        }
+        dir = d.parent();
+    }
+    false
 }
 
 fn plan(args: &Args, target: &Path) -> Result<Plan, Failure> {
@@ -381,8 +409,8 @@ fn plan(args: &Args, target: &Path) -> Result<Plan, Failure> {
     )
     .map_err(|e| fail(2, "internal", format!("internal error — {}", e)))?;
 
-    // The files the target adds, planned with the core's so the
-    // created-never-overwritten check below covers them too.
+    // The files the target adds. One that already exists is the caller's:
+    // left alone and reported, never overwritten, and not a refusal.
     let target_files: Vec<PlannedFile> = {
         let workspace = crate::yaml::parse(&workspace_text).unwrap_or(Value::Null);
         (crate::target::active().init_files)(&crate::target::InitInput {
@@ -418,7 +446,6 @@ fn plan(args: &Args, target: &Path) -> Result<Plan, Failure> {
             bytes: pretty(&built.inventory).into_bytes(),
         },
     ];
-    files.extend(target_files);
     // Created, never overwritten: the markers above cover `.factory/`, and
     // this covers the working copy.
     if let Some(f) = files.iter().find(|f| exists(&target.join(&f.path))) {
@@ -432,6 +459,12 @@ fn plan(args: &Args, target: &Path) -> Result<Plan, Failure> {
             ),
         ));
     }
+
+    let (kept, target_files): (Vec<PlannedFile>, Vec<PlannedFile>) = target_files
+        .into_iter()
+        .partition(|f| place_taken(target, &f.path));
+    let left_alone: Vec<String> = kept.into_iter().map(|f| f.path).collect();
+    files.extend(target_files);
 
     let ops = get_arr(&built.inventory, "operations")
         .cloned()
@@ -491,6 +524,7 @@ fn plan(args: &Args, target: &Path) -> Result<Plan, Failure> {
         content_sha256,
         inventory,
         files,
+        left_alone,
     })
 }
 
@@ -541,21 +575,40 @@ fn write_all(target: &Path, files: &[PlannedFile]) -> Result<(), Failure> {
         .map_err(|e| fail(2, "write-failed", format!("{}: {}", target.display(), e)))?;
     let mut written: Vec<String> = Vec::new();
     for f in files {
+        // A target file whose place is taken is refused below, not written;
+        // it must not be reported as written.
+        let blocked = !f.path.starts_with(".factory/") && place_taken(target, &f.path);
         let result = if f.path.starts_with(".factory/") {
             crate::factory_io::create_parent_dir(target, &f.path)
                 .and_then(|_| crate::factory_io::create_new(target, &f.path, &f.bytes))
                 .map_err(|e| e.to_string())
         } else {
-            std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(target.join(&f.path))
-                .and_then(|mut file| file.write_all(&f.bytes))
-                .map_err(|e| format!("{}: {}", f.path, e))
+            // A target file may sit in a subdirectory (`tests/`).
+            // Planning leaves a symlinked directory's files alone; this is
+            // the same check again at write time, so a link made since
+            // refuses the write instead of carrying it elsewhere.
+            let path = target.join(&f.path);
+            if blocked {
+                Err(format!(
+                    "{}: it, or a directory above it, already exists or is a symlink",
+                    f.path
+                ))
+            } else {
+                path.parent()
+                    .map_or(Ok(()), std::fs::create_dir_all)
+                    .and_then(|_| {
+                        std::fs::OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(&path)
+                    })
+                    .and_then(|mut file| file.write_all(&f.bytes))
+                    .map_err(|e| format!("{}: {}", f.path, e))
+            }
         };
         if let Err(e) = result {
             // A create_new that failed may still have left the file behind.
-            if exists(&target.join(&f.path)) {
+            if !blocked && exists(&target.join(&f.path)) {
                 written.push(f.path.clone());
             }
             return Err(if written.is_empty() {
@@ -672,6 +725,15 @@ pub fn main(argv: &[String]) -> i32 {
                 "files",
                 Value::Array(p.files.iter().map(file_value).collect()),
             ),
+            (
+                "left_alone",
+                Value::Array(
+                    p.left_alone
+                        .iter()
+                        .map(|s| Value::from(s.as_str()))
+                        .collect(),
+                ),
+            ),
             ("exit", Value::from(0)),
         ]);
         print!("{}", pretty(&summary));
@@ -707,6 +769,9 @@ pub fn main(argv: &[String]) -> i32 {
             String::new()
         };
         println!("  {}{}", f.path, note);
+    }
+    for path in &p.left_alone {
+        println!("  {}  (exists, left alone)", path);
     }
     for w in get_arr(inv, "warnings").into_iter().flatten() {
         println!("  warning: {}", w.as_str().unwrap_or(""));

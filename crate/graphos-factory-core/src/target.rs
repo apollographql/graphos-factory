@@ -59,7 +59,8 @@ pub struct Target {
     /// What composition and `federation-drift` hold the schema to.
     pub compose: ComposeConfig,
     /// Files `init` writes beside the core's, workspace-relative, with their
-    /// contents. Created, never overwritten, like the core's.
+    /// contents. Created when absent; one that already exists is left alone
+    /// and reported, never overwritten (where a core file would refuse init).
     pub init_files: fn(&InitInput) -> Vec<(PathBuf, String)>,
     /// The publication gate: whether `evidence/latest.json` lets the
     /// workspace leave for this target's destination.

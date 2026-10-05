@@ -41,8 +41,9 @@
 # from the workspace up to its checkout's top (or $GRAPHOS_FACTORY_CORE_LIVE_ENV);
 # the environment wins. See live-env.sh.
 #
-# Exit codes: 0 pass · 1 fail · 3 not_run (credential unset, or no
-# tests/live.yaml) · 127 tool missing. 3 is a first-class result: evidence
+# Exit codes: 0 pass · 1 fail · 3 not_run (credential unset, no
+# tests/live.yaml, or APOLLO_ELV2_LICENSE not `accept`, see elv2.sh) · 127
+# tool missing. 3 is a first-class result: evidence
 # records it as `not_run` with the reason, never as a pass.
 set -euo pipefail
 
@@ -90,6 +91,10 @@ if [ -n "$AUTH_VAR" ] && [ -z "${!AUTH_VAR:-}" ]; then
   exit 3
 fi
 
+# shellcheck source=SCRIPTDIR/elv2.sh
+. "$(dirname "$0")/elv2.sh"
+elv2_require live
+
 for port in "$ROUTER_PORT" "$ROUTER_HEALTH_PORT"; do
   if curl -s "http://localhost:$port/" >/dev/null 2>&1; then echo "live: port $port is busy" >&2; exit 1; fi
 done
@@ -101,7 +106,7 @@ if [ ! -x "$ROUTER_BIN" ]; then
 fi
 
 eval "$("$RC" render "$WORKSPACE" --out "$OUT")"
-NO_COLOR=1 rover supergraph compose --elv2-license=accept --config "$COMPOSE_CONFIG" > "$OUT/supergraph.graphql" 2> "$OUT/compose.err" \
+NO_COLOR=1 rover supergraph compose --config "$COMPOSE_CONFIG" > "$OUT/supergraph.graphql" 2> "$OUT/compose.err" \
   || { cat "$OUT/compose.err" >&2; echo "live: compose failed" >&2; exit 1; }
 
 # No override_url: connectors hit the real upstream. Subgraph errors stay

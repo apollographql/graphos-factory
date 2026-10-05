@@ -31,7 +31,8 @@
 # suite file is still a failure (ADR 0046).
 #
 # Exit codes: 0 pass · 1 fail · 3 not_run (no suite ran a case, each citing
-# its decision) · 127 a tool is missing.
+# its decision; or APOLLO_ELV2_LICENSE is not `accept`, see elv2.sh) · 127 a
+# tool is missing.
 #
 # --only PATTERN runs only the `tests:` entries (rover's own unit of "one
 # test") whose quoted `name:` contains PATTERN as a literal substring, across
@@ -104,6 +105,10 @@ if ! command -v rover >/dev/null 2>&1; then
   exit 127
 fi
 
+# shellcheck source=SCRIPTDIR/elv2.sh
+. "$(dirname "$0")/elv2.sh"
+elv2_require unit
+
 shopt -s nullglob
 suites=("$WORKSPACE"/tests/*.connector.yaml)
 shopt -u nullglob
@@ -118,8 +123,8 @@ fi
 # not $env. The committed schema keeps {$env...}.
 eval "$("$RC" render "$WORKSPACE" --out "$OUT" --unit)"
 
-export APOLLO_ELV2_LICENSE=accept
-
+# rover reads the user's own APOLLO_ELV2_LICENSE=accept (checked above) for
+# the plugin install and the test run alike.
 if ! ls "$HOME/.rover/bin"/supergraph-v* >/dev/null 2>&1; then
   echo "unit: no supergraph plugin cached; installing the pinned v$FEDERATION_VERSION"
   rover install --plugin "supergraph@=$FEDERATION_VERSION"

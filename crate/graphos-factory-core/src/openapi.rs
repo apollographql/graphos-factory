@@ -1227,6 +1227,11 @@ fn security_requirement(v: Option<&Value>) -> Option<Value> {
     Some(Value::Array(out))
 }
 
+/// The `base_urls` entry an inventory records when its document declares no
+/// server URL (the builder warns). A reserved `.invalid` host, so nothing
+/// can reach it; a reader that needs a real host treats it as none.
+pub const PLACEHOLDER_BASE_URL: &str = "https://example.invalid";
+
 fn base_urls(spec: &Value) -> Vec<String> {
     match get_arr(spec, "servers").filter(|s| !s.is_empty()) {
         Some(servers) => servers.iter().filter_map(expand_server).collect(),
@@ -2469,7 +2474,7 @@ pub fn build_inventory(spec: &Value) -> Result<Built, String> {
     );
     let mut urls = base_urls(spec);
     if urls.is_empty() {
-        urls.push("https://example.invalid".to_string());
+        urls.push(PLACEHOLDER_BASE_URL.to_string());
         warnings.push("the spec declares no server URL; base_urls is a placeholder and must be set before apply".to_string());
     }
     api.insert(

@@ -1,0 +1,39 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "Sprockets", "version": "3.0.0" },
+  "servers": [{ "url": "/api/v3" }],
+  "paths": {
+    "/sprockets/{id}": {
+      "get": {
+        "operationId": "getSprocket",
+        "summary": "One sprocket by id.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "security": [{ "bearer": [] }],
+        "responses": {
+          "200": {
+            "description": "The sprocket.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Sprocket" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": { "type": "http", "scheme": "bearer" }
+    },
+    "schemas": {
+      "Sprocket": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" }
+        }
+      }
+    }
+  }
+}

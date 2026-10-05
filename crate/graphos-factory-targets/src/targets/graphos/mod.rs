@@ -3,7 +3,8 @@
 //!
 //! It adds one command, `export` (Phase 8j): the gate over the evidence,
 //! the core's render with the production values, and the rover hand-off
-//! ([`export`]). It adds no file, lint rule or tag vocabulary; it relaxes
+//! ([`export`]); `init` writes its three local-validation files ([`init`]).
+//! It adds no lint rule or tag vocabulary; it relaxes
 //! the two core rules about `@source` that only a single-source renderer
 //! needs, names the Federation directives a subgraph composes with, and
 //! registers `supergraph_check`, an evidence layer that reports `not_run`
@@ -12,6 +13,7 @@
 //! in `skills/graphos-factory/references/` (proposal §9).
 
 pub mod export;
+pub mod init;
 
 use graphos_factory_core::args::Flags;
 use graphos_factory_core::lint::Findings;
@@ -19,7 +21,6 @@ use graphos_factory_core::target::{
     ComposeConfig, EvidenceLayer, InitInput, LayerInput, LintInput, Override, Target, TargetCommand,
 };
 use serde_json::Value;
-use std::path::PathBuf;
 
 /// The target's name, and its binary's: what a workspace this target
 /// writes records in `workspace.yaml` `skill.name`, the value `init
@@ -70,10 +71,6 @@ fn export_flags(_: Option<&str>) -> Option<&'static Flags> {
 }
 
 fn no_lint(_: &LintInput, _: &mut Findings) {}
-
-fn no_init_files(_: &InitInput) -> Vec<(PathBuf, String)> {
-    Vec::new()
-}
 
 /// A subgraph composes with others, so a second `@source` is a shape this
 /// target has not modelled yet, not one it forbids (proposal §9, question 6).
@@ -128,7 +125,7 @@ pub const TARGET: Target = Target {
         federation_spec_version: None,
         link_imports: LINK_IMPORTS,
     },
-    init_files: no_init_files,
+    init_files: init::files,
     // The core never reads it; `export` calls the same function directly.
     export_gate: Some(export::gate),
     embedded_schemas: &[],

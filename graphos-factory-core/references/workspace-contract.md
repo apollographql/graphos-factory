@@ -94,12 +94,12 @@ both. Nothing under `.factory/` is ever part of that subset.
 ```
 <service>/                         # git repo, created by the skill
   <service>.graphql                # the Apollo Connectors schema (hand-editable)
-  supergraph.yaml                  # federation_version pin + subgraph entry               (derived)
-  template.yaml                    # {{BASE_URL}}, {{AUTH_EXPR}} declarations               (derived)
+  supergraph.yaml                  # rover's compose config: federation_version pin + this one subgraph   (init / hand)
+  template.yaml                    # {{BASE_URL}}, {{AUTH_EXPR}} declarations + local test values         (init / hand)
   README.md                        # scope, configuration, limitations & exclusions
   openapi.json | swagger.json …    # the description document's working copy (OpenAPI 3.x or Swagger 2.0), when one exists   (intake)
   tests/
-    router.yaml                    # override_url -> WireMock; include_subgraph_errors: all
+    router.yaml                    # override_url -> WireMock; include_subgraph_errors: all   (init / hand)
     <service>.connector.yaml       # rover connector test suite
     cases/{name}.graphql + {name}.expected.json
     fixtures/mappings/*.json       # WireMock stubs, x-cases scoped
@@ -128,6 +128,51 @@ both. Nothing under `.factory/` is ever part of that subset.
 
 Everything under `.factory/` is committed. It is small, textual, and is
 the reason a future agent can continue without the original conversation.
+
+### The local-validation files
+
+The three files marked *(init / hand)* are written by `init` for a target
+that declares them, or by hand; `init` never overwrites one that already
+exists, and reports it left alone. Their shape, for one subgraph
+(`directory: widget-co`, `service: widget_co`):
+
+```yaml
+# template.yaml: local test values only, never the production host
+variables:
+  - name: BASE_URL
+    description: "Base URL of the Widgets REST API, including the /v1 path"
+    test_default: "https://api.widgets.example/v1"   # the document's first absolute server
+  - name: AUTH_EXPR
+    description: "Complete Connectors authentication expression for the Widgets bearer token (scheme bearerAuth, sent as `Authorization: Bearer <token>`)"
+    test_default: "{$env.WIDGET_CO_TOKEN}"            # a complete expression; the scheme prefix stays in @source
+```
+
+With only a relative server (`/api/v3`), `BASE_URL` is a local stand-in
+(`http://127.0.0.1:8080/api/v3`) under a comment asking for the host. With
+no security scheme, `AUTH_EXPR` is still declared, under a comment: an API
+that takes no credential leaves the header out of `@source` and deletes
+the entry, since lint reports a declared variable the schema does not use.
+
+```yaml
+# supergraph.yaml: composes this one subgraph for the local layers; not the
+# user's supergraph. The pin equals workspace.yaml's federation_version.
+federation_version: =2.15.2
+subgraphs:
+  widget-co:                       # directory
+    routing_url: http://localhost
+    schema:
+      file: widget-co.graphql
+```
+
+```yaml
+# tests/router.yaml: the e2e layer's router config; render moves the port per run
+connectors:
+  sources:
+    widget-co.widget_co:           # <subgraph>.<@source name>: directory, then service
+      override_url: "http://localhost:8080"
+include_subgraph_errors:
+  all: true
+```
 
 **Every file under `.factory/` is a regular file inside the workspace, and
 the binary enforces it** (ADR 0025). One module owns every `.factory/*` read

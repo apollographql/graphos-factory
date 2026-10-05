@@ -22,6 +22,23 @@ checkmarks to distrust.
 | json-accounting | `graphos-factory-core spans json-accounting --json --check` | a response field the SDL still types as the workspace's JSON scalar with no resolved `json_reasons` entry, or one whose recorded reason no longer holds against `inventory.json` (non-gating, ADR 0073) | whether the reason is the right call: it re-checks the predicate, not the judgement |
 | live | `scripts/live.sh` | spec-vs-reality, silent nulls | runs only with a credential (or against a keyless sandbox); a case chains ids only from an earlier case in the same run |
 
+compose, unit, e2e and live run rover's supergraph composition plugin, and
+e2e and live run the Apollo Router; the composition plugin and the Router
+are licensed under the Elastic License v2
+(https://www.elastic.co/licensing/elastic-license). The user accepts it,
+once, by reading it and setting `APOLLO_ELV2_LICENSE=accept` in their
+environment; rover reads the variable itself. The scripts never set it:
+until it is set, `toolchain.sh` downloads neither the plugin nor the Router,
+e2e downloads no Router, and those four
+wrappers print the instruction and exit 3, which `evidence` records as
+`not_run` with the reason `<layer>: APOLLO_ELV2_LICENSE is not set to
+accept, …`. The agent asks once, showing the link; on an explicit yes it
+sets `APOLLO_ELV2_LICENSE=accept` for the commands it runs in that session
+(a prefix on each wrapper call, or one `export`), records the consent in
+`memory.md`, and tells the user that an `export` in their shell profile
+makes it permanent. Never set it unasked, and never report such a
+workspace as validated.
+
 `evidence/latest.json` records the status of each layer per run and per
 operation. `skipped` and `not_run` are first-class and are never reported as
 `pass`. A unit run with zero cases is `not_run` (`unit: no runnable cases:`

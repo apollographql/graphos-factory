@@ -11,6 +11,7 @@
 //! target's suite's (`targets.rs` there).
 
 mod export;
+mod init_files;
 
 use graphos_factory_targets::targets::graphos::{self, TARGET};
 use serde_json::Value;

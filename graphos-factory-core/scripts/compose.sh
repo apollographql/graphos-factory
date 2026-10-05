@@ -9,7 +9,9 @@
 # e2e and conformance layers are for (references/testing.md).
 #
 # Exit 127 means "rover is not installed": the layer is `skipped` with that
-# reason in evidence/latest.json, never `pass`.
+# reason in evidence/latest.json, never `pass`. Exit 3 means the user has not
+# accepted the composition plugin's Elastic License v2 (APOLLO_ELV2_LICENSE,
+# see elv2.sh): the layer is `not_run` with that reason, never `pass`.
 set -euo pipefail
 
 WORKSPACE="${1:-.}"
@@ -26,15 +28,19 @@ if ! command -v rover >/dev/null 2>&1; then
   exit 127
 fi
 
+# shellcheck source=SCRIPTDIR/elv2.sh
+. "$(dirname "$0")/elv2.sh"
+elv2_require compose
+
 # `render` substitutes template.yaml test_defaults into a temporary copy and
 # refuses a supergraph.yaml whose federation pin disagrees with workspace.yaml.
 eval "$("$RC" render "$WORKSPACE" --out "$OUT")"
 
 echo "compose: $(rover --version | head -1), federation $FEDERATION_VERSION, connect $CONNECT_SPEC"
 
-# --elv2-license=accept: the composition plugin is ELv2-gated and a fresh
-# checkout has not accepted it, which otherwise hangs on a prompt in CI.
-if NO_COLOR=1 rover supergraph compose --elv2-license=accept --config "$COMPOSE_CONFIG" > "$OUT/supergraph.graphql"; then
+# The composition plugin is ELv2-gated; rover reads the user's own
+# APOLLO_ELV2_LICENSE=accept (checked above), so no prompt and no flag.
+if NO_COLOR=1 rover supergraph compose --config "$COMPOSE_CONFIG" > "$OUT/supergraph.graphql"; then
   echo "compose: pass — $(wc -l < "$OUT/supergraph.graphql") lines of supergraph SDL"
 else
   status=$?
