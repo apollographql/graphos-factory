@@ -213,11 +213,19 @@ fn lint_schema(
     }
     let name_re = Regex::new(r#"name\s*:\s*"([^"]*)""#).unwrap();
     let service = get_str(workspace, "service");
-    for source in &sources {
+    // The first source's name keys the e2e router config's
+    // `connectors.sources.<subgraph>.<source>` entry, so a wrong one sends
+    // e2e to the real host: an error for every target. A later source is a
+    // separate rule a target that allows more than one can relax.
+    for (i, source) in sources.iter().enumerate() {
         let name = name_re.captures(&source.args).map(|m| m[1].to_string());
         if name.as_deref() != service {
             findings.error(
-                "source-name",
+                if i == 0 {
+                    "source-name"
+                } else {
+                    "source-name-secondary"
+                },
                 format!(
                     "@source(name: \"{}\") must equal workspace.service \"{}\" — rover derives join__Graph from it",
                     name.unwrap_or_else(|| "?".to_string()),

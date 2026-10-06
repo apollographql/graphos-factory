@@ -3,7 +3,7 @@
 //!
 //! It adds one command, `export` (Phase 8j): the gate over the evidence,
 //! the core's render with the production values, and the rover hand-off
-//! ([`export`]); `init` writes its three local-validation files ([`init`]).
+//! ([`export`]); `init` writes its four local-validation files ([`init`]).
 //! It adds no lint rule or tag vocabulary; it relaxes
 //! the two core rules about `@source` that only a single-source renderer
 //! needs, names the Federation directives a subgraph composes with, and
@@ -81,6 +81,15 @@ fn multiple_sources(message: &str) -> String {
     )
 }
 
+/// `source-name-secondary` as a warning: a second source, which
+/// `multiple-sources` already warns about, cannot share the first's name.
+fn source_name(message: &str) -> String {
+    message.replace(
+        " — rover derives join__Graph from it",
+": a second @source is unmodelled, not forbidden; only the first @source's name must equal workspace.service",
+    )
+}
+
 /// `supergraph_check`: compose the subgraph against the user's existing
 /// supergraph (`rover subgraph check` against a GraphOS variant, or a
 /// compose with their other subgraphs; proposal §9, question 3). Not built,
@@ -113,6 +122,12 @@ pub const TARGET: Target = Target {
     rule_overrides: &[
         ("multiple-sources", Override::Severity("warn")),
         ("multiple-sources", Override::Message(multiple_sources)),
+        // A second source necessarily has another name, so the rule that
+        // holds a later source's name to workspace.service is a warning too.
+        // The first source's `source-name` stays an error: the e2e router
+        // config keys the source by it.
+        ("source-name-secondary", Override::Severity("warn")),
+        ("source-name-secondary", Override::Message(source_name)),
         // No renderer here counts raw `@source(` text.
         ("commented-source", Override::Off),
     ],

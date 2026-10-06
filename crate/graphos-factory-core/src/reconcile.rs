@@ -2125,13 +2125,25 @@ pub fn read_schema_file(
     Ok((schema_file, sdl))
 }
 
+/// `.factory/selection.yaml`'s text. A workspace that has none yet (a fresh
+/// `init`) gets the step that writes it, never a bare "No such file".
+pub fn read_selection(dir: &std::path::Path) -> Result<String, String> {
+    crate::factory_io::read_to_string(dir, ".factory/selection.yaml").map_err(|e| {
+        if e.is_not_found() {
+            "no .factory/selection.yaml yet: run `graphos-factory-core selection draft .` to propose one from the inventory, then confirm it with the user".to_string()
+        } else {
+            String::from(e)
+        }
+    })
+}
+
 pub fn reconcile_workspace(dir: &std::path::Path, baseline: Option<&str>) -> Result<Value, String> {
     // `.factory/*` goes through custody; the schema is an ordinary workspace
     // file the user edits by hand (ADR 0025) — but only once `directory` is
     // proven not to point back inside `.factory/` itself (Phase 7az).
     let factory = |rel: &str| crate::factory_io::read_to_string(dir, rel).map_err(String::from);
     let workspace = crate::yaml::parse(&factory(".factory/workspace.yaml")?)?;
-    let selection = crate::yaml::parse(&factory(".factory/selection.yaml")?)?;
+    let selection = crate::yaml::parse(&read_selection(dir)?)?;
     let inventory = crate::json::parse(&factory(".factory/inventory.json")?)?;
     let (schema_file, sdl) = read_schema_file(dir, &workspace)?;
     let lock = crate::spans::read_lock(dir)?;

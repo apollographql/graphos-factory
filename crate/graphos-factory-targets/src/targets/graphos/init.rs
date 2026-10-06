@@ -1,10 +1,11 @@
-//! The three local-validation files `init` writes for this target, as
+//! The four local-validation files `init` writes for this target, as
 //! skeletons for one subgraph: `template.yaml` (the two placeholders and
 //! their local test values), `supergraph.yaml` (rover's compose config for
-//! this subgraph alone, not the user's supergraph) and `tests/router.yaml`
-//! (the e2e layer's router config). Their layout is the pilot's
-//! (`pilots/graphos/gitea/`), so a diff against it shows values and the
-//! comments a skeleton adds, nothing else. A file that already exists is
+//! this subgraph alone, not the user's supergraph), `tests/router.yaml`
+//! (the e2e layer's router config) and `<directory>.graphql` (the schema's
+//! header: the two spec links and the one source, no root field yet).
+//! Their layout is the pilot's (`pilots/graphos/gitea/`), so a diff against
+//! it shows values and the comments a skeleton adds, nothing else. A file that already exists is
 //! left alone (the core's `init` reports it); none of them is under
 //! `.factory/`, so none goes through custody.
 
@@ -22,14 +23,22 @@ pub const LOCAL_BASE_URL: &str = "http://127.0.0.1:8080";
 /// WireMock's for each e2e run.
 pub const OVERRIDE_URL: &str = "http://localhost:8080";
 
-/// The three files, workspace-relative, with their contents.
+/// The four files, workspace-relative, with their contents.
 pub fn files(input: &InitInput) -> Vec<(PathBuf, String)> {
     let workspace = input.workspace;
     let service = get_str(workspace, "service").unwrap_or_default();
     let directory = get_str(workspace, "directory").unwrap_or(service);
     let pin = get_str(workspace, "federation_version").unwrap_or_default();
+    // The schema links the spec version the workspace pins: its own
+    // `federation_spec_version` when it records one, else the plugin's.
+    let spec = get_str(workspace, "federation_spec_version").unwrap_or(pin);
+    let connect = get_str(workspace, "connect_spec").unwrap_or_default();
     let api = get(input.inventory, "api");
     vec![
+        (
+            PathBuf::from(format!("{}.graphql", directory)),
+            schema(service, &major_minor(spec), connect, api),
+        ),
         (PathBuf::from("template.yaml"), template(service, api)),
         (PathBuf::from("supergraph.yaml"), supergraph(directory, pin)),
         (
@@ -75,6 +84,16 @@ fn one_line(s: &str) -> String {
     s.chars()
         .map(|c| if breaks_text(c) { ' ' } else { c })
         .collect()
+}
+
+/// Spec text made inert in the schema file: one line, no `{{`/`}}` that
+/// lint would read as a placeholder, and no `@source(` that a raw count
+/// would take for a second source.
+fn inert(s: &str) -> String {
+    one_line(s)
+        .replace("{{", "{ {")
+        .replace("}}", "} }")
+        .replace("@source(", "@source (")
 }
 
 /// Comment lines at the variable list's indent. Every line is made
@@ -193,6 +212,15 @@ struct Auth {
     /// What the credential is, with `{title}` for the API's title.
     what: String,
     note: Vec<String>,
+    /// Where the credential goes.
+    place: Place,
+}
+
+/// A header and the prefix before the credential, or the query parameter
+/// that carries it.
+enum Place {
+    Header { name: String, prefix: String },
+    Query(String),
 }
 
 /// The scheme `AUTH_EXPR` describes: the first one the document's default
@@ -225,14 +253,17 @@ fn auth(api: Option<&Value>) -> Auth {
         Some(s) => *s,
         None => {
             return Auth {
+                place: Place::Header {
+                    name: "Authorization".into(),
+                    prefix: String::new(),
+                },
                 what: "the {title} credential".into(),
                 note: vec![
-                    "The document declares no security scheme. If the API takes no credential,"
-                        .into(),
-                    "leave the auth header out of @source and delete this entry (lint reports"
-                        .into(),
-                    "a declared variable the schema does not use).".into(),
-                ],
+                "The document declares no security scheme. If the API takes no credential,".into(),
+                "remove the Authorization header from @source and delete this entry (lint reports"
+                    .into(),
+                "a declared variable the schema does not use).".into(),
+            ],
             }
         }
     };
@@ -282,7 +313,111 @@ fn auth(api: Option<&Value>) -> Auth {
     } else {
         Vec::new()
     };
-    Auth { what, note }
+    let place = match (get_str(chosen, "header"), get_str(chosen, "query_param")) {
+        (None, Some(param)) => Place::Query(param.to_string()),
+        (header, _) => Place::Header {
+            name: header.unwrap_or("Authorization").to_string(),
+            prefix: get_str(chosen, "prefix").unwrap_or_default().to_string(),
+        },
+    };
+    Auth { what, note, place }
+}
+
+/// `2.15` from `2.15.2` (and from `2.15`): the version a `federation/v…`
+/// link names.
+fn major_minor(version: &str) -> String {
+    version.split('.').take(2).collect::<Vec<_>>().join(".")
+}
+
+/// A GraphQL string literal's body: JSON's string escapes are GraphQL's,
+/// and a line separator JSON leaves raw is escaped too.
+fn graphql_string(s: &str) -> String {
+    let quoted = quoted(s);
+    quoted[1..quoted.len() - 1].to_string()
+}
+
+/// The headers the pilot's source sends besides the credential.
+const FIXED_HEADERS: [(&str, &str); 3] = [
+    ("Accept", "application/json"),
+    ("Content-Type", "application/json"),
+    ("User-Agent", "graphos-factory"),
+];
+
+/// `<directory>.graphql`: a header comment, the two spec links and the one
+/// source with the pilot's headers, the credential's prefix outside
+/// `{{AUTH_EXPR}}` as `template.yaml` describes it. No root field: a
+/// subgraph with none does not compose, so compose fails until the first
+/// apply adds one, and the comment says so. The comment never spells the
+/// source directive with its parenthesis, which a reader counting raw
+/// `@source(` text would take for a second source.
+pub fn schema(service: &str, federation: &str, connect: &str, api: Option<&Value>) -> String {
+    let title = api
+        .and_then(|a| get_str(a, "title"))
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .unwrap_or(service);
+    let auth = auth(api);
+    let mut out = format!(
+        "# {} — Apollo Connectors subgraph.\n\
+         #\n\
+         # The schema header init wrote: the spec links and the one source. Each\n\
+         # root field (type Query, type Mutation) and its @connect is added at\n\
+         # apply; until the first apply adds one, compose fails on this file.\n\
+         # This file is the artifact: edit it directly. Selection lives in\n\
+         # .factory/selection.yaml, the reasoning in .factory/decisions.json.\n",
+        inert(title)
+    );
+    let mut headers: Vec<(String, String)> = Vec::new();
+    match &auth.place {
+        Place::Header { name, prefix } => {
+            let (name, prefix) = (inert(name), inert(prefix));
+            out.push_str(&format!(
+                "#\n# Auth: {}: {}<credential>{}\n",
+                name,
+                prefix,
+                if prefix.is_empty() {
+                    ", AUTH_EXPR with no scheme prefix."
+                } else {
+                    "; the scheme prefix stays outside AUTH_EXPR."
+                }
+            ));
+            headers.push((name.clone(), format!("{}{{{{AUTH_EXPR}}}}", prefix)));
+        }
+        Place::Query(param) => out.push_str(&format!(
+            "#\n# Auth: the `{}` query parameter carries the credential, so no header\n\
+             # sends AUTH_EXPR: it goes on each connector's request, and lint's\n\
+             # unused-template-variable for it clears at the first apply.\n",
+            inert(param)
+        )),
+    }
+    if !auth.note.is_empty() {
+        out.push_str("# Read template.yaml's comment on AUTH_EXPR before the first apply.\n");
+    }
+    headers.extend(
+        FIXED_HEADERS
+            .iter()
+            .map(|(n, v)| (n.to_string(), v.to_string())),
+    );
+    out.push_str(&format!(
+        "\nextend schema\n  \
+         @link(url: \"https://specs.apollo.dev/federation/v{federation}\", import: [\"@key\"])\n  \
+         @link(url: \"https://specs.apollo.dev/connect/{connect}\", import: [\"@source\", \"@connect\"])\n\
+         \n\
+         @source(\n  \
+         name: \"{service}\"\n  \
+         http: {{\n    \
+         baseURL: \"{{{{BASE_URL}}}}\"\n    \
+         headers: [\n"
+    ));
+    for (name, value) in headers {
+        out.push_str(&format!(
+            "      {{ name: \"{}\", value: \"{}\" }}\n",
+            graphql_string(&name),
+            graphql_string(&value)
+        ));
+    }
+    out.push_str("    ]\n  }\n)\n");
+    out
 }
 
 /// `supergraph.yaml`: the subgraph alone, under its directory name, at the

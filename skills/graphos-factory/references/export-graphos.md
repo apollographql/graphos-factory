@@ -74,7 +74,8 @@ terms `evidence` uses. There is no override.
   needs a credential the user may not have given. It is listed as not
   verified.
 - A selected operation that an offline layer left `fail`, `unchecked` or
-  `skipped`, or that has no executed evidence at any layer.
+  `skipped`, or that has no executed evidence (no unit, e2e or live
+  `pass`: conformance executes nothing).
 - A lint error on the files as they are now, which includes a selected
   operation with no entry in the evidence. An `auth-test-default` error is
   named by rule and file, with the value replaced by `<redacted>`: it may

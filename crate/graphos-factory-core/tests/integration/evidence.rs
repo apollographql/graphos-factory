@@ -891,3 +891,196 @@ fn skip_and_only_take_either_layer_name_and_refuse_an_unknown_one() {
     let after = std::fs::read_to_string(ws.path().join(".factory/evidence/latest.json")).unwrap();
     assert_eq!(before, after, "a refused run writes nothing");
 }
+
+/// The report as the binary prints it: (exit code, stdout, latest.json).
+fn report(ws: &Path, scripts: &Path, skip: &str) -> (Option<i32>, String, Value) {
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_graphos-factory-bare"))
+        .arg("evidence")
+        .arg(ws)
+        .arg("--scripts")
+        .arg(scripts)
+        .args(["--skip", skip])
+        .env_remove("GRAPHOS_FACTORY_CORE_SCRIPTS")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let text = std::fs::read_to_string(ws.join(".factory/evidence/latest.json"))
+        .unwrap_or_else(|e| panic!("{}: {}{}", e, stdout, String::from_utf8_lossy(&out.stderr)));
+    (
+        out.status.code(),
+        stdout,
+        graphos_factory_core::json::parse(&text).unwrap(),
+    )
+}
+
+/// The count line, computed here from latest.json's own `operations`.
+fn expected_operations_line(ev: &Value) -> String {
+    let ops: Vec<&Value> = ev["operations"].as_object().unwrap().values().collect();
+    let executed = ops
+        .iter()
+        .filter(|o| ["unit", "e2e", "live"].iter().any(|c| o[*c] == "pass"))
+        .count();
+    let unchecked = |c: &str| ops.iter().filter(|o| o[c] == "unchecked").count();
+    format!(
+        "operations: {} selected; {} with executed evidence (unit, e2e or live pass); {} unchecked at e2e (an unproven case, or a documented status with no case), {} unchecked at conformance",
+        ops.len(),
+        executed,
+        unchecked("e2e"),
+        unchecked("conformance")
+    )
+}
+
+/// None of compose, unit and e2e ran: the report closes on why, and no
+/// operation is credited with executed evidence.
+#[test]
+fn a_run_where_no_executed_layer_ran_says_not_validated_with_the_first_reason() {
+    let (ws, scripts) = setup("echo 'live: TOKEN is not set (not_run)'; exit 3");
+    for layer in ["compose", "unit", "e2e"] {
+        script(
+            scripts.path(),
+            &format!("{}.sh", layer),
+            &format!(
+                "echo '{}: TOOL_LICENSE is not set (not_run)'; exit 3",
+                layer
+            ),
+        );
+    }
+    let (_, stdout, ev) = report(
+        ws.path(),
+        scripts.path(),
+        "conformance,lint,json_accounting",
+    );
+    for key in ["compose", "connector_unit", "wiremock_e2e"] {
+        assert_eq!(ev["layers"][key]["status"], "not_run", "{}", key);
+    }
+    assert!(
+        stdout.contains(&expected_operations_line(&ev)),
+        "{}",
+        stdout
+    );
+    let not_validated: Vec<&str> = stdout
+        .lines()
+        .filter(|l| l.starts_with("not validated: "))
+        .collect();
+    assert_eq!(
+        not_validated,
+        vec![
+            "not validated: no executed layer ran (compose: TOOL_LICENSE is not set (not_run))",
+            "not validated: 3 selected operation(s) have no executed evidence: get:/widgets, get:/widgets/{id}, post:/widgets"
+        ],
+        "{}",
+        stdout
+    );
+    assert_eq!(
+        stdout.lines().last(),
+        not_validated.last().copied(),
+        "the report ends on it"
+    );
+}
+
+/// One selected operation (post:/widgets) has no unit entry, no e2e case
+/// and no live case: the report names it, and only it, even with every
+/// layer that ran green.
+#[test]
+fn an_operation_with_no_executed_evidence_is_named_not_validated() {
+    let (ws, scripts) = setup("echo 'live: TOKEN is not set (not_run)'; exit 3");
+    let (code, stdout, ev) = report(
+        ws.path(),
+        scripts.path(),
+        "conformance,lint,json_accounting",
+    );
+    assert_eq!(code, Some(0), "{}", stdout);
+    assert_eq!(ev["layers"]["wiremock_e2e"]["status"], "pass");
+    assert_eq!(ev["operations"]["post:/widgets"]["e2e"], "n/a");
+    assert!(
+        stdout.contains(&expected_operations_line(&ev)),
+        "{}",
+        stdout
+    );
+    assert!(
+        stdout.contains("operations: 3 selected; 2 with executed evidence"),
+        "{}",
+        stdout
+    );
+    let not_validated: Vec<&str> = stdout
+        .lines()
+        .filter(|l| l.starts_with("not validated: "))
+        .collect();
+    assert_eq!(
+        not_validated,
+        vec!["not validated: 1 selected operation(s) have no executed evidence: post:/widgets"],
+        "{}",
+        stdout
+    );
+
+    // Past ten, the line names ten and counts the rest.
+    let mut many = ev.clone();
+    let row = many["operations"]["post:/widgets"].clone();
+    for i in 0..12 {
+        many["operations"][format!("get:/more/{:02}", i)] = row.clone();
+    }
+    let lines = cmd::evidence::not_validated_lines(&many);
+    assert_eq!(lines.len(), 1, "{:?}", lines);
+    assert!(
+        lines[0].starts_with("not validated: 13 selected operation(s) have no executed evidence: "),
+        "{}",
+        lines[0]
+    );
+    assert!(lines[0].ends_with(" and 3 more"), "{}", lines[0]);
+    assert_eq!(lines[0].matches(", ").count(), 9, "{}", lines[0]);
+}
+
+/// A run of the live layer alone that passes: compose, unit and e2e are
+/// `skipped` by the flag, but a layer did execute, so the report does not
+/// say none ran; the operation live covered holds executed evidence.
+#[test]
+fn a_live_only_run_that_passes_is_not_no_executed_layer() {
+    let (ws, scripts) = setup(
+        "echo 'PASS: list_widgets (read)'; echo 'live: 1 passed, 0 failed, 0 excluded'; exit 0",
+    );
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_graphos-factory-bare"))
+        .arg("evidence")
+        .arg(ws.path())
+        .arg("--scripts")
+        .arg(scripts.path())
+        .args(["--only", "live"])
+        .env_remove("GRAPHOS_FACTORY_CORE_SCRIPTS")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let ev: Value = graphos_factory_core::json::parse(
+        &std::fs::read_to_string(ws.path().join(".factory/evidence/latest.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(ev["layers"]["live"]["status"], "pass", "{}", stdout);
+    assert_eq!(ev["layers"]["compose"]["status"], "skipped");
+    assert!(!stdout.contains("no executed layer ran"), "{}", stdout);
+    assert!(
+        stdout.contains(
+            "not validated: 2 selected operation(s) have no executed evidence: get:/widgets/{id}, post:/widgets"
+        ),
+        "{}",
+        stdout
+    );
+}
+
+/// The public pilot's committed evidence, the run CI records: every
+/// selected operation holds executed evidence, so the report has its count
+/// line and no `not validated:` line.
+#[test]
+fn the_pilot_run_has_the_count_line_and_no_not_validated_line() {
+    let latest = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../pilots/graphos/gitea/.factory/evidence/latest.json");
+    let ev = graphos_factory_core::json::parse(&std::fs::read_to_string(latest).unwrap()).unwrap();
+    assert!(!ev["operations"].as_object().unwrap().is_empty());
+    assert_eq!(
+        cmd::evidence::operations_line(&ev),
+        expected_operations_line(&ev)
+    );
+    assert_eq!(
+        cmd::evidence::not_validated_lines(&ev),
+        Vec::<String>::new()
+    );
+}

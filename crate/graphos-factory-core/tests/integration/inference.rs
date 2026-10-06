@@ -77,6 +77,28 @@ fn read_hints_name_the_verb_and_never_change_the_semantics() {
     assert!(hint("", "/v1/things:search").is_some());
 }
 
+/// An action word in the path segment vetoes its read word, as one in the
+/// operationId does: Petstore's `POST /user/createWithList` creates users.
+#[test]
+fn an_action_word_in_the_path_segment_vetoes_its_read_word() {
+    assert_eq!(
+        read_hint("createUsersWithListInput", "/user/createWithList"),
+        None
+    );
+    assert_eq!(read_hint("x", "/user/createWithList"), None);
+    // Unchanged: a segment with a read word and no action word, under an
+    // operationId with neither.
+    assert!(read_hint("usersEndpoint", "/users/search")
+        .unwrap()
+        .contains("path segment `search` carries `search`"));
+    assert!(read_hint("x", "/orders/list")
+        .unwrap()
+        .contains("path segment `list`"));
+    assert!(read_hint("listOrders", "/orders")
+        .unwrap()
+        .contains("operationId listOrders carries `list`"));
+}
+
 #[test]
 fn a_synthesized_operation_id_never_hints_a_read() {
     let spec = serde_json::json!({

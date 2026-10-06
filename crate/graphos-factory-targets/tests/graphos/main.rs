@@ -117,7 +117,11 @@ fn the_target_has_the_cores_two_placeholders_and_one_command() {
     );
     assert_eq!(
         TARGET.overridden_rules(),
-        vec!["multiple-sources", "commented-source"]
+        vec![
+            "multiple-sources",
+            "source-name-secondary",
+            "commented-source"
+        ]
     );
     let layers: Vec<(&str, bool)> = TARGET
         .evidence_layers
@@ -221,6 +225,75 @@ fn a_second_source_warns_here() {
     );
 }
 
+/// A second `@source` with its own name: `multiple-sources` and
+/// `source-name-secondary` are both warnings here, and the schema has no error from
+/// either. (The other target keeps both errors; its suite's.)
+#[test]
+fn a_second_differently_named_source_is_two_warnings_and_no_error() {
+    let here = copy_of(&graphos_pilot());
+    let schema = here.path().join("gitea.graphql");
+    let sdl = std::fs::read_to_string(&schema).unwrap();
+    std::fs::write(
+        &schema,
+        sdl.replacen(
+            "type Query",
+            "@source(name: \"gitea_admin\", http: { baseURL: \"{{BASE_URL}}\" })\ntype Query",
+            1,
+        ),
+    )
+    .unwrap();
+    let report = lint_json(here.path());
+    let multiple = findings(&report, "multiple-sources");
+    assert_eq!(multiple.len(), 1, "{}", report);
+    assert_eq!(multiple[0]["severity"], "warn");
+    assert!(findings(&report, "source-name").is_empty(), "{}", report);
+    let name = findings(&report, "source-name-secondary");
+    assert_eq!(name.len(), 1, "{}", report);
+    assert_eq!(name[0]["severity"], "warn");
+    assert_eq!(
+        name[0]["message"],
+        "@source(name: \"gitea_admin\") must equal workspace.service \"gitea\": a second @source is unmodelled, not forbidden; only the first @source's name must equal workspace.service"
+    );
+    let errors: Vec<&Value> = report["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|f| f["severity"] == "error")
+        .collect();
+    assert!(
+        errors
+            .iter()
+            .all(|f| f["rule"] != "source-name-secondary" && f["rule"] != "multiple-sources"),
+        "{:?}",
+        errors
+    );
+}
+
+/// The only `@source`, misnamed, stays an error here: the e2e router
+/// config keys the source by `workspace.service`, so a renamed one would
+/// send e2e to the real host instead of WireMock.
+#[test]
+fn a_lone_misnamed_source_is_still_an_error() {
+    let here = copy_of(&graphos_pilot());
+    let schema = here.path().join("gitea.graphql");
+    let sdl = std::fs::read_to_string(&schema).unwrap();
+    assert!(sdl.contains("  name: \"gitea\"\n"));
+    std::fs::write(
+        &schema,
+        sdl.replacen("  name: \"gitea\"\n", "  name: \"gitea_v2\"\n", 1),
+    )
+    .unwrap();
+    let report = lint_json(here.path());
+    let name = findings(&report, "source-name");
+    assert_eq!(name.len(), 1, "{}", report);
+    assert_eq!(name[0]["severity"], "error");
+    assert_eq!(
+        name[0]["message"],
+        "@source(name: \"gitea_v2\") must equal workspace.service \"gitea\" — rover derives join__Graph from it"
+    );
+    assert!(findings(&report, "source-name-secondary").is_empty());
+}
+
 /// The pilot as committed lints clean against this target, with no
 /// target rule and the core findings only.
 #[test]
@@ -234,9 +307,11 @@ fn the_pilot_lints_clean_against_this_target() {
         serde_json::json!({
             "name": "graphos-factory",
             "rules": [],
-            "overrides": ["multiple-sources", "commented-source"],
+            "overrides": ["multiple-sources", "source-name-secondary", "commented-source"],
         })
     );
+    // Unchanged by the overrides: 0 errors, 2 warnings.
+    assert_eq!(report["warnings"], 2, "{}", report);
     assert!(report["findings"]
         .as_array()
         .unwrap()

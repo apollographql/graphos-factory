@@ -177,8 +177,12 @@ them.
   owns each entity it declares.
 - **More than one `@source`.** Connectors allow several; the layers render
   one host and one credential, so this target reports a second `@source` as
-  a warning (`multiple-sources`) and turns `commented-source` off:
-  unmodelled, not forbidden. Modelling it would change the workspace's
+  a warning (`multiple-sources`), its name differing from
+  `workspace.service` a warning too (`source-name-secondary`), and turns
+  `commented-source` off: unmodelled, not forbidden. The first source's
+  name must still equal `workspace.service` (`source-name`, an error):
+  `tests/router.yaml` keys the source by it, and a renamed one sends e2e
+  to the real host. Modelling more than one would change the workspace's
   single `source` entry, the per-source variables and credential, and the
   fixtures that name a source.
 - **The federation version.** Whether the pin should follow the user's

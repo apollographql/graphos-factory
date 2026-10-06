@@ -10,7 +10,8 @@
 //! `pass` (`connector_unit` may be `not_run`, the zero-case run whose suites
 //! cite their decisions, as the other target's gate allows); a `live` that
 //! ran and failed; a selected operation an offline layer left `fail`,
-//! `unchecked` or `skipped`, or with no executed evidence at any layer; or a
+//! `unchecked` or `skipped`, or with no executed evidence (no unit, e2e or
+//! live `pass`: conformance executes nothing); or a
 //! lint error now. There is no override. The render is the core's
 //! `render_schema` with the production values (`--base-url`, else
 //! `<SERVICE>_BASE_URL`, else `template.yaml`'s `test_default`; `AUTH_EXPR`
@@ -105,7 +106,8 @@ fn reason<'a>(row: Option<&'a Value>) -> Option<&'a str> {
 /// (bar a `not_run` connector_unit), `live: fail` when the live layer ran
 /// and failed, then one per operation an offline layer left `fail`,
 /// `unchecked` or `skipped`, and one per operation with no executed
-/// evidence at any layer.
+/// evidence (the core's `has_executed_evidence`, which `evidence`'s own
+/// report reads too).
 pub fn gate(evidence: &Value) -> Gate {
     let mut reasons = Vec::new();
     for key in REQUIRED {
@@ -122,10 +124,8 @@ pub fn gate(evidence: &Value) -> Gate {
     }
     for (op, columns) in get_obj(evidence, "operations").into_iter().flatten() {
         let note = get_str(columns, "note").unwrap_or("");
-        let mut any_pass = false;
         for (column, value) in columns.as_object().into_iter().flatten() {
             let value = value.as_str().unwrap_or("");
-            any_pass |= column != "note" && value == "pass";
             if OFFLINE_OPS.contains(&column.as_str())
                 && matches!(value, "fail" | "unchecked" | "skipped")
             {
@@ -137,7 +137,7 @@ pub fn gate(evidence: &Value) -> Gate {
                 reasons.push(format!("{} {}: {}{}", op, column, value, note));
             }
         }
-        if !any_pass {
+        if !graphos_factory_core::cmd::evidence::has_executed_evidence(columns) {
             reasons.push(format!("{}: no executed evidence at any layer", op));
         }
     }
@@ -960,11 +960,15 @@ mod tests {
             json!({"unit": "not_run", "e2e": "n/a", "conformance": "n/a", "live": "not_run"});
         e["operations"]["get:/a"]["e2e"] = "unchecked".into();
         e["operations"]["get:/a"]["note"] = "404 not executed".into();
+        // Conformance executes nothing: its pass alone is not evidence.
+        e["operations"]["get:/c"] =
+            json!({"unit": "n/a", "e2e": "n/a", "conformance": "pass", "live": "not_run"});
         assert_eq!(
             gate(&e).reasons,
             vec![
                 "get:/a e2e: unchecked (404 not executed)",
-                "get:/b: no executed evidence at any layer"
+                "get:/b: no executed evidence at any layer",
+                "get:/c: no executed evidence at any layer"
             ]
         );
     }

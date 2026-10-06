@@ -194,7 +194,8 @@ type Query {
 `rover connector test` injects `$args`, `$this`, `$batch`, `$config` and
 `$context` — but **not** `$env`. That is why `scripts/unit.sh` rewrites
 static `{$env.NAME}` to `{$config.NAME}` in a temporary copy of the schema
-and the suites supply `config.common.variables.$config`. Exporting the
+and the suites supply `config.common.variables.$config` (`unit.sh` fails,
+before rover runs, a suite with cases that lacks one, naming it). Exporting the
 variable into rover's process does not help. Only a real router run proves
 `$env` or `$context` injection.
 

@@ -18,6 +18,7 @@ mod abstract_types;
 mod batch;
 mod batch_emit;
 mod behaviour_facts;
+mod broken_pipe;
 mod codify;
 mod conformance;
 mod context;

@@ -69,9 +69,28 @@ pub mod cmd;
 /// `name`, against the targets its composition root registers; the exit
 /// code to return.
 pub fn run(name: &'static str, targets: &'static [target::Target], argv: &[String]) -> i32 {
+    default_sigpipe();
     let _ = BIN.set(name);
     target::register(targets);
     cmd::dispatch(argv)
+}
+
+/// Give SIGPIPE back its default action, as every Unix filter has it, so a
+/// reader that closes the pipe early (`| head -1`) ends this process quietly
+/// instead of `print!` panicking on EPIPE. The Rust runtime ignores the
+/// signal by default; output goes through `print!`/`println!` at hundreds of
+/// sites, so the one place to decide this is the process start, before any
+/// thread exists. Nothing here writes to a child's stdin or a socket, and
+/// `std::process::Command` already resets the signal in every child, so no
+/// command relied on surviving EPIPE. A non-Unix build keeps the runtime's
+/// behaviour.
+fn default_sigpipe() {
+    #[cfg(unix)]
+    // SAFETY: called once at process start, single-threaded, with a valid
+    // signal number and the default disposition; no handler is installed.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
 }
 
 /// The name every product installs beside its own binary, as a link to it,

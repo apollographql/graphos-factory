@@ -51,6 +51,13 @@ still says SUCCESSFUL. The zero-case run is the one `not_run` the
 validation gate accepts
 ([workspace-contract.md](workspace-contract.md) § `evidence/latest.json`). A workspace where any selected operation lacks executed evidence is
 not validated — say so plainly rather than quoting the layers that did run.
+`evidence`'s report counts it for you: after the layer table, an
+`operations:` line gives the selected operations, those with executed
+evidence (a unit, e2e or live `pass`; conformance executes nothing) and
+those left `unchecked` at e2e or at conformance, and the report ends with a
+`not validated:` line naming each operation with none (ten, then a count),
+or one saying no executed layer ran, with the first layer's reason. The
+absence of that line is the only all-clear the report gives.
 
 ## Running a subset
 

@@ -148,8 +148,48 @@ if [ -n "$ONLY" ]; then
 fi
 
 echo "unit: $(rover --version | head -1), ${#suites[@]} suite(s)"
+# The temporary schema reads each static credential as {$config.NAME}, and
+# only the suite supplies it: a suite with a case that lacks one fails every
+# case for the wrong reason. Each suite this run executes (with --only, the
+# ones holding a matching case) must hold every name render listed under
+# config.common.variables.$config; a suite with no case needs none.
 if [ -n "${CONFIG_VARS:-}" ]; then
-  echo "unit: every suite must supply config.common.variables.\$config for: $CONFIG_VARS"
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "unit: jq is not installed (it reads each suite's \$config variables)" >&2
+    exit 127
+  fi
+  read -ra config_vars <<<"$CONFIG_VARS"
+  config_missing=0
+  for suite in "${suites[@]}"; do
+    if [ -n "$ONLY" ] && [ ! -f "$OUT/only/$(basename "$suite")" ]; then continue; fi
+    if ! supplied="$("$RC" yaml2json "$suite" | jq -r '
+        if type != "object" then "!suite"
+        elif ((.tests // []) | length) == 0 then "-"
+        else (.config.common.variables["$config"] // {}) as $c
+          | if ($c | type) == "object" then ($c | keys[]) else "!config" end
+        end')"; then
+      echo "unit: FAIL — $suite is not readable YAML" >&2
+      exit 1
+    fi
+    case "$supplied" in
+      -) continue ;;
+      '!suite')
+        echo "unit: FAIL — $suite is not a mapping: a suite is a YAML mapping with config: and tests: keys" >&2
+        config_missing=1; continue ;;
+      '!config')
+        echo "unit: FAIL — $suite: config.common.variables.\$config is not a mapping; give it one key per variable (${config_vars[0]}: test-value)" >&2
+        config_missing=1; continue ;;
+    esac
+    lacking=()
+    for var in "${config_vars[@]}"; do
+      grep -qxF -- "$var" <<<"$supplied" || lacking+=("$var")
+    done
+    if [ ${#lacking[@]} -gt 0 ]; then
+      echo "unit: FAIL — $suite does not supply ${lacking[*]}: add each under config.common.variables.\$config (config: {common: {variables: {\$config: {${lacking[0]}: test-value}}}})" >&2
+      config_missing=1
+    fi
+  done
+  [ "$config_missing" -eq 0 ] || exit 1
 fi
 
 log="$OUT/result.log"

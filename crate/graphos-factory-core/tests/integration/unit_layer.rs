@@ -476,6 +476,77 @@ fn a_suite_rover_and_unit_sh_do_not_both_account_for_fails() {
     );
 }
 
+/// A suite with cases that does not supply a `$config` variable the
+/// rendered schema reads fails before rover runs, naming the suite, the
+/// variable and the key path; one that supplies them prints nothing about
+/// it.
+#[test]
+fn a_suite_missing_a_config_variable_fails_naming_it() {
+    let env = setup(Suite::Pilot);
+    let (code, out) = unit(&env, &[]);
+    assert_eq!(code, 0, "{}", out);
+    assert!(!out.contains("$config"), "{}", out);
+
+    let suite = pilot_suite().replace("        GITEA_TOKEN: test-token\n", "        OTHER: x\n");
+    assert_ne!(suite, pilot_suite());
+    let env = setup(Suite::Text(&suite));
+    let (code, out) = unit(&env, &[]);
+    assert_eq!(code, 1, "{}", out);
+    let file = env.ws.join("tests/gitea.connector.yaml");
+    assert!(
+        out.contains(&format!(
+            "unit: FAIL — {} does not supply GITEA_TOKEN: add each under config.common.variables.$config",
+            file.display()
+        )),
+        "{}",
+        out
+    );
+    assert!(!out.contains("TEST RESULTS"), "rover never ran: {}", out);
+
+    // A suite --only leaves out is not checked: a second suite lacking the
+    // variable, whose case does not match, does not fail the run.
+    let env = setup(Suite::Pilot);
+    std::fs::write(
+        env.ws.join("tests/other.connector.yaml"),
+        "config:\n  schema: gitea.graphql\ntests:\n  - name: \"other case\"\n    target: \"Query.gitea_version\"\n",
+    )
+    .unwrap();
+    let (code, out) = unit(&env, &["--only", "gitea_version flattens"]);
+    assert_eq!(code, 0, "{}", out);
+    assert!(!out.contains("other.connector.yaml"), "{}", out);
+    // Run in full, the same suite is checked and named.
+    let (code, out) = unit(&env, &[]);
+    assert_eq!(code, 1, "{}", out);
+    assert!(
+        out.contains("other.connector.yaml does not supply GITEA_TOKEN"),
+        "{}",
+        out
+    );
+
+    // A suite that is not a mapping, and a `$config` that is not one, say so.
+    let env = setup(Suite::Text("- just\n- a list\n"));
+    let (code, out) = unit(&env, &[]);
+    assert_eq!(code, 1, "{}", out);
+    assert!(
+        out.contains("gitea.connector.yaml is not a mapping: a suite is a YAML mapping with config: and tests: keys"),
+        "{}",
+        out
+    );
+    let suite = pilot_suite().replace(
+        "      $config:\n        GITEA_TOKEN: test-token\n",
+        "      $config: GITEA_TOKEN\n",
+    );
+    assert_ne!(suite, pilot_suite());
+    let env = setup(Suite::Text(&suite));
+    let (code, out) = unit(&env, &[]);
+    assert_eq!(code, 1, "{}", out);
+    assert!(
+        out.contains("config.common.variables.$config is not a mapping; give it one key per variable (GITEA_TOKEN: test-value)"),
+        "{}",
+        out
+    );
+}
+
 #[test]
 fn a_suite_with_cases_still_passes_and_a_missing_suite_still_fails() {
     let env = setup(Suite::Pilot);

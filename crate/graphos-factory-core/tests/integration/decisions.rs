@@ -1821,3 +1821,276 @@ fn resolution_by_defaults_to_agent() {
         .collect();
     assert_eq!(by, vec!["agent", "user", "agent"]);
 }
+
+/// The binary's `decisions` verb in `dir`: (exit code, stdout, stderr).
+fn decisions_bin(dir: &Path, args: &[&str]) -> (Option<i32>, String, String) {
+    let mut argv: Vec<String> = vec![args[0].to_string(), dir.to_string_lossy().to_string()];
+    argv.extend(args[1..].iter().map(|a| a.to_string()));
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_graphos-factory-bare"))
+        .arg("decisions")
+        .args(&argv)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    (
+        out.status.code(),
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    )
+}
+
+/// `--choice LABEL` numbers the choices 1, 2, 3 in flag order, `add` prints
+/// them, `resolve --chosen 2` records "2", and the record passes the schema
+/// and round-trips through `decisions list --json`.
+#[test]
+fn choices_without_an_id_are_numbered_and_resolved_by_number() {
+    let dir = TempDir::new().unwrap();
+    let d = dir.path();
+    let (code, stdout, stderr) = decisions_bin(
+        d,
+        &[
+            "add",
+            "--title",
+            "Pagination",
+            "--question",
+            "How are lists paged?",
+            "--choice",
+            "Paginate: cursor",
+            "--choice",
+            "Offset and limit",
+            "--choice",
+            "No pagination",
+            "--choice-detail",
+            "2:the API's own page/limit",
+        ],
+    );
+    assert_eq!(code, Some(0), "{}{}", stdout, stderr);
+    let id = id_of(d, "Pagination");
+    assert_eq!(
+        stdout,
+        format!(
+            "recorded {}\n  1  Paginate: cursor\n  2  Offset and limit\n  3  No pagination\n",
+            id
+        )
+    );
+    let rec = by_title(&read_doc(d), "Pagination").clone();
+    assert_eq!(
+        rec["choices"],
+        json!([
+            {"id": "1", "label": "Paginate: cursor"},
+            {"id": "2", "label": "Offset and limit", "detail": "the API's own page/limit"},
+            {"id": "3", "label": "No pagination"}
+        ])
+    );
+
+    let (code, stdout, stderr) = decisions_bin(d, &["resolve", "--id", &id, "--chosen", "2"]);
+    assert_eq!(code, Some(0), "{}{}", stdout, stderr);
+    assert_eq!(stdout, format!("resolved {}\n  2  Offset and limit\n", id));
+
+    // The schema accepts the numeric ids, and list --json carries them back.
+    let schema = graphos_factory_core::schemas::load("decisions.schema.json", None).unwrap();
+    let doc = read_doc(d);
+    assert_eq!(
+        graphos_factory_core::jsonschema::validate(&doc, &schema),
+        Vec::<String>::new()
+    );
+    let (code, stdout, _) = decisions_bin(d, &["list", "--json"]);
+    assert_eq!(code, Some(0));
+    let listed: Value = serde_json::from_str(&stdout).unwrap();
+    let listed = listed["decisions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["id"] == id.as_str())
+        .unwrap()
+        .clone();
+    assert_eq!(listed["resolution"]["chosen"], json!(["2"]));
+    assert_eq!(listed["choices"][1]["id"], "2");
+}
+
+/// `--chosen` takes the exact label of exactly one choice, on `resolve` and
+/// on `add --resolved`; a value naming no choice is refused with the list.
+#[test]
+fn chosen_takes_an_exact_label_and_refuses_one_naming_no_choice() {
+    let dir = TempDir::new().unwrap();
+    let d = dir.path();
+    assert_eq!(
+        decisions(
+            d,
+            &["add", "--title", "Auth", "--choice", "Bearer", "--choice", "Basic",]
+        ),
+        0
+    );
+    let id = id_of(d, "Auth");
+    let (code, _, stderr) = decisions_bin(d, &["resolve", "--id", &id, "--chosen", "Digest"]);
+    assert_eq!(code, Some(1));
+    assert!(
+        stderr.contains(
+            "--chosen \"Digest\" names no choice id or label; the choices are: 1  Bearer; 2  Basic"
+        ),
+        "{}",
+        stderr
+    );
+    assert_eq!(by_title(&read_doc(d), "Auth")["status"], "open");
+    assert_eq!(
+        decisions(d, &["resolve", "--id", &id, "--chosen", "Basic"]),
+        0
+    );
+    assert_eq!(
+        by_title(&read_doc(d), "Auth")["resolution"]["chosen"],
+        json!(["2"])
+    );
+
+    assert_eq!(
+        decisions(
+            d,
+            &[
+                "add",
+                "--title",
+                "Paging",
+                "--choice",
+                "Cursor",
+                "--choice",
+                "Offset",
+                "--resolved",
+                "--chosen",
+                "Cursor",
+            ]
+        ),
+        0
+    );
+    assert_eq!(
+        by_title(&read_doc(d), "Paging")["resolution"]["chosen"],
+        json!(["1"])
+    );
+}
+
+/// The labels a choice of one call records, in order, from a fresh log.
+fn recorded_choices(args: &[&str]) -> Value {
+    let dir = TempDir::new().unwrap();
+    let mut argv = vec!["add", "--title", "T"];
+    argv.extend_from_slice(args);
+    let (code, stdout, stderr) = decisions_bin(dir.path(), &argv);
+    assert_eq!(code, Some(0), "{}{}", stdout, stderr);
+    by_title(&read_doc(dir.path()), "T")["choices"].clone()
+}
+
+/// Ids are kept only when every `--choice` of the call is `id:label`, the
+/// older calling form; otherwise every value is a whole label, so a label
+/// with a colon in it is never cut there.
+#[test]
+fn an_explicit_id_is_kept_only_when_every_choice_has_one() {
+    // The older form, every value id:label: the ids are kept.
+    assert_eq!(
+        recorded_choices(&["--choice", "keep:Keep it", "--choice", "drop:Drop it"]),
+        json!([{"id": "keep", "label": "Keep it"}, {"id": "drop", "label": "Drop it"}])
+    );
+    // A mixed call is all labels.
+    assert_eq!(
+        recorded_choices(&["--choice", "keep:Keep it", "--choice", "Drop it"]),
+        json!([{"id": "1", "label": "keep:Keep it"}, {"id": "2", "label": "Drop it"}])
+    );
+    // Ordinary labels with a colon stay whole.
+    assert_eq!(
+        recorded_choices(&["--choice", "2:1 split", "--choice", "Even split"]),
+        json!([{"id": "1", "label": "2:1 split"}, {"id": "2", "label": "Even split"}])
+    );
+    assert_eq!(
+        recorded_choices(&["--choice", "v1:beta", "--choice", "v2"]),
+        json!([{"id": "1", "label": "v1:beta"}, {"id": "2", "label": "v2"}])
+    );
+    assert_eq!(
+        recorded_choices(&["--choice", "10:30 UTC daily", "--choice", "On demand"]),
+        json!([{"id": "1", "label": "10:30 UTC daily"}, {"id": "2", "label": "On demand"}])
+    );
+    // A URL is never `id:label`, even when every value is one.
+    assert_eq!(
+        recorded_choices(&[
+            "--choice",
+            "https://api.example.test/v1",
+            "--choice",
+            "https://api.example.test/v2"
+        ]),
+        json!([
+            {"id": "1", "label": "https://api.example.test/v1"},
+            {"id": "2", "label": "https://api.example.test/v2"}
+        ])
+    );
+}
+
+/// A duplicate id in the older form is refused naming both flags; a call
+/// whose every value looks like `id:label` but holds an id the pattern
+/// refuses is refused at the flag, never with a JSON pointer; a call where
+/// some value is a plain label records the shaped one whole. Nothing is
+/// recorded on a refusal.
+#[test]
+fn a_duplicate_or_invalid_id_in_the_older_form_is_refused_at_the_flag() {
+    let fresh = TempDir::new().unwrap();
+    let f = fresh.path();
+    let (code, _, stderr) = decisions_bin(
+        f,
+        &[
+            "add",
+            "--title",
+            "Dup",
+            "--choice",
+            "two:Two",
+            "--choice",
+            "two:Second",
+        ],
+    );
+    assert_eq!(code, Some(1));
+    assert!(
+        stderr.contains(
+            "--choice \"two:Second\": the id \"two\" is already taken by the earlier --choice \"two:Two\""
+        ),
+        "{}",
+        stderr
+    );
+
+    let (code, _, stderr) = decisions_bin(
+        f,
+        &[
+            "add",
+            "--title",
+            "Bad",
+            "--choice",
+            "reads4_write1:Four reads, one write",
+            "--choice",
+            "reads_only:Reads only",
+        ],
+    );
+    assert_eq!(code, Some(1));
+    assert!(
+        stderr.contains(
+            "decisions: --choice \"reads4_write1:Four reads, one write\": every --choice in this call looks like id:label but \"reads4_write1\" does not match ^[a-z0-9][a-z0-9-]*$; drop the ids to have the choices numbered, or fix the id"
+        ),
+        "{}",
+        stderr
+    );
+    assert!(!stderr.contains("/choices/"), "{}", stderr);
+    assert_nothing_recorded(f);
+
+    // One plain label in the call: every value is a label, the shaped one
+    // whole, and nothing is refused.
+    assert_eq!(
+        recorded_choices(&[
+            "--choice",
+            "reads4_write1:Four reads, one write",
+            "--choice",
+            "Reads only"
+        ]),
+        json!([
+            {"id": "1", "label": "reads4_write1:Four reads, one write"},
+            {"id": "2", "label": "Reads only"}
+        ])
+    );
+    // A space after the colon is a label's colon, not the older form.
+    assert_eq!(
+        recorded_choices(&["--choice", "Paginate: cursor", "--choice", "Offset: limit"]),
+        json!([
+            {"id": "1", "label": "Paginate: cursor"},
+            {"id": "2", "label": "Offset: limit"}
+        ])
+    );
+}

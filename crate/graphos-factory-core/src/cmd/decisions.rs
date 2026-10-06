@@ -31,11 +31,15 @@ use std::path::Path;
 
 pub const USAGE: &str = "usage: graphos-factory-core decisions <list|add|resolve|reopen|supersede|link|migrate> [workspace] …
   list    [workspace] [--open] [--causal] [--json]   --causal: in the order decisions presume one another (after, amends, shared affects)
-  add     [workspace] --title T (--question Q | --choice id:label --choice id:label…) [--context C] [--phase P]
-          [--choice-detail id:text]… [--multiple]
+  add     [workspace] --title T (--question Q | --choice LABEL --choice LABEL…) [--context C] [--phase P]
+          [--choice-detail N:text]… [--multiple]
+          each --choice LABEL is numbered 1, 2, 3… in flag order, and add prints `N  label` per choice;
+          ids are kept only when every --choice is id:label (each id matching ^[a-z0-9][a-z0-9-]*$, a label
+          after the colon); otherwise every value is a whole label (`2:1 split`, `v1:beta` stay labels);
+          a duplicate id, or an invalid one when every --choice looks like id:label, is refused at the flag
           [--affects PATH]… [--requested-by WHO]
           [--slug S] [--after D-id]… [--amends D-id]…   the record file's name; decisions this one presumes or changes
-          [--resolved [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent]]   --by defaults to agent
+          [--resolved [--chosen N]… [--note TEXT] [--decision TEXT] [--by user|agent]]   --by defaults to agent
           [--json]
           a record with no --question, fewer than two --choice and no editorial --omit is refused (no-alternative):
           a fact a reference or the wire settles is `findings add`
@@ -43,7 +47,8 @@ pub const USAGE: &str = "usage: graphos-factory-core decisions <list|add|resolve
           [--json-reason 'Type.field|reason']…   (read only on a resolved record)
           [--null-handling 'operation|argument|behavior']…   (behavior: send_null or omit; read only on a resolved record)
           [--secret-field 'Type.field|disposition|reason']…   (disposition: expose or exclude; secret-field-exposed)
-  resolve [workspace] --id D-id [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
+  resolve [workspace] --id D-id [--chosen N]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
+          --chosen takes a choice's id, or its exact label when exactly one choice has that label
   reopen  [workspace] --id D-id [--json]   clear a resolved or superseded decision's answer; status back to open
   supersede [workspace] --id D-id [--json] mark a resolved decision replaced; its answer is kept, its omits, json_reasons and null_handling stop counting
   link    [workspace] --id D-id (--after D-id | --amends D-id)… [--json]   a decision recorded as its own file presumes or changes another
@@ -220,7 +225,16 @@ fn print_decision(d: &Value) {
     } else if let Some(res) = json::get(d, "resolution") {
         let chosen = json::strings(json::field(res, "chosen"));
         if !chosen.is_empty() {
-            println!("             → {}", chosen.join(", "));
+            // Each chosen id with its label, so a numbered id reads.
+            let labels = recorded_pairs(d);
+            let named: Vec<String> = chosen
+                .iter()
+                .map(|c| match labels.iter().find(|(id, _)| id == c) {
+                    Some((_, label)) => format!("{}  {}", c, label),
+                    None => c.clone(),
+                })
+                .collect();
+            println!("             → {}", named.join(", "));
         }
         if let Some(note) = json::get_str(res, "note") {
             println!("             → {}", note);
@@ -244,18 +258,149 @@ fn build_resolution(args: &Args) -> Resolution {
     }
 }
 
-fn collect_choices(args: &Args) -> Result<Vec<Choice>, String> {
-    let mut choices = Vec::new();
-    for spec in args.all("choice") {
-        let Some((id, label)) = spec.split_once(':') else {
-            return Err(format!("--choice expects id:label, got {:?}", spec));
-        };
-        choices.push(Choice {
-            id: id.trim().to_string(),
-            label: label.trim().to_string(),
-            detail: None,
-        });
+/// The pattern a choice id must match: `decisions.schema.json`'s own, read
+/// from the embedded schema so the flag and the file never disagree.
+pub fn choice_id_pattern() -> String {
+    crate::schemas::load("decisions.schema.json", None)
+        .and_then(|s| {
+            s.pointer("/$defs/choice/properties/id/pattern")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "^[a-z0-9][a-z0-9-]*$".to_string())
+}
+
+/// The `--choice` values of one call, as `(id, label)` pairs. All or
+/// nothing: when every value is `id:label` (the text before its first `:`
+/// matches the schema's id pattern and a label follows), the ids are kept,
+/// the older calling form; otherwise every value is a whole label, numbered
+/// "1", "2", "3" in flag order, so `2:1 split`, `v1:beta` or a URL is never
+/// cut at its colon. A duplicate explicit id is refused, naming both flags.
+/// When every value has the `word:label` shape (one word of letters, digits,
+/// `_` or `-`, then a label with no space after the colon) but a word is not
+/// a valid id, the caller meant the older form: refused at the flag, naming
+/// the value and the pattern.
+pub fn parse_choices(specs: &[String]) -> Result<Vec<(String, String)>, String> {
+    let pattern = choice_id_pattern();
+    let valid = regex::Regex::new(&pattern).map_err(|e| e.to_string())?;
+    let explicit: Vec<Option<(String, String)>> = specs
+        .iter()
+        .map(|spec| {
+            spec.split_once(':')
+                // `https://…` is a URL, never an id and a label.
+                .filter(|(id, label)| {
+                    valid.is_match(id) && !label.trim().is_empty() && !label.starts_with("//")
+                })
+                .map(|(id, label)| (id.to_string(), label.trim().to_string()))
+        })
+        .collect();
+    if !specs.is_empty() && explicit.iter().all(Option::is_some) {
+        let mut out: Vec<(String, String)> = Vec::new();
+        for (i, (id, label)) in explicit.into_iter().flatten().enumerate() {
+            if let Some(j) = out.iter().position(|(seen, _)| *seen == id) {
+                return Err(format!(
+                    "--choice {:?}: the id {:?} is already taken by the earlier --choice {:?}; ids are unique in a record (drop every id to have the choices numbered)",
+                    specs[i], id, specs[j]
+                ));
+            }
+            out.push((id, label));
+        }
+        return Ok(out);
     }
+    // The older form attempted: every value is a valid `id:label` or has
+    // its shape, and at least one word is not a valid id.
+    let shaped = |spec: &str| {
+        spec.split_once(':').is_some_and(|(id, label)| {
+            !id.is_empty()
+                && id
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+                && !label.trim().is_empty()
+                && !label.starts_with(char::is_whitespace)
+                && !label.starts_with("//")
+        })
+    };
+    if !specs.is_empty()
+        && specs
+            .iter()
+            .zip(&explicit)
+            .all(|(spec, e)| e.is_some() || shaped(spec))
+    {
+        if let Some((spec, _)) = specs.iter().zip(&explicit).find(|(_, e)| e.is_none()) {
+            let id = spec.split_once(':').map(|(id, _)| id).unwrap_or_default();
+            return Err(format!(
+                "--choice {:?}: every --choice in this call looks like id:label but {:?} does not match {}; drop the ids to have the choices numbered, or fix the id",
+                spec, id, pattern
+            ));
+        }
+    }
+    let mut out = Vec::new();
+    for (i, spec) in specs.iter().enumerate() {
+        let label = spec.trim();
+        if label.is_empty() {
+            return Err(format!("--choice {:?}: the label is empty", spec));
+        }
+        out.push(((i + 1).to_string(), label.to_string()));
+    }
+    Ok(out)
+}
+
+/// `--chosen` values as choice ids: an id the record's choices hold, or the
+/// exact label of exactly one of them. A record with no choices takes the
+/// value as given, held to the id pattern.
+pub fn chosen_ids(values: &[String], choices: &[(String, String)]) -> Result<Vec<String>, String> {
+    let pattern = choice_id_pattern();
+    let valid = regex::Regex::new(&pattern).map_err(|e| e.to_string())?;
+    let listed = || {
+        choices
+            .iter()
+            .map(|(id, label)| format!("{}  {}", id, label))
+            .collect::<Vec<_>>()
+            .join("; ")
+    };
+    values
+        .iter()
+        .map(|v| {
+            if choices.iter().any(|(id, _)| id == v) {
+                return Ok(v.clone());
+            }
+            let by_label: Vec<&String> = choices
+                .iter()
+                .filter(|(_, label)| label == v.trim())
+                .map(|(id, _)| id)
+                .collect();
+            match by_label.len() {
+                1 => Ok(by_label[0].clone()),
+                0 if choices.is_empty() && valid.is_match(v) => Ok(v.clone()),
+                0 if choices.is_empty() => {
+                    Err(format!("--chosen {:?}: not a choice id ({})", v, pattern))
+                }
+                0 => Err(format!(
+                    "--chosen {:?} names no choice id or label; the choices are: {}",
+                    v,
+                    listed()
+                )),
+                _ => Err(format!(
+                    "--chosen {:?} is the label of {} choices; pass the id: {}",
+                    v,
+                    by_label.len(),
+                    listed()
+                )),
+            }
+        })
+        .collect()
+}
+
+fn collect_choices(args: &Args) -> Result<Vec<Choice>, String> {
+    let parsed = parse_choices(&args.all("choice"))?;
+    let mut choices: Vec<Choice> = parsed
+        .into_iter()
+        .map(|(id, label)| Choice {
+            id,
+            label,
+            detail: None,
+        })
+        .collect();
     for spec in args.all("choice-detail") {
         let Some((id, detail)) = spec.split_once(':') else {
             return Err(format!("--choice-detail expects id:text, got {:?}", spec));
@@ -506,7 +651,7 @@ fn add(argv: &[String]) -> i32 {
             args.has("json"),
             ReopenRefusal {
                 code: "no-alternative",
-                message: "add: refused (no-alternative) — a decision names what else could have been done: give it a --question, two or more --choice id:label, or an --omit whose reason is editorial (the alternative is to expose the path). A fact a reference or the wire settles is `graphos-factory-core findings add --cites …`; a vendor quirk or a negative result is a memory.md line".into(),
+                message: "add: refused (no-alternative) — a decision names what else could have been done: give it a --question, two or more --choice LABEL, or an --omit whose reason is editorial (the alternative is to expose the path). A fact a reference or the wire settles is `graphos-factory-core findings add --cites …`; a vendor quirk or a negative result is a memory.md line".into(),
             },
         );
     }
@@ -525,14 +670,19 @@ fn add(argv: &[String]) -> i32 {
     let resolving =
         args.has("resolved") || args.has("chosen") || args.has("note") || args.has("decision");
     let resolution = if resolving {
-        let r = build_resolution(&args);
+        let mut r = build_resolution(&args);
         if r.chosen.is_empty() && r.note.is_none() && r.decision.is_none() {
             return usage("add --resolved: give at least one of --chosen, --note, or --decision");
         }
+        r.chosen = match chosen_ids(&r.chosen, &pairs(&choices)) {
+            Ok(ids) => ids,
+            Err(e) => return fail(&e),
+        };
         Some(r)
     } else {
         None
     };
+    let recorded_choices = pairs(&choices);
     let new = NewDecision {
         title: title.to_string(),
         date: args
@@ -582,16 +732,57 @@ fn add(argv: &[String]) -> i32 {
             Ok(path) => path.map(Value::from).unwrap_or(Value::Null),
             Err(e) => return fail(&e),
         };
+        let choices = recorded_choices
+            .iter()
+            .map(|(id, label)| {
+                json::object(vec![
+                    ("id", Value::from(id.as_str())),
+                    ("label", Value::from(label.as_str())),
+                ])
+            })
+            .collect();
         print!(
             "{}",
-            json::pretty(&json::object(
-                vec![("id", Value::from(id)), ("path", path),]
-            ))
+            json::pretty(&json::object(vec![
+                ("id", Value::from(id)),
+                ("path", path),
+                ("choices", Value::Array(choices)),
+            ]))
         );
     } else {
         println!("recorded {}", id);
+        print_choices(&recorded_choices);
     }
     0
+}
+
+/// Choices as `(id, label)` pairs.
+fn pairs(choices: &[Choice]) -> Vec<(String, String)> {
+    choices
+        .iter()
+        .map(|c| (c.id.clone(), c.label.clone()))
+        .collect()
+}
+
+/// A record's choices as `(id, label)` pairs, from the log.
+fn recorded_pairs(record: &Value) -> Vec<(String, String)> {
+    json::get_arr(record, "choices")
+        .into_iter()
+        .flatten()
+        .map(|c| {
+            (
+                json::get_str(c, "id").unwrap_or("").to_string(),
+                json::get_str(c, "label").unwrap_or("").to_string(),
+            )
+        })
+        .collect()
+}
+
+/// One `id  label` line per choice: what `--chosen` takes.
+fn print_choices(choices: &[(String, String)]) {
+    for (id, label) in choices {
+        println!("  {}  {}", id, label);
+    }
 }
 
 /// The flags this verb accepts; dispatch refuses any other (ADR 0097).
@@ -613,13 +804,28 @@ fn resolve(argv: &[String]) -> i32 {
         Ok(doc) => doc,
         Err(e) => return fail(&e),
     };
-    if let Err(e) = decisions::resolve(&mut doc, id, build_resolution(&args), args.has("force")) {
+    let choices = decisions::find(&doc, id)
+        .map(recorded_pairs)
+        .unwrap_or_default();
+    let mut resolution = build_resolution(&args);
+    resolution.chosen = match chosen_ids(&resolution.chosen, &choices) {
+        Ok(ids) => ids,
+        Err(e) => return fail(&format!("resolve {}: {}", id, e)),
+    };
+    let chosen = resolution.chosen.clone();
+    if let Err(e) = decisions::resolve(&mut doc, id, resolution, args.has("force")) {
         return fail(&e);
     }
     if let Err(e) = decisions::save(&dir, &doc, schemas_dir(&args)) {
         return fail(&e);
     }
     println!("resolved {}", id);
+    print_choices(
+        &choices
+            .into_iter()
+            .filter(|(c, _)| chosen.contains(c))
+            .collect::<Vec<_>>(),
+    );
     0
 }
 

@@ -26,8 +26,8 @@ pub const USAGE: &str = "usage: graphos-factory-core <command> [args]
   context    check [workspace] [--phase build|live] [--json]   assess declared customer-context requirements before authoring
              capture [workspace] (--requirement ID|--input) --id ID --from FILE --representation raw|derived|transcribed …   preserve an exact local artifact; no network or credentials
   decisions  list [workspace] [--open] [--causal] [--json]     the decision log: judgement calls recorded and open questions awaiting the user
-             add [workspace] --title T (--question Q | --choice id:label --choice id:label…) [--multiple] [--resolved --chosen id --note TEXT --decision TEXT [--by user|agent]] [--omit operation|direction|path|reason]…   a record with no question and fewer than two choices is refused (no-alternative)
-             resolve [workspace] --id D-id [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
+             add [workspace] --title T (--question Q | --choice LABEL --choice LABEL…) [--multiple] [--resolved --chosen N --note TEXT --decision TEXT [--by user|agent]] [--omit operation|direction|path|reason]…   choices numbered 1, 2, 3… (ids kept only when every --choice is `id:label`); a record with no question and fewer than two choices is refused (no-alternative)
+             resolve [workspace] --id D-id [--chosen N|LABEL]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
              reopen [workspace] --id D-id [--json]           clear a resolved or superseded decision's answer so it can be resolved again
              supersede [workspace] --id D-id [--json]        mark a resolved decision replaced: its answer is kept, its omits stop counting
              link [workspace] --id D-id (--after D-id | --amends D-id)… [--json]   edges on a decision recorded as its own file

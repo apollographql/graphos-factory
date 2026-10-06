@@ -875,7 +875,7 @@ fn apply(argv: &[String]) -> i32 {
     let factory = |rel: &str| crate::factory_io::read_to_string(&dir, rel).map_err(String::from);
     let loaded = (|| -> Result<(Value, Value, Value, String, String), String> {
         let workspace = crate::yaml::parse(&factory(".factory/workspace.yaml")?)?;
-        let selection = crate::yaml::parse(&factory(".factory/selection.yaml")?)?;
+        let selection = crate::yaml::parse(&crate::reconcile::read_selection(&dir)?)?;
         let inventory = crate::json::parse(&factory(".factory/inventory.json")?)?;
         let (schema_file, sdl) = crate::reconcile::read_schema_file(&dir, &workspace)?;
         Ok((workspace, selection, inventory, sdl, schema_file))

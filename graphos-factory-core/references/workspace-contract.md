@@ -92,7 +92,7 @@ both. Nothing under `.factory/` is ever part of that subset.
 
 ```
 <service>/                         # git repo, created by the skill
-  <service>.graphql                # the Apollo Connectors schema (hand-editable)
+  <service>.graphql                # the Apollo Connectors schema (hand-editable)                                        (init header / hand)
   supergraph.yaml                  # rover's compose config: federation_version pin + this one subgraph   (init / hand)
   template.yaml                    # {{BASE_URL}}, {{AUTH_EXPR}} declarations + local test values         (init / hand)
   README.md                        # scope, configuration, limitations & exclusions
@@ -130,8 +130,8 @@ the reason a future agent can continue without the original conversation.
 
 ### The local-validation files
 
-The three files marked *(init / hand)* are written by `init` for a target
-that declares them, or by hand; `init` never overwrites one that already
+The files marked *(init / hand)* are written by `init` for a target that
+declares them, or by hand; `init` never overwrites one that already
 exists, and reports it left alone. Their shape, for one subgraph
 (`directory: widget-co`, `service: widget_co`):
 
@@ -149,7 +149,8 @@ variables:
 With only a relative server (`/api/v3`), `BASE_URL` is a local stand-in
 (`http://127.0.0.1:8080/api/v3`) under a comment asking for the host. With
 no security scheme, `AUTH_EXPR` is still declared, under a comment: an API
-that takes no credential leaves the header out of `@source` and deletes
+that takes no credential removes the Authorization header from `@source`
+(a target whose `init` writes the schema header puts one there) and deletes
 the entry, since lint reports a declared variable the schema does not use.
 
 ```yaml
@@ -172,6 +173,11 @@ connectors:
 include_subgraph_errors:
   all: true
 ```
+
+Such a target's `init` can also write the schema's header alone: a comment,
+the two `@link`s at the workspace's pins and the one `@source` with
+`{{BASE_URL}}` and the credential header, and no root field, so compose
+fails until the first apply adds one.
 
 **Every file under `.factory/` is a regular file inside the workspace, and
 the binary enforces it**. One module owns every `.factory/*` read
@@ -1065,12 +1071,12 @@ updates every `decision:` reference it moved. Commit the result `decide:`.
       "context": "incident.io lists use `after` cursors; connectors have no pagination primitive.",
       "requested_by": "user (chat, \"keep it simple, mirror the REST shape\")",
       "affects": ["get:/v2/incidents", "get:/v2/actions"],
-      "choices": [                             // the options the agent offered
+      "choices": [                             // the options the agent offered; `decisions add --choice LABEL` numbers them "1", "2", …; ids like these are kept only when every `--choice` is `id:label`
         { "id": "explicit-args",    "label": "Expose pageSize/after args", "detail": "map nextCursor: pagination_meta.after; no Connection type" },
         { "id": "relay-connection", "label": "Relay-style connection",     "detail": "rejected: no Federation-level benefit here" }
       ],
       "resolution": {
-        "chosen": ["explicit-args"],           // ids drawn from choices[]
+        "chosen": ["explicit-args"],           // ids drawn from choices[]; `decisions resolve --chosen` also takes an exact label
         "note": "mirror the REST shape on every list operation",
         "decision": "expose pageSize/after args and map nextCursor: pagination_meta.after; do not synthesize a Connection type",
         "by": "user",

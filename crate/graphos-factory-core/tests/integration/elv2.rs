@@ -252,7 +252,17 @@ fn evidence_records_the_composing_layers_not_run_with_the_reason() {
         );
     }
     assert!(
-        stdout.contains("with no executed evidence at any layer"),
+        stdout.contains(
+            "not validated: no executed layer ran (compose: APOLLO_ELV2_LICENSE is not set to accept"
+        ),
+        "{}",
+        stdout
+    );
+    assert!(
+        stdout.contains(&format!(
+            "not validated: {} selected operation(s) have no executed evidence: ",
+            latest["operations"].as_object().unwrap().len()
+        )),
         "{}",
         stdout
     );

@@ -1,5 +1,6 @@
-//! The three local-validation files `init` writes for this target:
-//! `template.yaml`, `supergraph.yaml` and `tests/router.yaml`, their values
+//! The four local-validation files `init` writes for this target:
+//! `template.yaml`, `supergraph.yaml`, `tests/router.yaml` and the schema
+//! header `<directory>.graphql`, their values
 //! from the description document, a pre-existing one left alone, and a
 //! fresh workspace whose schema uses both placeholders linting clean.
 
@@ -32,12 +33,17 @@ fn init_ws(ws: &Path, spec: &str, extra: &[&str]) -> (Option<i32>, String, Strin
 /// An absolute server with a path and two schemes, the default security
 /// naming the second: every value comes from the document.
 #[test]
-fn init_writes_the_three_files_from_the_document() {
+fn init_writes_the_four_files_from_the_document() {
     let dir = tempfile::tempdir().unwrap();
     let ws = dir.path().join("gadget-co");
     let (code, stdout, stderr) = init_ws(&ws, "gadgets.openapi.json", &[]);
     assert_eq!(code, Some(0), "{} {}", stdout, stderr);
-    for rel in ["template.yaml", "supergraph.yaml", "tests/router.yaml"] {
+    for rel in [
+        "gadget-co.graphql",
+        "template.yaml",
+        "supergraph.yaml",
+        "tests/router.yaml",
+    ] {
         assert!(stdout.contains(&format!("\n  {}\n", rel)), "{}", stdout);
     }
     assert_eq!(
@@ -80,6 +86,212 @@ include_subgraph_errors:
     );
     // The pin is the workspace's.
     assert!(read(&ws, ".factory/workspace.yaml").contains("federation_version: \"2.15.2\"\n"));
+    // The schema header: links at the workspace's pins, the one source with
+    // the chosen scheme's header, and no root field yet.
+    assert_eq!(
+        read(&ws, "gadget-co.graphql"),
+        "# Gadgets — Apollo Connectors subgraph.
+#
+# The schema header init wrote: the spec links and the one source. Each
+# root field (type Query, type Mutation) and its @connect is added at
+# apply; until the first apply adds one, compose fails on this file.
+# This file is the artifact: edit it directly. Selection lives in
+# .factory/selection.yaml, the reasoning in .factory/decisions.json.
+#
+# Auth: X-API-Key: <credential>, AUTH_EXPR with no scheme prefix.
+# Read template.yaml's comment on AUTH_EXPR before the first apply.
+
+extend schema
+  @link(url: \"https://specs.apollo.dev/federation/v2.15\", import: [\"@key\"])
+  @link(url: \"https://specs.apollo.dev/connect/v0.4\", import: [\"@source\", \"@connect\"])
+
+@source(
+  name: \"gadget_co\"
+  http: {
+    baseURL: \"{{BASE_URL}}\"
+    headers: [
+      { name: \"X-API-Key\", value: \"{{AUTH_EXPR}}\" }
+      { name: \"Accept\", value: \"application/json\" }
+      { name: \"Content-Type\", value: \"application/json\" }
+      { name: \"User-Agent\", value: \"graphos-factory\" }
+    ]
+  }
+)
+"
+    );
+}
+
+/// A bearer scheme keeps its prefix outside the placeholder, as
+/// `template.yaml` describes it; a query-parameter scheme sends no header.
+#[test]
+fn the_schema_header_carries_the_schemes_prefix_or_no_auth_header() {
+    let api = |auth: Value| serde_json::json!({"title": "T", "base_urls": [], "auth": [auth]});
+    let bearer = init::schema(
+        "t",
+        "2.15",
+        "v0.4",
+        Some(&api(serde_json::json!({
+            "kind": "bearer", "scheme_name": "b", "header": "Authorization", "prefix": "Bearer "
+        }))),
+    );
+    assert!(
+        bearer.contains("      { name: \"Authorization\", value: \"Bearer {{AUTH_EXPR}}\" }\n"),
+        "{}",
+        bearer
+    );
+    assert!(
+        bearer.contains("# Auth: Authorization: Bearer <credential>; the scheme prefix stays outside AUTH_EXPR.\n"),
+        "{}",
+        bearer
+    );
+    let query = init::schema(
+        "t",
+        "2.15",
+        "v0.4",
+        Some(&api(serde_json::json!({
+            "kind": "api_key", "scheme_name": "q", "query_param": "api_key"
+        }))),
+    );
+    assert!(!query.contains("{{AUTH_EXPR}}"), "{}", query);
+    assert!(
+        query.contains("# Auth: the `api_key` query parameter"),
+        "{}",
+        query
+    );
+    // One source, and no comment that a raw `@source(` count would read as
+    // a second.
+    for text in [&bearer, &query] {
+        assert_eq!(text.matches("@source(").count(), 1, "{}", text);
+        assert!(!text.lines().any(|l| l.starts_with("type ")), "{}", text);
+    }
+}
+
+/// Spec text with `{{…}}` in it reaches the schema's comment inert: a fresh
+/// init lints with no placeholder finding, and the one `@source` is the
+/// only one a raw count sees.
+#[test]
+fn a_title_with_braces_is_no_placeholder_in_the_schema_header() {
+    let dir = tempfile::tempdir().unwrap();
+    let spec_text = std::fs::read_to_string(fixture("gadgets.openapi.json"))
+        .unwrap()
+        .replacen(
+            "\"title\": \"Gadgets\"",
+            "\"title\": \"Widget {{X}} API @source(name: \\\"x\\\")\"",
+            1,
+        );
+    assert!(spec_text.contains("Widget {{X}} API"));
+    let spec = dir.path().join("braces.openapi.json");
+    std::fs::write(&spec, spec_text).unwrap();
+    let ws = dir.path().join("gadget-co");
+    let (code, stdout, stderr) = run(&[
+        "init",
+        ws.to_str().unwrap(),
+        "--name",
+        "gadget-co",
+        "--spec",
+        spec.to_str().unwrap(),
+    ]);
+    assert_eq!(code, Some(0), "{} {}", stdout, stderr);
+    let schema = read(&ws, "gadget-co.graphql");
+    assert!(
+        schema.starts_with(
+            "# Widget { {X} } API @source (name: \"x\") — Apollo Connectors subgraph.\n"
+        ),
+        "{}",
+        schema
+    );
+    assert_eq!(schema.matches("@source(").count(), 1, "{}", schema);
+    let report = lint_json(&ws);
+    for rule in [
+        "unknown-placeholder",
+        "undeclared-placeholder",
+        "multiple-sources",
+        "commented-source",
+    ] {
+        assert!(findings(&report, rule).is_empty(), "{}: {}", rule, report);
+    }
+}
+
+/// With the pilot's values, the skeleton's links and source are the
+/// pilot's, byte for byte, up to where the pilot's own `errors:` begins.
+#[test]
+fn the_schema_header_is_the_pilots_layout() {
+    let pilot = graphos_pilot();
+    let api = serde_json::json!({
+        "title": "Gitea REST API v1",
+        "base_urls": [],
+        "auth": [{"kind": "api_key", "scheme_name": "AuthorizationHeaderToken",
+                  "header": "Authorization", "prefix": "token "}]
+    });
+    let skeleton = init::schema("gitea", "2.12", "v0.4", Some(&api));
+    let theirs = read(&pilot, "gitea.graphql");
+    assert_eq!(skeleton.lines().next(), theirs.lines().next());
+    let code = |s: &str| -> String {
+        s.lines()
+            .filter(|l| !l.trim_start().starts_with('#'))
+            .map(|l| format!("{}\n", l))
+            .collect()
+    };
+    let ours = code(&skeleton);
+    let ours = ours.strip_suffix(")\n").unwrap();
+    assert!(
+        code(&theirs).starts_with(ours),
+        "ours:\n{}\ntheirs:\n{}",
+        ours,
+        theirs
+    );
+}
+
+/// A fresh workspace and nothing else: the commands that read the schema
+/// find it, and each stops on the step actually missing, never on a bare
+/// "No such file".
+#[test]
+fn a_fresh_init_names_the_next_step_instead_of_a_missing_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = dir.path().join("gadget-co");
+    let (code, stdout, stderr) = init_ws(&ws, "gadgets.openapi.json", &[]);
+    assert_eq!(code, Some(0), "{} {}", stdout, stderr);
+    let git = |args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&ws)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@example.test")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@example.test")
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "git {:?}: {:?}", args, out);
+    };
+    git(&["init", "-q", "."]);
+    git(&["add", "-A"]);
+    git(&["commit", "-qm", "init"]);
+    let w = ws.to_str().unwrap();
+    for (args, exit, says) in [
+        (
+            vec!["lock", w, "--check"],
+            3,
+            "no .factory/applied.lock.yaml",
+        ),
+        (
+            vec!["reconcile", w, "--baseline", "HEAD"],
+            2,
+            "no .factory/selection.yaml yet: run `graphos-factory-core selection draft .`",
+        ),
+        (
+            vec!["links", "apply", w, "--dry-run"],
+            1,
+            "no .factory/selection.yaml yet: run `graphos-factory-core selection draft .`",
+        ),
+    ] {
+        let (code, stdout, stderr) = run(&args);
+        let all = format!("{}{}", stdout, stderr);
+        assert_eq!(code, Some(exit), "{:?}: {}", args, all);
+        assert!(all.contains(says), "{:?}: {}", args, all);
+        assert!(!all.contains("No such file"), "{:?}: {}", args, all);
+    }
 }
 
 /// A relative server keeps its path on the local stand-in, with a comment
@@ -120,7 +332,7 @@ fn no_security_scheme_still_declares_auth_expr_with_a_note() {
     description: \"Base URL of the Widgets REST API\"
     test_default: \"https://api.widgets.test\"
   # The document declares no security scheme. If the API takes no credential,
-  # leave the auth header out of @source and delete this entry (lint reports
+  # remove the Authorization header from @source and delete this entry (lint reports
   # a declared variable the schema does not use).
   - name: AUTH_EXPR
     description: \"Complete Connectors authentication expression for the Widgets credential\"
@@ -183,13 +395,15 @@ fn an_existing_file_is_left_alone() {
     std::fs::create_dir_all(ws.join("tests")).unwrap();
     std::fs::write(ws.join("template.yaml"), "variables: [] # mine\n").unwrap();
     std::fs::write(ws.join("tests/router.yaml"), "# mine\n").unwrap();
+    std::fs::write(ws.join("gadget-co.graphql"), "# my schema\n").unwrap();
     let (code, stdout, stderr) = init_ws(&ws, "gadgets.openapi.json", &["--json"]);
     assert_eq!(code, Some(0), "{} {}", stdout, stderr);
     let report: Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(
         report["left_alone"],
-        serde_json::json!(["template.yaml", "tests/router.yaml"])
+        serde_json::json!(["gadget-co.graphql", "template.yaml", "tests/router.yaml"])
     );
+    assert_eq!(read(&ws, "gadget-co.graphql"), "# my schema\n");
     let written: Vec<&str> = report["files"]
         .as_array()
         .unwrap()

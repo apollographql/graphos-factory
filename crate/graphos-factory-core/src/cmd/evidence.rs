@@ -1189,26 +1189,7 @@ pub fn main(argv: &[String]) -> i32 {
             .unwrap_or_default();
         println!("  {:<16} {:<8}{}{}", name, status, reason, first);
     }
-    let unproven: Vec<&String> = per_op
-        .iter()
-        .filter(|(_, s)| {
-            !s.as_object()
-                .map(|o| o.values().any(|v| v.as_str() == Some("pass")))
-                .unwrap_or(false)
-        })
-        .map(|(k, _)| k)
-        .collect();
-    if !unproven.is_empty() {
-        println!(
-            "evidence: {} selected operation(s) with no executed evidence at any layer: {}",
-            unproven.len(),
-            unproven
-                .iter()
-                .map(|s| s.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-    }
+    println!("{}", operations_line(&evidence));
     // A relationship field has no row in `operations` (ADR 0094): lint's
     // `link-untested` findings are the only record that one has no test, so
     // the report names them beside the unproven operations.
@@ -1242,10 +1223,117 @@ pub fn main(argv: &[String]) -> i32 {
     let target_failed = target.evidence_layers.iter().any(|l| {
         l.gating && target_layers.get(l.name).and_then(|r| get_str(r, "status")) == Some("fail")
     });
-    match gating_exit_code(&layers) {
+    let code = match gating_exit_code(&layers) {
         0 if target_failed => 1,
         code => code,
+    };
+    // Last, so the report ends on it; its absence is the only positive
+    // signal the report gives.
+    for line in not_validated_lines(&evidence) {
+        println!("{}", line);
     }
+    code
+}
+
+/// The per-operation columns of the layers that execute the connector:
+/// rover's connector tests, the router against WireMock, the router against
+/// the real API. Conformance compares the test fixtures with the spec and
+/// executes nothing, so its `pass` is never executed evidence.
+pub const EXECUTED_COLUMNS: [&str; 3] = ["unit", "e2e", "live"];
+
+/// Whether an operation's row in `operations` holds executed evidence: a
+/// `pass` in one of [`EXECUTED_COLUMNS`]. `evidence`'s report and a
+/// target's export gate both read it, so the two never disagree.
+pub fn has_executed_evidence(columns: &Value) -> bool {
+    EXECUTED_COLUMNS
+        .iter()
+        .any(|c| get_str(columns, c) == Some("pass"))
+}
+
+/// The report's count line over `operations` (`latest.json`'s shape):
+/// how many are selected, how many hold executed evidence, and how many an
+/// e2e or conformance verdict left `unchecked`.
+pub fn operations_line(evidence: &Value) -> String {
+    let ops: Vec<&Value> = get_obj(evidence, "operations")
+        .into_iter()
+        .flatten()
+        .map(|(_, v)| v)
+        .collect();
+    let unchecked = |column: &str| {
+        ops.iter()
+            .filter(|o| get_str(o, column) == Some("unchecked"))
+            .count()
+    };
+    format!(
+        "operations: {} selected; {} with executed evidence (unit, e2e or live pass); {} unchecked at e2e (an unproven case, or a documented status with no case), {} unchecked at conformance",
+        ops.len(),
+        ops.iter().filter(|o| has_executed_evidence(o)).count(),
+        unchecked("e2e"),
+        unchecked("conformance"),
+    )
+}
+
+/// The layers that execute anything, keyed as `layers` records them, each
+/// with the name its own wrapper's reasons open with.
+const EXECUTED_LAYERS: [(&str, &str); 4] = [
+    ("compose", "compose"),
+    ("connector_unit", "unit"),
+    ("wiremock_e2e", "e2e"),
+    ("live", "live"),
+];
+
+/// The report's closing `not validated:` lines over `latest.json`'s shape:
+/// one when none of compose, connector_unit, wiremock_e2e and live ran
+/// (every one `not_run` or `skipped`), with the first one's reason; one when a selected
+/// operation holds no executed evidence, naming up to ten. Empty when
+/// neither holds; nothing here ever claims a workspace validated.
+pub fn not_validated_lines(evidence: &Value) -> Vec<String> {
+    let mut out = Vec::new();
+    let layers = get(evidence, "layers");
+    let rows: Vec<(&str, &str, Option<&Value>)> = EXECUTED_LAYERS
+        .iter()
+        .map(|(key, short)| (*key, *short, layers.and_then(|l| get(l, key))))
+        .collect();
+    let none_ran = rows.iter().all(|(_, _, row)| {
+        matches!(
+            row.and_then(|r| get_str(r, "status")).unwrap_or("not_run"),
+            "not_run" | "skipped"
+        )
+    });
+    if none_ran {
+        let (key, short, row) = rows[0];
+        let status = row.and_then(|r| get_str(r, "status")).unwrap_or("not_run");
+        let reason = match row.and_then(|r| get_str(r, "reason")) {
+            Some(r) if r.starts_with(&format!("{}:", short)) => r.to_string(),
+            Some(r) => format!("{}: {}", key, r),
+            None => format!("{}: {}", key, status),
+        };
+        out.push(format!("not validated: no executed layer ran ({})", reason));
+    }
+    let missing: Vec<&str> = get_obj(evidence, "operations")
+        .into_iter()
+        .flatten()
+        .filter(|(_, columns)| !has_executed_evidence(columns))
+        .map(|(key, _)| key.as_str())
+        .collect();
+    if !missing.is_empty() {
+        const SHOWN: usize = 10;
+        let mut named = missing
+            .iter()
+            .take(SHOWN)
+            .copied()
+            .collect::<Vec<_>>()
+            .join(", ");
+        if missing.len() > SHOWN {
+            named.push_str(&format!(" and {} more", missing.len() - SHOWN));
+        }
+        out.push(format!(
+            "not validated: {} selected operation(s) have no executed evidence: {}",
+            missing.len(),
+            named
+        ));
+    }
+    out
 }
 
 /// `write_body_proof` is not part of the publication gate (ADR 0079 Step

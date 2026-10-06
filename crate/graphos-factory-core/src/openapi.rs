@@ -716,7 +716,16 @@ pub fn read_hint(operation_id: &str, path: &str) -> Option<String> {
         .trim_end_matches('/')
         .rsplit('/')
         .find(|seg| !seg.is_empty() && !seg.starts_with('{'))?;
-    let w = words(last)
+    // The segment's own action word vetoes its read word, as the
+    // operationId's does: `createWithList` creates.
+    let segment_words = words(last);
+    if segment_words
+        .iter()
+        .any(|w| POST_ACTION_WORDS.contains(&w.as_str()))
+    {
+        return None;
+    }
+    let w = segment_words
         .into_iter()
         .find(|w| POST_READ_WORDS.contains(&w.as_str()))?;
     Some(format!(
