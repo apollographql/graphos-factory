@@ -9,6 +9,9 @@
 //! binary's own code (serialization in-process, same-run, and non-gating).
 //! Exit codes are mapped honestly: 0 pass · 1 fail · 3 not_run · 127 skipped
 //! (tool missing). Nothing here can turn a non-zero exit into `pass`.
+//! Before any layer runs, the files they read are hashed into `inputs`
+//! (`provenance::evidence_inputs`), so a reader can tell, without git,
+//! whether the evidence is for the workspace as it is now.
 
 use crate::args::{Args, Flags};
 use crate::json::{get, get_obj, get_str, obj, pretty, truthy};
@@ -294,6 +297,11 @@ pub fn main(argv: &[String]) -> i32 {
         },
         if dirty.is_empty() { "" } else { "-dirty" }
     );
+    // What the layers are about to read, hashed before they run, for the
+    // same reason as the commit label. It needs no git. A file that cannot
+    // be hashed (a link out of the workspace) leaves `inputs` out and
+    // records why as `inputs_error`: the run still records its layers.
+    let inputs = crate::provenance::evidence_inputs(&dir);
 
     let stamp = crate::now_iso();
     const RUNS_ROOT: &str = ".factory/evidence/runs";
@@ -1144,6 +1152,23 @@ pub fn main(argv: &[String]) -> i32 {
         ("layers", Value::Object(layers.clone())),
         ("operations", Value::Object(per_op.clone())),
     ]);
+    let inputs_line = match &inputs {
+        Ok(recorded) => {
+            crate::json::set(&mut evidence, "inputs", recorded.clone());
+            format!(
+                "inputs: {} over {} files",
+                crate::provenance::short_digest(get_str(recorded, "digest").unwrap_or("")),
+                get_obj(recorded, "files").map_or(0, |f| f.len())
+            )
+        }
+        // Recorded, so a reader tells a run whose files could not be hashed
+        // (re-running cannot help until the file is fixed) from evidence
+        // written before inputs existed.
+        Err(e) => {
+            crate::json::set(&mut evidence, "inputs_error", Value::from(e.as_str()));
+            format!("inputs: not recorded ({})", e)
+        }
+    };
     // Absent for a target with no layers, so the core's evidence is unchanged.
     if !target_layers.is_empty() {
         crate::json::set(
@@ -1173,9 +1198,10 @@ pub fn main(argv: &[String]) -> i32 {
     }
     let cwd = std::env::current_dir().unwrap_or_default();
     println!(
-        "evidence: {} @ {}",
+        "evidence: {} @ {}, {}",
         crate::json::relative(&cwd, &out),
-        commit
+        commit,
+        inputs_line
     );
     for (name, l) in layers.iter().chain(target_layers.iter()) {
         let status = get_str(l, "status").unwrap_or("");

@@ -4,9 +4,12 @@
 //!   export [workspace] --out DIR [--base-url URL] [--json]
 //!
 //! A gate, a render and a hand-off. The gate refuses a workspace that is not
-//! validated: no `.factory/evidence/latest.json`; evidence whose `commit` is
-//! `-dirty`, or is not the workspace as it is now (`evidence_current`), or a
-//! workspace outside git; a core layer that is not
+//! validated: no `.factory/evidence/latest.json`; evidence that is not for
+//! the workspace as it is now (`evidence_current`: a file the layers read
+//! changed, added or removed since, by the `inputs` digests `evidence`
+//! recorded, with no git; for older evidence with no `inputs`, a `-dirty`
+//! `commit`, a commit the workspace differs from, or a workspace outside
+//! git); a core layer that is not
 //! `pass` (`connector_unit` may be `not_run`, the zero-case run whose suites
 //! cite their decisions, as the other target's gate allows); a `live` that
 //! ran and failed; a selected operation an offline layer left `fail`,
@@ -46,9 +49,10 @@ pub const USAGE: &str =
     "usage: graphos-factory export [workspace] --out DIR [--base-url URL] [--json]
   Renders the validated schema with the production base URL into DIR/<directory>.graphql
   (DIR outside the workspace) and prints the rover commands to publish it. Refuses a
-  workspace whose evidence is missing, not passing or not for the committed workspace as
-  it is now, a base URL that is not an absolute http(s) URL, carries userinfo or is local,
-  and an AUTH_EXPR that is not a static {$env.NAME}. Never runs rover.
+  workspace whose evidence is missing, not passing or not for the workspace as it is now
+  (a file the layers read changed since), a base URL that is not an absolute http(s) URL,
+  carries userinfo or is local, and an AUTH_EXPR that is not a static {$env.NAME}. Never
+  runs rover.
   Exit codes: 0 written, 1 refused or an error, 2 usage.";
 
 /// The command's row in the top-level usage.
@@ -354,6 +358,85 @@ fn git(dir: &Path, args: &[&str]) -> Option<String> {
         .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
+/// How `evidence_current` found the evidence current.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Current {
+    /// Every file of the recorded `inputs` hashes as it did: the digest,
+    /// and how many files it covers.
+    Inputs { digest: String, files: usize },
+    /// Evidence with no `inputs` (written before they were recorded),
+    /// checked by its `commit` against git.
+    Commit,
+}
+
+/// A stale-evidence refusal: the message, and one reason per file.
+#[derive(Debug)]
+pub struct Stale {
+    pub message: String,
+    pub reasons: Vec<String>,
+}
+
+/// Whether `evidence` (`latest.json`) is for the workspace as it is now.
+/// With `inputs`, the files the layers read are hashed again and compared,
+/// with no git at all: each file changed, added to or removed from the
+/// input set since is a reason. With `inputs_error` instead, `evidence`
+/// could not hash a file, and that reason is the refusal. With neither, the
+/// evidence predates input hashing and its `commit` is checked against git
+/// (`commit_current`), and the message says so.
+pub fn evidence_current(dir: &Path, evidence: &Value) -> Result<Current, Stale> {
+    // `evidence` tried and could not hash a file: the commit fallback would
+    // ask for a re-run that fails the same way, so the reason is the refusal.
+    if let (None, Some(why)) = (get(evidence, "inputs"), get_str(evidence, "inputs_error")) {
+        return Err(Stale {
+            message: format!(
+                "evidence could not hash its inputs ({}): fix that, then re-run evidence",
+                why
+            ),
+            reasons: vec![format!("inputs not recorded: {}", why)],
+        });
+    }
+    let Some(inputs) = get(evidence, "inputs") else {
+        let recorded = get_str(evidence, "commit").unwrap_or("0000000");
+        return commit_current(dir, recorded)
+            .map(|()| Current::Commit)
+            .map_err(|m| Stale {
+                message: format!(
+                    "the evidence predates input hashing, so export checks its commit against git: {}",
+                    m
+                ),
+                reasons: Vec::new(),
+            });
+    };
+    let changes = graphos_factory_core::provenance::evidence_input_changes(dir, inputs).map_err(
+        |e| Stale {
+            message: format!(
+                "cannot compare the files the evidence ran against with the workspace ({}): re-run evidence",
+                e
+            ),
+            reasons: Vec::new(),
+        },
+    )?;
+    if changes.is_empty() {
+        return Ok(Current::Inputs {
+            digest: get_str(inputs, "digest").unwrap_or("").to_string(),
+            files: get_obj(inputs, "files").map_or(0, |f| f.len()),
+        });
+    }
+    let reasons: Vec<String> = changes
+        .iter()
+        .map(|c| format!("{} {} since evidence ran", c.path, c.change))
+        .collect();
+    const SHOWN: usize = 10;
+    let mut shown = reasons[..reasons.len().min(SHOWN)].join("; ");
+    if reasons.len() > SHOWN {
+        shown.push_str(&format!(" (+{} more)", reasons.len() - SHOWN));
+    }
+    Err(Stale {
+        message: format!("{}: re-run evidence", shown),
+        reasons,
+    })
+}
+
 /// Whether the evidence's `commit` (`recorded`, `latest.json`'s) is the
 /// workspace as it is now, in the form `evidence` writes it: `git rev-parse
 /// --short HEAD`, `-dirty` when the workspace, `.factory/evidence` aside,
@@ -362,10 +445,11 @@ fn git(dir: &Path, args: &[&str]) -> Option<String> {
 /// committed or not: a commit that only adds the evidence keeps it current.
 /// A recorded `-dirty` is never current (what it ran against is nowhere),
 /// nor is a workspace outside git. The error is the refusal's message.
-pub fn evidence_current(dir: &Path, recorded: &str) -> Result<(), String> {
+/// Only evidence with no `inputs` is checked this way.
+pub fn commit_current(dir: &Path, recorded: &str) -> Result<(), String> {
     if git(dir, &["rev-parse", "--is-inside-work-tree"]).as_deref() != Some("true") {
         return Err(format!(
-            "the workspace is not in a git repository, so export cannot tell what the evidence (recorded at {}) ran against: commit the workspace and re-run evidence",
+            "the workspace is not in a git repository, so export cannot tell what the evidence (recorded at {}) ran against: re-run evidence",
             recorded
         ));
     }
@@ -564,7 +648,12 @@ fn run(args: &Args) -> Result<Value, Refusal> {
     let recorded = get_str(&evidence, "commit")
         .unwrap_or("0000000")
         .to_string();
-    evidence_current(&dir, &recorded).map_err(|m| refuse("evidence-stale", m))?;
+    let current = evidence_current(&dir, &evidence).map_err(|s| Refusal {
+        code: "evidence-stale",
+        message: s.message,
+        reasons: s.reasons,
+        exit: 1,
+    })?;
     let mut reasons = gate(&evidence).reasons;
     let linted = lint_workspace(
         &dir,
@@ -755,6 +844,12 @@ fn run(args: &Args) -> Result<Value, Refusal> {
         "router_no_opt_in_from": router_no_opt_in,
         "federation_version": federation_version,
         "evidence_commit": recorded,
+        "evidence_checked": match current { Current::Inputs { .. } => "inputs", Current::Commit => "commit" },
+        "evidence_digest": match &current {
+            Current::Inputs { digest, .. } => Value::from(graphos_factory_core::provenance::short_digest(digest)),
+            Current::Commit => Value::Null,
+        },
+        "evidence_files": match current { Current::Inputs { files, .. } => Value::from(files), Current::Commit => Value::Null },
         "credential_env": credentials,
         "sources": keys,
         "rover": {
@@ -784,14 +879,27 @@ fn print_handoff(r: &Value) {
         .flatten()
         .filter_map(Value::as_str)
         .collect();
+    let against = match get_str(r, "evidence_digest") {
+        Some(digest) => format!(
+            "evidence inputs {} ({} files) unchanged since it ran",
+            digest,
+            get(r, "evidence_files")
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
+        ),
+        None => format!(
+            "evidence at {} (it predates input hashing; checked against git)",
+            s("evidence_commit")
+        ),
+    };
     println!(
-        "gate: {} pass; {} selected operation(s) with executed evidence; evidence at {}",
+        "gate: {} pass; {} selected operation(s) with executed evidence; {}",
         passed.join(", "),
         get(r, "gate")
             .and_then(|g| get(g, "operations"))
             .and_then(Value::as_u64)
             .unwrap_or(0),
-        s("evidence_commit")
+        against
     );
     println!("\nPublish it yourself; this binary never contacts GraphOS (rover uses your own credentials):");
     println!(

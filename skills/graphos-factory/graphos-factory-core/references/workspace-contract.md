@@ -1235,6 +1235,10 @@ show this next to each operation; the skill refuses to call a workspace
   "contract_version": 2,
   "commit": "a1b2c3d",
   "run_at": "2026-09-08T15:00:00Z",
+  "inputs": {
+    "digest": "5e0c…",
+    "files": { ".factory/selection.yaml": "2a4b…", "incident-io.graphql": "8f7e…", "tests/router.yaml": "c3d1…" }
+  },
   "toolchain": { "rover": "0.41.0", "federation": "2.15.2", "connect_spec": "v0.4", "wiremock": "3.13.2" },
   "layers": {
     "compose":        { "status": "pass" },
@@ -1252,6 +1256,43 @@ show this next to each operation; the skill refuses to call a workspace
   }
 }
 ```
+
+**`inputs`** fingerprints what the layers ran against, with no git. Before
+the first layer runs, `evidence` hashes every file a layer reads: the
+schema, `template.yaml`, `supergraph.yaml`, the target's own output files,
+every file under `tests/` (dotfiles aside; a linked directory that stays
+inside the workspace is walked like any other), and
+`.factory/workspace.yaml`, `selection.yaml`, `inventory.json`,
+`context.yaml` and the snapshots it names, `sources.lock.yaml` and the
+documents it pins, `inferred-schema.json`, and the decision and finding
+logs with their record files. `README.md`, `memory.md` and
+`.factory/evidence/` are not inputs: no layer reads them.
+`applied.lock.yaml` is not one either: lint reads it, but it is left out
+because `export` lints the workspace again when it runs, so the lock is
+judged as it is then. `files` maps each workspace-relative path to the
+SHA-256 of its bytes, and `digest` is the SHA-256 of one `<sha256>  <path>`
+line per file in path order (`sha256sum`'s line format). A reader hashes
+the same files again to tell whether the evidence is for the workspace as
+it is now, and names each one that changed, was added or was removed.
+`inputs` is optional and additive: evidence written before it existed has
+none, and such a reader falls back to `commit`, which still needs git. A
+run where a file could not be hashed (a link under `tests/` that resolves
+outside the workspace) records `inputs_error`, the reason, instead of
+`inputs`: re-running `evidence` cannot help until that file is fixed, so a
+reader says so rather than falling back. `evidence`'s report prints
+`inputs: <first 12 hex> over N files`, or `inputs: not recorded (<why>)`,
+beside the commit on its first line.
+
+The applied lock's `provenance` and `inputs` hash the same file the same
+way, so a file's SHA-256 is equal in both, but they answer different
+questions. The lock records what was authored and committed: it is
+written by `lock` after an apply, covers `README.md` and `memory.md` too,
+and `lock --check --provenance` holds the committed files to it. `inputs`
+records what the layers saw when they ran: it is written by `evidence`,
+covers only what a layer reads, and goes stale on any edit to one of those
+files, committed or not. A file can match one and not the other: a README
+edit is provenance drift but leaves the evidence current, and a schema
+edit after `lock` and before `evidence` is in the evidence and not the lock.
 
 `write_body_proof` is `fail` when a selected operation has a gap, including
 when the e2e layer was skipped or failed: a write with no executed case is an

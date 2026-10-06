@@ -33,7 +33,9 @@ The schema reads a version-1 selection too, as long as it carries no
 `context`; every writer that adds one writes 2, and `decisions migrate
 --split` upgrades the file. `sources.lock.yaml` gained an optional `context`
 on a `patches[]` entry and stays at 1. Existing applied locks remain valid
-without the optional provenance block.
+without the optional provenance block. `evidence/latest.json` gained an
+optional `inputs` (the digest of the files its layers read) and stays at 2;
+evidence without it still validates.
 
 For a breaking change, update the version in the schema and every writer. The version is
 what lets a UI refuse a workspace it does not understand rather than

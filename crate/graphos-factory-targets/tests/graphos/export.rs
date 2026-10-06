@@ -1,12 +1,15 @@
 //! `export` (Phase 8j): the gate over the evidence, the render with the
 //! production values, the refusals, and the rover hand-off, on copies of
 //! this target's pilot. Export refuses evidence that is not for the
-//! committed workspace as it is now, so a copy that should get past that
-//! is made a git repository, committed, and its evidence's `commit` set to
-//! that commit (`current_copy`): the evidence the pilot recorded, for the
-//! same files.
+//! workspace as it is now, by the `inputs` digests `evidence` records, so
+//! a copy that should get past that carries the pilot's evidence with the
+//! `inputs` a real `evidence` run on the copy recorded (`stamped_copy`),
+//! and no git at all. Evidence with no `inputs` (written before they
+//! existed) is checked by its `commit` against git instead: such a copy is
+//! made a git repository, committed, and its evidence's `commit` set to
+//! that commit (`current_copy`).
 
-use super::{bin, copy_of, graphos_pilot};
+use super::{bin, copy_of, graphos_pilot, script};
 use graphos_factory_targets::targets::graphos::export;
 use serde_json::Value;
 use std::path::Path;
@@ -54,11 +57,49 @@ fn git(dir: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
+/// A copy of the pilot, `edit`ed, outside git, whose evidence is the
+/// pilot's with the `inputs` that `evidence` itself records on the copy as
+/// it is now: a run of the one layer a stub wrapper answers, whose
+/// `latest.json` gives its `inputs` and is then replaced. What export
+/// compares is what the writer wrote.
+fn stamped_copy_with(edit: impl FnOnce(&Path)) -> tempfile::TempDir {
+    let ws = copy_of(&graphos_pilot());
+    edit(ws.path());
+    let pilot_evidence = std::fs::read_to_string(evidence_path(ws.path())).unwrap();
+    let scripts = tempfile::tempdir().unwrap();
+    script(scripts.path(), "compose.sh", "echo 'compose: pass'; exit 0");
+    let out = bin()
+        .arg("evidence")
+        .arg(ws.path())
+        .arg("--scripts")
+        .arg(scripts.path())
+        .args(["--only", "compose"])
+        .output()
+        .unwrap();
+    let run: Value =
+        serde_json::from_str(&std::fs::read_to_string(evidence_path(ws.path())).unwrap())
+            .unwrap_or_else(|e| panic!("{}: {:?}", e, out));
+    let inputs = run["inputs"].clone();
+    assert!(inputs["digest"].is_string(), "{:?}", out);
+    std::fs::write(evidence_path(ws.path()), pilot_evidence).unwrap();
+    edit_evidence(ws.path(), |e| e["inputs"] = inputs);
+    assert!(!ws.path().join(".git").exists());
+    ws
+}
+
+fn stamped_copy() -> tempfile::TempDir {
+    stamped_copy_with(|_| {})
+}
+
 /// A copy of the pilot, `edit`ed, committed as a git repository of its
-/// own, with its evidence's `commit` the new HEAD in `evidence`'s form.
+/// own, with its evidence's `commit` the new HEAD in `evidence`'s form and
+/// no `inputs`: evidence written before they were recorded.
 fn current_copy_with(edit: impl FnOnce(&Path)) -> tempfile::TempDir {
     let ws = copy_of(&graphos_pilot());
     edit(ws.path());
+    edit_evidence(ws.path(), |e| {
+        e.as_object_mut().unwrap().remove("inputs");
+    });
     git(ws.path(), &["init", "-q"]);
     git(ws.path(), &["add", "-A"]);
     git(ws.path(), &["commit", "-q", "-m", "pilot"]);
@@ -127,7 +168,7 @@ fn no_evidence_is_refused() {
 
 #[test]
 fn a_layer_or_operation_not_passing_is_refused_and_named() {
-    let ws = current_copy();
+    let ws = stamped_copy();
     edit_evidence(ws.path(), |e| {
         e["layers"]["wiremock_e2e"]["status"] = "skipped".into();
         e["layers"]["wiremock_e2e"]["reason"] = "java is not installed".into();
@@ -164,7 +205,7 @@ fn a_layer_or_operation_not_passing_is_refused_and_named() {
     assert!(!out.path().join("gitea.graphql").exists());
 
     // A live run that failed is refused too; one that did not run is not.
-    let ws = current_copy();
+    let ws = stamped_copy();
     edit_evidence(ws.path(), |e| {
         e["layers"]["live"]["status"] = "fail".into();
         e["layers"]["live"]["reason"] = "401 from the real API".into();
@@ -176,7 +217,7 @@ fn a_layer_or_operation_not_passing_is_refused_and_named() {
 
 #[test]
 fn a_local_base_url_is_refused() {
-    let ws = current_copy();
+    let ws = stamped_copy();
     let out = tempfile::tempdir().unwrap();
     let out_s = out.path().to_string_lossy().into_owned();
     // No --base-url: template.yaml's test default, the local Gitea.
@@ -218,7 +259,7 @@ fn a_local_base_url_is_refused() {
 
 #[test]
 fn a_literal_credential_is_refused_and_never_echoed() {
-    let ws = current_copy();
+    let ws = stamped_copy();
     let out = tempfile::tempdir().unwrap();
     let out_s = out.path().to_string_lossy().into_owned();
     let (code, stdout, stderr) = export_in(
@@ -267,7 +308,7 @@ fn out_inside_the_workspace_is_refused() {
 
 #[test]
 fn a_validated_workspace_is_rendered_and_handed_off() {
-    let ws = current_copy();
+    let ws = stamped_copy();
     let schema_before = std::fs::read(ws.path().join("gitea.graphql")).unwrap();
     let out = tempfile::tempdir().unwrap();
     let dest = out.path().join("new/dir");
@@ -298,6 +339,19 @@ fn a_validated_workspace_is_rendered_and_handed_off() {
     ] {
         assert!(stdout.contains(needle), "{} missing: {}", needle, stdout);
     }
+    // The gate line names the inputs digest the evidence ran against.
+    let recorded: Value =
+        serde_json::from_str(&std::fs::read_to_string(evidence_path(ws.path())).unwrap()).unwrap();
+    let gate_line = stdout.lines().find(|l| l.starts_with("gate: ")).unwrap();
+    assert!(
+        gate_line.ends_with(&format!(
+            "; evidence inputs {} ({} files) unchanged since it ran",
+            &recorded["inputs"]["digest"].as_str().unwrap()[..12],
+            recorded["inputs"]["files"].as_object().unwrap().len()
+        )),
+        "{}",
+        gate_line
+    );
     assert!(!stdout.contains("APOLLO_KEY"), "{}", stdout);
     assert!(!stdout.contains("2.14.1"), "{}", stdout);
     assert!(stdout.lines().count() <= 26, "{}", stdout);
@@ -313,7 +367,7 @@ fn a_validated_workspace_is_rendered_and_handed_off() {
 
 #[test]
 fn json_carries_the_same_facts() {
-    let ws = current_copy();
+    let ws = stamped_copy();
     let out = tempfile::tempdir().unwrap();
     let out_s = out.path().to_string_lossy().into_owned();
     let (code, stdout, stderr) =
@@ -333,9 +387,17 @@ fn json_carries_the_same_facts() {
     assert_eq!(r["router_no_opt_in_from"], "2.16.0");
     assert_eq!(r["federation_version"], "2.15.2");
     assert!(r.get("federation_min").is_none(), "{}", r);
+    let recorded: Value =
+        serde_json::from_str(&std::fs::read_to_string(evidence_path(ws.path())).unwrap()).unwrap();
+    assert_eq!(r["evidence_commit"], recorded["commit"]);
+    assert_eq!(r["evidence_checked"], "inputs");
     assert_eq!(
-        r["evidence_commit"],
-        git(ws.path(), &["rev-parse", "--short", "HEAD"])
+        r["evidence_digest"],
+        &recorded["inputs"]["digest"].as_str().unwrap()[..12]
+    );
+    assert_eq!(
+        r["evidence_files"],
+        recorded["inputs"]["files"].as_object().unwrap().len()
     );
     assert_eq!(r["credential_env"], serde_json::json!(["GITEA_TOKEN"]));
     assert_eq!(r["sources"], serde_json::json!(["gitea.gitea"]));
@@ -408,7 +470,7 @@ fn help_lists_export_under_the_target() {
 /// through: an IPv4-mapped loopback, `host.docker.internal`.
 #[test]
 fn a_base_url_that_is_not_an_absolute_url_or_is_local_is_refused() {
-    let ws = current_copy();
+    let ws = stamped_copy();
     let out = tempfile::tempdir().unwrap();
     let out_s = out.path().to_string_lossy().into_owned();
     for (url, code) in [
@@ -457,7 +519,7 @@ fn a_base_url_that_is_not_an_absolute_url_or_is_local_is_refused() {
 /// neither stream nor the JSON.
 #[test]
 fn a_base_url_with_userinfo_is_refused_and_never_echoed() {
-    let ws = current_copy();
+    let ws = stamped_copy();
     let out = tempfile::tempdir().unwrap();
     let out_s = out.path().to_string_lossy().into_owned();
     let (code, stdout, stderr) = export_ok(
@@ -495,7 +557,7 @@ fn a_base_url_with_userinfo_is_refused_and_never_echoed() {
 #[test]
 fn a_literal_test_default_is_named_but_never_echoed() {
     const LITERAL: &str = "l1teral-t0ken-4f9a";
-    let ws = current_copy_with(|ws| {
+    let ws = stamped_copy_with(|ws| {
         let file = ws.join("template.yaml");
         let text = std::fs::read_to_string(&file).unwrap();
         assert!(text.contains("test_default: \"{$env.GITEA_TOKEN}\""));
@@ -534,7 +596,7 @@ fn a_literal_test_default_is_named_but_never_echoed() {
 /// verified, by field and warning, and does not refuse the export.
 #[test]
 fn a_link_field_without_tests_is_named_not_verified() {
-    let ws = current_copy_with(|ws| {
+    let ws = stamped_copy_with(|ws| {
         for case in [
             "issue_repository_owner",
             "list_issues_repository_owner_null",
@@ -571,11 +633,11 @@ fn a_link_field_without_tests_is_named_not_verified() {
     );
 }
 
-/// Evidence recorded on uncommitted changes, or a workspace with
-/// uncommitted changes now, is refused: what the evidence ran against is
-/// not what would be exported.
+/// Older evidence, with no `inputs`: recorded on uncommitted changes, or
+/// with uncommitted changes in the workspace now, it is refused, and the
+/// refusal says the evidence predates input hashing.
 #[test]
-fn dirty_evidence_or_a_dirty_workspace_is_refused() {
+fn older_dirty_evidence_or_a_dirty_workspace_is_refused() {
     let out = tempfile::tempdir().unwrap();
     let out_s = out.path().to_string_lossy().into_owned();
     let ws = current_copy();
@@ -588,7 +650,7 @@ fn dirty_evidence_or_a_dirty_workspace_is_refused() {
     assert_eq!(code, Some(1), "{}", stderr);
     assert!(
         stderr.contains(&format!(
-            "evidence was recorded at {}-dirty, the workspace is at {}: re-run evidence",
+            "the evidence predates input hashing, so export checks its commit against git: evidence was recorded at {}-dirty, the workspace is at {}: re-run evidence",
             head, head
         )),
         "{}",
@@ -615,11 +677,12 @@ fn dirty_evidence_or_a_dirty_workspace_is_refused() {
     assert!(!out.path().join("gitea.graphql").exists());
 }
 
-/// Evidence recorded at another commit is refused when the workspace
-/// changed since; a commit that adds only the evidence keeps it current.
-/// A workspace outside git is refused.
+/// Older evidence, with no `inputs`, is checked against git and says so:
+/// recorded at another commit it is refused when the workspace changed
+/// since; a commit that adds only the evidence keeps it current. Such
+/// evidence in a workspace outside git is refused.
 #[test]
-fn evidence_recorded_at_another_commit_is_refused() {
+fn older_evidence_recorded_at_another_commit_is_refused() {
     let out = tempfile::tempdir().unwrap();
     let out_s = out.path().to_string_lossy().into_owned();
     let ws = current_copy();
@@ -630,15 +693,23 @@ fn evidence_recorded_at_another_commit_is_refused() {
     let (code, stdout, stderr) = export_ok(ws.path(), &["--out", &out_s, "--base-url", HOST]);
     assert_eq!(code, Some(0), "{} {}", stdout, stderr);
     assert!(
-        stdout.contains(&format!("evidence at {}", recorded)),
+        stdout.contains(&format!(
+            "evidence at {} (it predates input hashing; checked against git)",
+            recorded
+        )),
         "{}",
         stdout
     );
+    let (code, stdout, _) = export_ok(ws.path(), &["--out", &out_s, "--base-url", HOST, "--json"]);
+    assert_eq!(code, Some(0));
+    let r: Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(r["evidence_checked"], "commit");
+    assert_eq!(r["evidence_digest"], Value::Null);
+    std::fs::remove_file(out.path().join("gitea.graphql")).unwrap();
 
     std::fs::write(ws.path().join("README.md"), "edited after the evidence\n").unwrap();
     git(ws.path(), &["commit", "-q", "-am", "edit"]);
     let head = git(ws.path(), &["rev-parse", "--short", "HEAD"]);
-    std::fs::remove_file(out.path().join("gitea.graphql")).unwrap();
     let (code, stdout, stderr) =
         export_ok(ws.path(), &["--out", &out_s, "--base-url", HOST, "--json"]);
     assert_eq!(code, Some(1), "{}", stderr);
@@ -656,13 +727,165 @@ fn evidence_recorded_at_another_commit_is_refused() {
     );
     assert!(!out.path().join("gitea.graphql").exists());
 
-    // Outside git, nothing says what the evidence ran against.
+    // Outside git, nothing says what such evidence ran against.
     let plain = copy_of(&graphos_pilot());
+    edit_evidence(plain.path(), |e| {
+        e.as_object_mut().unwrap().remove("inputs");
+    });
     let (code, _, stderr) = export_ok(plain.path(), &["--out", &out_s, "--base-url", HOST]);
     assert_eq!(code, Some(1), "{}", stderr);
     assert!(
-        stderr.contains("the workspace is not in a git repository"),
+        stderr.contains("the evidence predates input hashing, so export checks its commit against git: the workspace is not in a git repository"),
         "{}",
         stderr
     );
+}
+
+/// With `inputs`, git plays no part: a copy that was never a git
+/// repository exports, and so does one whose README changed since (the
+/// layers never read it).
+#[test]
+fn evidence_with_inputs_exports_without_git() {
+    let ws = stamped_copy();
+    assert!(!ws.path().join(".git").exists());
+    std::fs::write(ws.path().join("README.md"), "edited after the evidence\n").unwrap();
+    std::fs::write(ws.path().join(".factory/memory.md"), "edited too\n").unwrap();
+    let out = tempfile::tempdir().unwrap();
+    let out_s = out.path().to_string_lossy().into_owned();
+    let (code, stdout, stderr) = export_ok(ws.path(), &["--out", &out_s, "--base-url", HOST]);
+    assert_eq!(code, Some(0), "{} {}", stdout, stderr);
+    assert!(out.path().join("gitea.graphql").exists());
+    assert!(stdout.contains("unchanged since it ran"), "{}", stdout);
+}
+
+/// A file the layers read that changed, appeared or went away since the
+/// evidence ran is refused, each one named, the schema, a test case and
+/// `template.yaml` among them.
+#[test]
+fn a_file_the_layers_read_changed_since_is_refused_by_name() {
+    let out = tempfile::tempdir().unwrap();
+    let out_s = out.path().to_string_lossy().into_owned();
+    let cases: [(&str, fn(&Path), &str); 4] = [
+        (
+            "the schema",
+            |ws| {
+                let f = ws.join("gitea.graphql");
+                let text = std::fs::read_to_string(&f).unwrap();
+                std::fs::write(&f, format!("{}\n# edited\n", text)).unwrap();
+            },
+            "gitea.graphql changed since evidence ran",
+        ),
+        (
+            "a new test case",
+            |ws| {
+                std::fs::write(
+                    ws.join("tests/cases/added_later.graphql"),
+                    "query { gitea_version { version } }\n",
+                )
+                .unwrap();
+            },
+            "tests/cases/added_later.graphql added since evidence ran",
+        ),
+        (
+            "template.yaml",
+            |ws| {
+                let f = ws.join("template.yaml");
+                let text = std::fs::read_to_string(&f).unwrap();
+                std::fs::write(&f, format!("{}# edited\n", text)).unwrap();
+            },
+            "template.yaml changed since evidence ran",
+        ),
+        (
+            "a removed fixture",
+            |ws| std::fs::remove_file(ws.join("tests/fixtures/mappings/issue.json")).unwrap(),
+            "tests/fixtures/mappings/issue.json removed since evidence ran",
+        ),
+    ];
+    for (what, edit, reason) in cases {
+        let ws = stamped_copy();
+        edit(ws.path());
+        let (code, stdout, stderr) =
+            export_ok(ws.path(), &["--out", &out_s, "--base-url", HOST, "--json"]);
+        assert_eq!(code, Some(1), "{}: {}", what, stderr);
+        assert_eq!(
+            stderr,
+            format!("export: {}: re-run evidence\n", reason),
+            "{}",
+            what
+        );
+        let report: Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(report["code"], "evidence-stale", "{}", what);
+        assert_eq!(report["reasons"], serde_json::json!([reason]), "{}", what);
+        assert!(!out.path().join("gitea.graphql").exists(), "{}", what);
+    }
+}
+
+/// An `inputs` whose digest its own files do not reproduce was edited by
+/// hand, and is refused rather than trusted.
+#[test]
+fn an_inputs_record_edited_by_hand_is_refused() {
+    let ws = stamped_copy();
+    edit_evidence(ws.path(), |e| {
+        e["inputs"]["files"]["gitea.graphql"] = "0".repeat(64).into();
+    });
+    let out = tempfile::tempdir().unwrap();
+    let out_s = out.path().to_string_lossy().into_owned();
+    let (code, _, stderr) = export_ok(ws.path(), &["--out", &out_s, "--base-url", HOST]);
+    assert_eq!(code, Some(1), "{}", stderr);
+    assert!(
+        stderr.contains("(inputs.digest is not the digest of inputs.files): re-run evidence"),
+        "{}",
+        stderr
+    );
+}
+
+/// Evidence that could not hash its inputs says why (`inputs_error`), and
+/// export refuses with that reason and asks for the fix first: never "the
+/// evidence predates input hashing", whose re-run would fail the same way.
+#[test]
+fn evidence_that_could_not_hash_its_inputs_is_refused_with_the_reason() {
+    let outside = tempfile::tempdir().unwrap();
+    let target = outside.path().join("elsewhere.graphql");
+    std::fs::write(&target, "query { x }\n").unwrap();
+    let ws = copy_of(&graphos_pilot());
+    std::os::unix::fs::symlink(&target, ws.path().join("tests/cases/linked.graphql")).unwrap();
+    let pilot_evidence = std::fs::read_to_string(evidence_path(ws.path())).unwrap();
+    let scripts = tempfile::tempdir().unwrap();
+    script(scripts.path(), "compose.sh", "echo 'compose: pass'; exit 0");
+    let out = bin()
+        .arg("evidence")
+        .arg(ws.path())
+        .arg("--scripts")
+        .arg(scripts.path())
+        .args(["--only", "compose"])
+        .output()
+        .unwrap();
+    let run: Value =
+        serde_json::from_str(&std::fs::read_to_string(evidence_path(ws.path())).unwrap())
+            .unwrap_or_else(|e| panic!("{}: {:?}", e, out));
+    assert!(run.get("inputs").is_none(), "{}", run);
+    let why = run["inputs_error"].clone();
+    assert_eq!(
+        why,
+        "tests/cases/linked.graphql: file resolves outside the workspace"
+    );
+    // The pilot's passing layers, with this run's reason in place of inputs.
+    std::fs::write(evidence_path(ws.path()), pilot_evidence).unwrap();
+    edit_evidence(ws.path(), |e| {
+        e.as_object_mut().unwrap().remove("inputs");
+        e["inputs_error"] = why;
+    });
+    let dest = tempfile::tempdir().unwrap();
+    let dest_s = dest.path().to_string_lossy().into_owned();
+    let (code, stdout, stderr) =
+        export_ok(ws.path(), &["--out", &dest_s, "--base-url", HOST, "--json"]);
+    assert_eq!(code, Some(1), "{}", stderr);
+    assert_eq!(
+        stderr,
+        "export: evidence could not hash its inputs (tests/cases/linked.graphql: file resolves outside the workspace): fix that, then re-run evidence\n"
+    );
+    assert!(!stderr.contains("predates"), "{}", stderr);
+    let report: Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(report["code"], "evidence-stale");
+    assert!(!dest.path().join("gitea.graphql").exists());
 }

@@ -549,6 +549,212 @@ pub fn drift(dir: &Path, lock: &Value) -> Vec<Drift> {
     out
 }
 
+/// The `.factory` files the evidence layers read (`workspace.yaml` by every
+/// one; the selection and inventory by every in-binary layer; the context
+/// by `live`'s gate and lint; the sources lock by conformance, which also
+/// reads the documents it names; the inferred schema by conformance; the
+/// decision log by lint, json-accounting and serialization; the findings
+/// log by lint). The applied lock, `memory.md` and the evidence directory
+/// are not: the lock records the committed state, a different question,
+/// and `export` lints the workspace again anyway.
+const EVIDENCE_FACTORY_INPUTS: [&str; 8] = [
+    ".factory/workspace.yaml",
+    ".factory/selection.yaml",
+    ".factory/inventory.json",
+    ".factory/context.yaml",
+    ".factory/sources.lock.yaml",
+    ".factory/inferred-schema.json",
+    crate::decisions::FILE,
+    crate::findings::FILE,
+];
+
+/// Every file under `rel` the layers can read: dotfiles skipped, as
+/// `walk_files` skips them, but a symlink kept, since a script follows it.
+/// A linked file is listed and `file_record` hashes what it resolves to
+/// inside the workspace, or fails. A linked directory that resolves inside
+/// the workspace is walked under its link's path, unless it is one of the
+/// directories already being walked above it (a link back to an ancestor,
+/// which would never end); one that resolves outside it is an error. No
+/// git: the layers glob the disk, not the index.
+fn walk_inputs(root: &Path, rel: &Path, out: &mut BTreeSet<String>) -> Result<(), String> {
+    let base = root.canonicalize().map_err(|e| e.to_string())?;
+    walk_inputs_in(root, &base, rel, out, &mut Vec::new())
+}
+
+fn walk_inputs_in(
+    root: &Path,
+    base: &Path,
+    rel: &Path,
+    out: &mut BTreeSet<String>,
+    ancestors: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let dir = root.join(rel);
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    let real = dir
+        .canonicalize()
+        .map_err(|e| format!("{}: {}", rel.display(), e))?;
+    if !real.starts_with(base) {
+        return Err(format!(
+            "{}: directory resolves outside the workspace",
+            rel.display()
+        ));
+    }
+    if ancestors.contains(&real) {
+        return Ok(());
+    }
+    ancestors.push(real);
+    let walked = walk_entries(root, base, rel, &dir, out, ancestors);
+    ancestors.pop();
+    walked
+}
+
+fn walk_entries(
+    root: &Path,
+    base: &Path,
+    rel: &Path,
+    dir: &Path,
+    out: &mut BTreeSet<String>,
+    ancestors: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    for entry in std::fs::read_dir(dir).map_err(|e| format!("{}: {}", dir.display(), e))? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if is_hidden(Path::new(&entry.file_name())) {
+            continue;
+        }
+        let ty = entry.file_type().map_err(|e| e.to_string())?;
+        let next = rel.join(entry.file_name());
+        // `is_dir` on the joined path follows a link: a linked directory
+        // is walked (and contained above), a linked file listed.
+        if ty.is_dir() || (ty.is_symlink() && root.join(&next).is_dir()) {
+            walk_inputs_in(root, base, &next, out, ancestors)?;
+        } else {
+            out.insert(next.to_string_lossy().to_string());
+        }
+    }
+    Ok(())
+}
+
+/// The workspace-relative files `evidence` hashes into `inputs`: what its
+/// layers read, present on disk. The schema, `template.yaml`,
+/// `supergraph.yaml`, the target's own output files, everything under
+/// `tests/`, and the `.factory` files of `EVIDENCE_FACTORY_INPUTS` with the
+/// decision and finding record files, the source documents the sources
+/// lock names and the snapshots the context names. `README.md`, `memory.md`,
+/// the applied lock and `.factory/evidence/` are never in it.
+pub fn evidence_input_paths(dir: &Path) -> Result<BTreeSet<String>, String> {
+    let workspace = crate::yaml::parse(&crate::factory_io::read_to_string(
+        dir,
+        ".factory/workspace.yaml",
+    )?)
+    .map_err(|e| format!(".factory/workspace.yaml: {}", e))?;
+    let mut paths: BTreeSet<String> = EVIDENCE_FACTORY_INPUTS
+        .into_iter()
+        .chain(["template.yaml", "supergraph.yaml"])
+        .chain(crate::target::active().output_files.iter().copied())
+        .map(str::to_string)
+        .collect();
+    paths.insert(crate::reconcile::schema_file_of(&workspace)?);
+    paths.extend(crate::record_log::record_paths(dir)?);
+    if let Some(lock) = crate::sources::read_sources_lock(dir)? {
+        for source in crate::sources::document_entries(&lock) {
+            paths.insert(source.path);
+        }
+    }
+    if let Some(text) = crate::factory_io::read_to_string_optional(dir, crate::context::FILE)? {
+        let value =
+            crate::yaml::parse(&text).map_err(|e| format!("{}: {}", crate::context::FILE, e))?;
+        collect_snapshot_paths(&value, &mut paths);
+    }
+    walk_inputs(dir, Path::new("tests"), &mut paths)?;
+    // Present: a file, or a link `file_record` will resolve or refuse.
+    Ok(paths
+        .into_iter()
+        .filter(|rel| std::fs::symlink_metadata(dir.join(rel)).is_ok_and(|m| !m.is_dir()))
+        .collect())
+}
+
+/// The digest over a `{path: sha256}` map: SHA-256 of one
+/// `<sha256>  <path>\n` line per file, in path order (`sha256sum`'s line
+/// format, so `sha256sum` over the same files, sorted by path, and hashed
+/// again reproduces it).
+pub fn inputs_digest(files: &serde_json::Map<String, Value>) -> String {
+    let sorted: BTreeMap<&String, &Value> = files.iter().collect();
+    let mut text = String::new();
+    for (rel, hash) in sorted {
+        text.push_str(hash.as_str().unwrap_or(""));
+        text.push_str("  ");
+        text.push_str(rel);
+        text.push('\n');
+    }
+    bytes_hash(text.as_bytes())
+}
+
+/// What `evidence` records as `inputs`: `{digest, files: {path: sha256}}`
+/// over `evidence_input_paths`, each file hashed as the lock's provenance
+/// hashes it (`file_record`: `.factory` through custody, the rest
+/// contained in the workspace), so a file's hash here is its hash in the
+/// lock's provenance.
+pub fn evidence_inputs(dir: &Path) -> Result<Value, String> {
+    let mut files = crate::json::obj();
+    for rel in evidence_input_paths(dir)? {
+        let record = file_record(dir, &rel)?;
+        files.insert(rel, record.get("sha256").cloned().unwrap_or(Value::Null));
+    }
+    Ok(crate::json::object(vec![
+        ("digest", Value::from(inputs_digest(&files))),
+        ("files", Value::Object(files)),
+    ]))
+}
+
+/// The first twelve hex digits of a digest, as the reports print it.
+pub fn short_digest(digest: &str) -> &str {
+    digest.get(..12).unwrap_or(digest)
+}
+
+/// One file whose state differs from what `evidence` recorded in `inputs`.
+#[derive(Debug, PartialEq, Eq)]
+pub struct InputChange {
+    pub path: String,
+    /// `changed`, `added` (in the input set now, not then) or `removed`.
+    pub change: &'static str,
+}
+
+/// The files of the evidence input set as it is now that differ from
+/// `recorded` (`latest.json`'s `inputs`), in path order; none is current.
+/// A recorded `digest` its own `files` do not reproduce is an error: the
+/// record was edited by hand and describes no run.
+pub fn evidence_input_changes(dir: &Path, recorded: &Value) -> Result<Vec<InputChange>, String> {
+    let then = recorded
+        .get("files")
+        .and_then(Value::as_object)
+        .ok_or("inputs has no files")?;
+    if recorded.get("digest").and_then(Value::as_str) != Some(inputs_digest(then).as_str()) {
+        return Err("inputs.digest is not the digest of inputs.files".to_string());
+    }
+    let now = evidence_inputs(dir)?;
+    let now = now
+        .get("files")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let mut out = Vec::new();
+    for rel in then.keys().chain(now.keys()).collect::<BTreeSet<_>>() {
+        let change = match (then.get(rel), now.get(rel)) {
+            (Some(a), Some(b)) if a == b => continue,
+            (Some(_), Some(_)) => "changed",
+            (None, Some(_)) => "added",
+            _ => "removed",
+        };
+        out.push(InputChange {
+            path: rel.clone(),
+            change,
+        });
+    }
+    Ok(out)
+}
+
 /// Record provenance after a command creates or updates an applied lock.
 pub fn refresh(
     dir: &Path,

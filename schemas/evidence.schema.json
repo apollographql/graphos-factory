@@ -10,6 +10,21 @@
     "contract_version": { "const": 2 },
     "commit": { "type": "string", "pattern": "^[0-9a-f]{7,40}(-dirty)?$" },
     "run_at": { "type": "string", "format": "date-time" },
+    "inputs": {
+      "type": "object",
+      "description": "Optional and additive: the files the layers read, hashed before they ran, so a reader can tell whether the evidence is for the workspace as it is now without git. The schema, template.yaml, supergraph.yaml, the target's output files, everything under tests/, and the .factory workspace, selection, inventory, context (and its snapshots), sources lock (and the documents it names), inferred schema and decision and finding logs; never README.md, memory.md, the applied lock or .factory/evidence/. Absent on evidence written before it existed, or when a file could not be hashed (then `inputs_error` says why).",
+      "required": ["digest", "files"],
+      "additionalProperties": false,
+      "properties": {
+        "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of one `<sha256>  <path>\\n` line per entry of `files`, in path order." },
+        "files": {
+          "type": "object",
+          "description": "Workspace-relative path to the SHA-256 of its bytes, as the applied lock's provenance hashes the same file.",
+          "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "inputs_error": { "type": "string", "minLength": 1, "description": "Optional and additive: why `inputs` could not be recorded on this run (a file that could not be hashed, such as a link under tests/ resolving outside the workspace). Present only when `inputs` is absent for that reason; re-running evidence does not clear it until the file is fixed." },
     "toolchain": {
       "type": "object",
       "required": ["rover", "federation", "connect_spec"],

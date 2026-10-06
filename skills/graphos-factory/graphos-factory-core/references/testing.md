@@ -41,7 +41,18 @@ workspace as validated.
 
 `evidence/latest.json` records the status of each layer per run and per
 operation. `skipped` and `not_run` are first-class and are never reported as
-`pass`. A unit run with zero cases is `not_run` (`unit: no runnable cases:`
+`pass`. Its first line names the commit and the inputs:
+`evidence: .factory/evidence/latest.json @ <commit>, inputs: <digest> over N
+files`. The digest covers every file a layer reads, hashed before the first
+one runs: the schema, `template.yaml`, `supergraph.yaml`, everything under
+`tests/`, and the `.factory` workspace, selection, inventory, context,
+sources lock and pinned documents, and decision and finding logs; never
+`README.md` or `memory.md` ([workspace-contract.md](workspace-contract.md)
+§ `evidence/latest.json`). Edit one of those files after the run and the
+evidence no longer describes the workspace: run `evidence` again before
+reporting it validated or handing it on. `inputs: not recorded (<why>)`
+means a file could not be hashed, most often a link under `tests/` that
+resolves outside the workspace. A unit run with zero cases is `not_run` (`unit: no runnable cases:`
 plus each suite header's first sentence), not a pass, because rover's
 `0 passed; 0 failed` proves nothing. `unit.sh` counts cases per suite, and
 every suite with none must cite in that sentence the decision behind it

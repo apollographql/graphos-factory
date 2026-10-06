@@ -1084,3 +1084,243 @@ fn the_pilot_run_has_the_count_line_and_no_not_validated_line() {
         Vec::<String>::new()
     );
 }
+
+fn copy_tree(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), &target).unwrap();
+        }
+    }
+}
+
+fn files_under(root: &Path, rel: &str, out: &mut Vec<String>) {
+    for entry in std::fs::read_dir(root.join(rel)).unwrap() {
+        let entry = entry.unwrap();
+        let next = format!("{}/{}", rel, entry.file_name().to_string_lossy());
+        if entry.file_type().unwrap().is_dir() {
+            files_under(root, &next, out);
+        } else {
+            out.push(next);
+        }
+    }
+}
+
+/// A copy of the public pilot, outside any git repository, `edit`ed, and
+/// `evidence --only compose` on it with a stub wrapper: the layers do not
+/// matter here, only what the run hashes before they start. The report's
+/// stdout and `latest.json`.
+fn pilot_inputs_run(edit: impl FnOnce(&Path)) -> (tempfile::TempDir, String, Value) {
+    let pilot = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../pilots/graphos/gitea");
+    let ws = tempfile::tempdir().unwrap();
+    copy_tree(&pilot, ws.path());
+    edit(ws.path());
+    let scripts = tempfile::tempdir().unwrap();
+    script(scripts.path(), "compose.sh", "echo 'compose: pass'; exit 0");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_graphos-factory-bare"))
+        .arg("evidence")
+        .arg(ws.path())
+        .arg("--scripts")
+        .arg(scripts.path())
+        .args(["--only", "compose"])
+        .env_remove("GRAPHOS_FACTORY_CORE_SCRIPTS")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let ev: Value = graphos_factory_core::json::parse(
+        &std::fs::read_to_string(ws.path().join(".factory/evidence/latest.json")).unwrap(),
+    )
+    .unwrap();
+    (ws, stdout, ev)
+}
+
+/// `evidence` records `inputs`: the files its layers read, each hashed as
+/// the lock's provenance hashes it, and a digest over them. The schema,
+/// template, supergraph config, every file under `tests/`, the `.factory`
+/// files a layer reads and the source document; never the README,
+/// `memory.md`, the applied lock or the evidence directory. No git.
+#[test]
+fn evidence_records_the_files_its_layers_read() {
+    let (ws, stdout, ev) = pilot_inputs_run(|_| {});
+    assert_eq!(
+        validate(&ev, &schemas::load("evidence.schema.json", None).unwrap()),
+        Vec::<String>::new()
+    );
+    let files = ev["inputs"]["files"].as_object().expect("inputs.files");
+    let mut expected: Vec<String> = [
+        ".factory/decisions.json",
+        ".factory/findings.json",
+        ".factory/inventory.json",
+        ".factory/selection.yaml",
+        ".factory/sources.lock.yaml",
+        ".factory/workspace.yaml",
+        "gitea.graphql",
+        "supergraph.yaml",
+        "swagger.json",
+        "template.yaml",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    files_under(ws.path(), "tests", &mut expected);
+    expected.sort();
+    let keys: Vec<String> = files.keys().cloned().collect();
+    assert_eq!(keys, expected);
+    for absent in [
+        "README.md",
+        ".factory/memory.md",
+        ".factory/applied.lock.yaml",
+    ] {
+        assert!(ws.path().join(absent).exists(), "{}", absent);
+        assert!(!files.contains_key(absent), "{}", absent);
+    }
+    assert!(keys.iter().all(|k| !k.starts_with(".factory/evidence")));
+    assert!(keys.iter().any(|k| k.starts_with("tests/cases/")));
+
+    // The digest is SHA-256 over `<sha256>  <path>` lines in path order.
+    let digest = ev["inputs"]["digest"].as_str().unwrap();
+    assert_eq!(
+        digest,
+        graphos_factory_core::provenance::inputs_digest(files)
+    );
+    let lines: String = files
+        .iter()
+        .map(|(p, h)| format!("{}  {}\n", h.as_str().unwrap(), p))
+        .collect();
+    use sha2::Digest;
+    assert_eq!(
+        digest,
+        format!("{:x}", sha2::Sha256::digest(lines.as_bytes()))
+    );
+
+    // Each file's hash is the one the lock's provenance records for it.
+    let provenance =
+        graphos_factory_core::provenance::record(ws.path(), "gitea.graphql", None, Some("test"))
+            .unwrap();
+    let mut compared = 0;
+    for (path, hash) in files {
+        let recorded = ["inputs", "outputs"]
+            .iter()
+            .find_map(|s| provenance[*s].get(path))
+            .map(|r| r["sha256"].clone());
+        if let Some(recorded) = recorded {
+            assert_eq!(&recorded, hash, "{}", path);
+            compared += 1;
+        }
+    }
+    assert!(compared >= 10, "{}", compared);
+
+    // The report's header names the digest and the count beside the
+    // commit label, which is `0000000` outside git.
+    assert!(
+        stdout.lines().next().unwrap().ends_with(&format!(
+            "@ 0000000, inputs: {} over {} files",
+            &digest[..12],
+            files.len()
+        )),
+        "{}",
+        stdout
+    );
+}
+
+/// An edit to the README or `memory.md` leaves the inputs alone; a test
+/// case added moves the digest, and is the one change reported.
+#[test]
+fn only_a_file_the_layers_read_moves_the_digest() {
+    let (_, _, base) = pilot_inputs_run(|_| {});
+    let (_, _, prose) = pilot_inputs_run(|ws| {
+        std::fs::write(ws.join("README.md"), "edited\n").unwrap();
+        std::fs::write(ws.join(".factory/memory.md"), "edited\n").unwrap();
+    });
+    assert_eq!(base["inputs"], prose["inputs"]);
+    let (ws, _, edited) = pilot_inputs_run(|ws| {
+        std::fs::write(ws.join("tests/cases/new_case.graphql"), "query { x }\n").unwrap();
+    });
+    assert_ne!(base["inputs"]["digest"], edited["inputs"]["digest"]);
+    let changes =
+        graphos_factory_core::provenance::evidence_input_changes(ws.path(), &base["inputs"])
+            .unwrap();
+    assert_eq!(
+        changes,
+        vec![graphos_factory_core::provenance::InputChange {
+            path: "tests/cases/new_case.graphql".to_string(),
+            change: "added",
+        }]
+    );
+}
+
+/// A file under `tests/` that resolves outside the workspace cannot be
+/// hashed: the run still records its layers, without `inputs`, and the
+/// header says why.
+#[test]
+fn a_test_file_linking_out_of_the_workspace_leaves_inputs_unrecorded() {
+    let outside = tempfile::tempdir().unwrap();
+    let target = outside.path().join("elsewhere.graphql");
+    std::fs::write(&target, "query { x }\n").unwrap();
+    let (_, stdout, ev) = pilot_inputs_run(|ws| {
+        std::os::unix::fs::symlink(&target, ws.join("tests/cases/linked.graphql")).unwrap();
+    });
+    assert!(ev.get("inputs").is_none(), "{}", ev);
+    // Why is recorded, so a reader never mistakes it for older evidence.
+    assert_eq!(
+        ev["inputs_error"],
+        "tests/cases/linked.graphql: file resolves outside the workspace"
+    );
+    assert_eq!(
+        validate(&ev, &schemas::load("evidence.schema.json", None).unwrap()),
+        Vec::<String>::new()
+    );
+    assert_eq!(ev["layers"]["compose"]["status"], "pass");
+    let header = stdout.lines().next().unwrap();
+    assert!(
+        header.contains(
+            "inputs: not recorded (tests/cases/linked.graphql: file resolves outside the workspace)"
+        ),
+        "{}",
+        header
+    );
+}
+
+/// A linked directory under `tests/` that stays inside the workspace is
+/// walked under the link's path, and a link back to a directory being
+/// walked is not re-entered; one that resolves outside the workspace is
+/// refused by name.
+#[test]
+fn a_linked_test_directory_is_walked_inside_the_workspace_and_refused_outside_it() {
+    let (_ws, stdout, ev) = pilot_inputs_run(|ws| {
+        std::fs::create_dir_all(ws.join("shared")).unwrap();
+        std::fs::write(ws.join("shared/extra.graphql"), "query { x }\n").unwrap();
+        std::os::unix::fs::symlink(ws.join("shared"), ws.join("tests/shared")).unwrap();
+        std::os::unix::fs::symlink("..", ws.join("tests/cases/up")).unwrap();
+    });
+    assert!(ev.get("inputs_error").is_none(), "{} {}", ev, stdout);
+    let files = ev["inputs"]["files"].as_object().expect("inputs.files");
+    assert!(
+        files.contains_key("tests/shared/extra.graphql"),
+        "{:?}",
+        files.keys()
+    );
+    // `tests/cases/up` is `tests/` again, being walked: not re-entered.
+    assert!(
+        files.keys().all(|k| !k.starts_with("tests/cases/up")),
+        "{:?}",
+        files.keys()
+    );
+
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("far.graphql"), "query { x }\n").unwrap();
+    let target = outside.path().to_path_buf();
+    let (_, _, ev) = pilot_inputs_run(|ws| {
+        std::os::unix::fs::symlink(&target, ws.join("tests/far")).unwrap();
+    });
+    assert!(ev.get("inputs").is_none(), "{}", ev);
+    assert_eq!(
+        ev["inputs_error"],
+        "tests/far: directory resolves outside the workspace"
+    );
+}
