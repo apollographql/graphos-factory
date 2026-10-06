@@ -96,6 +96,12 @@ pub struct NewDecision {
     pub secret_fields: Vec<SecretField>,
     pub json_reasons: Vec<JsonReason>,
     pub null_handling: Vec<NullHandling>,
+    /// GraphQL type names another subgraph owns, which this schema declares
+    /// under the owner's exact name (a reference stub or an extension of the
+    /// owner's entity). Read by [`foreign_types`], only from a resolved
+    /// record, and only by a target that honours them
+    /// (`crate::target::Target::foreign_types`; ADR 0132).
+    pub foreign_types: Vec<String>,
     /// The record file's name after the id; derived from the title when
     /// absent (ADR 0118).
     pub slug: Option<String>,
@@ -509,6 +515,47 @@ pub fn find<'a>(doc: &'a Value, id: &str) -> Option<&'a Value> {
         .find(|d| json::get_str(d, "id") == Some(id))
 }
 
+/// Whether `name` may be recorded as a foreign type: a GraphQL name that is
+/// not one of the three root operation types, which no subgraph owns.
+pub fn check_foreign_type(name: &str) -> Result<(), String> {
+    let mut chars = name.chars();
+    let valid = chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
+    if !valid {
+        return Err(format!(
+            "--foreign-type {:?}: expected a GraphQL type name ([A-Za-z_][A-Za-z0-9_]*)",
+            name
+        ));
+    }
+    if matches!(name, "Query" | "Mutation" | "Subscription") {
+        return Err(format!(
+            "--foreign-type {:?}: a root operation type is every subgraph's, never one owner's",
+            name
+        ));
+    }
+    Ok(())
+}
+
+/// The type names every **resolved** record's `foreign_types` declares:
+/// the types another subgraph owns, which this schema declares under the
+/// owner's exact name. An open, superseded or reopened record declares
+/// nothing, the same decisions-only rule `json_reasons` and
+/// `secret_fields` follow: the user's answer, not the agent's proposal, is
+/// what lifts a rule. Target-neutral: whether any rule reads the set is the
+/// target's choice (`crate::target::Target::foreign_types`).
+pub fn foreign_types(doc: &Value) -> std::collections::BTreeSet<String> {
+    json::get_arr(doc, "decisions")
+        .into_iter()
+        .flatten()
+        .filter(|d| json::get_str(d, "status") == Some("resolved"))
+        .flat_map(|d| json::get_arr(d, "foreign_types").into_iter().flatten())
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect()
+}
+
 fn strip_trailing_dot(s: &str) -> String {
     s.trim().trim_end_matches('.').trim().to_string()
 }
@@ -893,6 +940,12 @@ pub fn add(doc: &mut Value, new: NewDecision) -> Result<String, String> {
         rec.insert(
             "null_handling".into(),
             Value::Array(new.null_handling.iter().map(null_handling_value).collect()),
+        );
+    }
+    if !new.foreign_types.is_empty() {
+        rec.insert(
+            "foreign_types".into(),
+            Value::from(dedup(new.foreign_types)),
         );
     }
     if let Some(Value::Array(items)) = doc.get_mut("decisions") {

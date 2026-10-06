@@ -53,6 +53,14 @@ pub struct Target {
     /// A core rule's severity or message changed, or the rule turned off,
     /// by rule name.
     pub rule_overrides: &'static [(&'static str, Override)],
+    /// Whether this target honours the types a resolved decision declares
+    /// owned by another subgraph (a record's `foreign_types`, read by
+    /// [`crate::decisions::foreign_types`]). When it does, such a type may
+    /// carry the owner's exact name, so `type-prefix` does not hold it, and
+    /// the entity rules read it as an extension of the owner's entity rather
+    /// than one this subgraph resolves ([`crate::entity::check_with`]). When
+    /// it does not, the records are kept and no rule reads them.
+    pub foreign_types: bool,
     /// Evidence layers run after the core's, recorded under
     /// `target_evidence_layers` in `evidence/latest.json`.
     pub evidence_layers: &'static [EvidenceLayer],
@@ -113,6 +121,9 @@ pub struct LintInput<'a> {
     pub decisions: Option<&'a Value>,
     /// Its union with `findings.json`, the record every omit reads.
     pub decisions_and_findings: Option<&'a Value>,
+    /// The types a resolved decision declares another subgraph's, when
+    /// [`Target::foreign_types`] is set; empty otherwise.
+    pub foreign_types: &'a std::collections::BTreeSet<String>,
 }
 
 /// One evidence layer a target adds.
@@ -189,6 +200,7 @@ pub const BARE: Target = Target {
     lint_rules: &[],
     tag_vocabulary: Vec::new,
     rule_overrides: &[],
+    foreign_types: false,
     evidence_layers: &[],
     compose: ComposeConfig {
         federation_spec_version: None,

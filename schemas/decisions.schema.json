@@ -56,6 +56,11 @@
                 "required": [
                   "resolved_against"
                 ]
+              },
+              {
+                "required": [
+                  "foreign_types"
+                ]
               }
             ]
           }
@@ -362,6 +367,23 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/null_handling"
+          }
+        },
+        "foreign_types": {
+          "description": "GraphQL type names another subgraph owns, which this schema declares under the owner's exact name: a reference stub or an extension of the owner's entity. Read only on a resolved record, and only by a target that honours it. Directory shape only.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "not": {
+              "enum": [
+                "Query",
+                "Mutation",
+                "Subscription"
+              ]
+            }
           }
         },
         "after": {

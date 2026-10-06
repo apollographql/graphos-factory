@@ -27,6 +27,11 @@
 //!   resolved to that type comes back without it. Not for a stub, whose
 //!   fields the owning subgraph resolves.
 //!
+//! A type a resolved decision declares another subgraph's (ADR 0132), for a
+//! target that honours the declaration, is read as the owner's entity
+//! ([`check_with`]), and [`foreign_type_findings`] holds its shape for the
+//! target to report.
+//!
 //! Every walk over shapes visits each named shape once: `inventory build`
 //! emits OpenAPI polymorphism (`PetInput: oneOf [CatInput]`, `CatInput:
 //! allOf [PetInput, …]`) as a `$ref` cycle.
@@ -445,12 +450,57 @@ fn is_root(name: &str) -> bool {
     matches!(name, "Query" | "Mutation" | "Subscription")
 }
 
-/// The entity rules' findings for one workspace.
+/// The entity rules' findings for one workspace, with no foreign type
+/// declared.
 pub fn check(
     sdl: &str,
     workspace: &Value,
     selection: Option<&Value>,
     inventory: Option<&Value>,
+) -> Vec<EntityFinding> {
+    check_with(sdl, workspace, selection, inventory, &BTreeSet::new())
+}
+
+/// Whether a declared foreign type is an extension of its owner's entity
+/// in the documented form: no type-level `@connect` (a lookup this
+/// subgraph would serve), and at least one field-level `@connect`, every
+/// one of them reading `$this`, so each resolves from the representation
+/// the router hands it.
+fn extends_by_this(obj: &apollo_compiler::schema::ObjectType) -> bool {
+    if obj.directives.get("connect").is_some() {
+        return false;
+    }
+    let mut connectors = obj
+        .fields
+        .values()
+        .flat_map(|f| f.directives.get_all("connect"))
+        .peekable();
+    connectors.peek().is_some() && connectors.all(|d| d.to_string().contains("$this"))
+}
+
+/// The entity rules' findings for one workspace. `foreign` names the types
+/// a resolved decision declares another subgraph's (ADR 0132), for a target
+/// that honours them: such a type is the owner's entity, extended or
+/// referenced here, so
+///
+/// - `entity-without-lookup` does not ask for a lookup by its key when it
+///   extends the owner's entity by `$this`-keyed field connectors alone
+///   ([`extends_by_this`]): the owner resolves the reference and the router
+///   hands each field connector its representation;
+/// - `entity-without-consumer` holds only a stub to a consumer here: a
+///   resolvable key's consumer is the owner;
+/// - `entity-field-unresolved` does not count its key fields, which the
+///   representation carries, nor its `@external` ones, which the owner
+///   resolves.
+///
+/// `entity-key-not-embedded` is unchanged: an embedding that lacks the key
+/// cannot become a reference whoever owns the type.
+pub fn check_with(
+    sdl: &str,
+    workspace: &Value,
+    selection: Option<&Value>,
+    inventory: Option<&Value>,
+    foreign: &BTreeSet<String>,
 ) -> Vec<EntityFinding> {
     let schema = match apollo_compiler::Schema::parse(sdl, "schema.graphql") {
         Ok(s) => s,
@@ -610,6 +660,8 @@ pub fn check(
         // entity, referenced here and resolved there.
         let stub = keysets.iter().all(|(_, _, r)| !r);
         let t = name.as_str();
+        let is_foreign = foreign.contains(t);
+        let extension = is_foreign && extends_by_this(obj);
         let shape = shape_of(t);
         let own = shapes_of(t);
         let is_own = |s: &str| own.iter().any(|o| family(s, o));
@@ -617,7 +669,7 @@ pub fn check(
         // entity-without-lookup: each resolvable key is a way the router may
         // enter this subgraph, so each needs a lookup of its own.
         for (text, keys, resolvable) in &keysets {
-            if !resolvable {
+            if !resolvable || extension {
                 continue;
             }
             let by_key = ops.iter().any(|op| {
@@ -732,7 +784,7 @@ pub fn check(
                 }
             }
         }
-        if !referenced {
+        if !referenced && (!is_foreign || stub) {
             out.push((
                 "warn",
                 "entity-without-consumer",
@@ -748,12 +800,23 @@ pub fn check(
         if stub {
             continue;
         }
+        // A foreign type's key fields come in the representation the
+        // owner's reference carries; its `@external` ones the owner
+        // resolves.
+        let owner_supplies = |f: &str, field: &apollo_compiler::schema::FieldDefinition| {
+            is_foreign
+                && (keysets
+                    .iter()
+                    .any(|(_, keys, _)| keys.iter().any(|k| k == f))
+                    || field.directives.get("external").is_some())
+        };
         let unresolved: Vec<&str> = obj
             .fields
             .iter()
             .filter(|(f, field)| {
                 !resolved.contains(&(t.to_string(), f.to_string()))
                     && field.directives.get("connect").is_none()
+                    && !owner_supplies(f.as_str(), field)
             })
             .map(|(f, _)| f.as_str())
             .collect();
@@ -777,5 +840,135 @@ pub fn check(
     }
     out.sort_by(|a, b| (a.1, &a.2).cmp(&(b.1, &b.2)));
     out.dedup();
+    out
+}
+
+/// One finding on a declared foreign type: `(severity, rule, message,
+/// line)`, the line the type's declaration starts on.
+pub type ForeignFinding = (&'static str, &'static str, String, Option<usize>);
+
+/// What a declared foreign type (ADR 0132) must carry to join its owner's
+/// entity, for a target that honours the declaration to report as its own
+/// rules. Target-neutral: the shape is Federation's, not a target's.
+///
+/// - `foreign-type-without-key` (error): the type carries no `@key`, so the
+///   supergraph has nothing to join it to its owner by.
+/// - `foreign-type-key-field-missing` (error): a `@key`'s top-level field is
+///   not declared on the type.
+/// - `requires-on-foreign-type` (warning): a field's `@requires(fields:)`
+///   names a top-level field the type does not declare (as `@external`).
+/// - `foreign-type-not-object` (error): the schema declares the name as an
+///   enum, input, interface, union or scalar. Only an object type can be an
+///   entity, so the declaration lifts no rule on it (`type-prefix` still
+///   holds it).
+///
+/// A declared name the schema does not declare at all is not judged: the
+/// decision may come before the type.
+pub fn foreign_type_findings(sdl: &str, foreign: &BTreeSet<String>) -> Vec<ForeignFinding> {
+    if foreign.is_empty() {
+        return Vec::new();
+    }
+    let schema = match apollo_compiler::Schema::parse(sdl, "schema.graphql") {
+        Ok(s) => s,
+        Err(e) => e.partial,
+    };
+    let declarations = crate::graphql::type_declarations(sdl);
+    let mut out = Vec::new();
+    for t in foreign {
+        let Some(ExtendedType::Object(obj)) = schema.types.get(t.as_str()) else {
+            // Declared, but not as an object type: only an object type can
+            // be an entity, so the declaration lifts nothing on it.
+            if let Some(d) = declarations
+                .iter()
+                .find(|d| &d.name == t && d.kind != "type")
+            {
+                out.push((
+                    "error",
+                    "foreign-type-not-object",
+                    format!(
+                        "{} is declared another subgraph's type (a resolved decision's foreign_types) but this schema declares it as {} {}: only an object type can be another subgraph's entity, so the declaration lifts no rule on it; give it this subgraph's prefix, or take it out of the decision",
+                        t,
+                        match d.kind.as_str() {
+                            "enum" | "input" | "interface" => "an",
+                            _ => "a",
+                        },
+                        d.kind
+                    ),
+                    Some(d.line),
+                ));
+            }
+            continue;
+        };
+        let line = declarations
+            .iter()
+            .find(|d| d.kind == "type" && &d.name == t)
+            .map(|d| d.line);
+        let keys: Vec<&str> = obj
+            .directives
+            .get_all("key")
+            .filter_map(|d| directive_str(d, "fields"))
+            .collect();
+        if keys.is_empty() {
+            out.push((
+                "error",
+                "foreign-type-without-key",
+                format!(
+                    "{} is declared another subgraph's type (a resolved decision's foreign_types) but carries no @key: the supergraph joins it to the owner's entity only by the owner's key; write the owner's @key(fields: …) on it, with resolvable: false for a reference stub",
+                    t
+                ),
+                line,
+            ));
+        }
+        let mut seen: BTreeSet<&str> = BTreeSet::new();
+        for k in keys {
+            if !seen.insert(k) {
+                continue;
+            }
+            let missing: Vec<String> = key_fields(k)
+                .into_iter()
+                .filter(|f| !obj.fields.contains_key(f.as_str()))
+                .collect();
+            if !missing.is_empty() {
+                out.push((
+                    "error",
+                    "foreign-type-key-field-missing",
+                    format!(
+                        "{} carries @key(fields: \"{}\") but declares no {} field: declare every field the owner's key names, typed as the owner types it",
+                        t,
+                        k,
+                        missing.join(", ")
+                    ),
+                    line,
+                ));
+            }
+        }
+        for (fname, field) in &obj.fields {
+            for d in field.directives.get_all("requires") {
+                let Some(fields) = directive_str(d, "fields") else {
+                    continue;
+                };
+                let missing: Vec<String> = key_fields(fields)
+                    .into_iter()
+                    .filter(|f| !obj.fields.contains_key(f.as_str()))
+                    .collect();
+                if !missing.is_empty() {
+                    out.push((
+                        "warn",
+                        "requires-on-foreign-type",
+                        format!(
+                            "{}.{} carries @requires(fields: \"{}\"), but {} declares no {} field: declare each required field on {} with @external, typed as the owner types it",
+                            t,
+                            fname,
+                            fields,
+                            t,
+                            missing.join(", "),
+                            t
+                        ),
+                        line,
+                    ));
+                }
+            }
+        }
+    }
     out
 }

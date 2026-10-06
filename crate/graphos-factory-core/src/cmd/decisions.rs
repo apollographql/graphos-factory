@@ -47,6 +47,8 @@ pub const USAGE: &str = "usage: graphos-factory-core decisions <list|add|resolve
           [--json-reason 'Type.field|reason']…   (read only on a resolved record)
           [--null-handling 'operation|argument|behavior']…   (behavior: send_null or omit; read only on a resolved record)
           [--secret-field 'Type.field|disposition|reason']…   (disposition: expose or exclude; secret-field-exposed)
+          [--foreign-type NAME]…   (a type another subgraph owns, declared here under its owner's name; read only
+          on a resolved record, and only by a target that lets a schema declare one)
   resolve [workspace] --id D-id [--chosen N]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]   --by defaults to agent
           --chosen takes a choice's id, or its exact label when exactly one choice has that label
   reopen  [workspace] --id D-id [--json]   clear a resolved or superseded decision's answer; status back to open
@@ -463,6 +465,7 @@ pub const ADD_FLAGS: Flags = Flags {
         "secret-field",
         "json-reason",
         "null-handling",
+        "foreign-type",
         "slug",
         "after",
         "amends",
@@ -667,6 +670,12 @@ fn add(argv: &[String]) -> i32 {
         Ok(n) => n,
         Err(e) => return fail(&e),
     };
+    let foreign_types = args.all("foreign-type");
+    for name in &foreign_types {
+        if let Err(e) = decisions::check_foreign_type(name) {
+            return fail(&e);
+        }
+    }
     let resolving =
         args.has("resolved") || args.has("chosen") || args.has("note") || args.has("decision");
     let resolution = if resolving {
@@ -701,16 +710,28 @@ fn add(argv: &[String]) -> i32 {
         secret_fields,
         json_reasons,
         null_handling,
+        foreign_types,
         slug: args.get("slug").map(str::to_string),
         after: args.all("after"),
         amends: args.all("amends"),
     };
     if new.resolution.is_none()
-        && !(new.omits.is_empty() && new.json_reasons.is_empty() && new.null_handling.is_empty())
+        && !(new.omits.is_empty()
+            && new.json_reasons.is_empty()
+            && new.null_handling.is_empty()
+            && new.foreign_types.is_empty())
     {
         eprintln!(
-            "decisions: warning: this record is open, so its --omit, --json-reason and \
-             --null-handling entries do not count until `decisions resolve` settles it"
+            "decisions: warning: this record is open, so its --omit, --json-reason, \
+             --null-handling and --foreign-type entries do not count until `decisions resolve` settles it"
+        );
+    }
+    // Recorded whatever the target, since the log is the target's to read;
+    // said aloud where nothing will, so the prefix error that follows in
+    // lint is no surprise.
+    if !new.foreign_types.is_empty() && !crate::target::active().foreign_types {
+        eprintln!(
+            "decisions: note: this workspace's target gives every type the workspace's prefix, so no rule reads --foreign-type here; the record is kept"
         );
     }
     warn_required_omits(&dir, &new.omits);

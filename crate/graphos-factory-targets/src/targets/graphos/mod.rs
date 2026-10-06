@@ -4,12 +4,15 @@
 //! It adds one command, `export` (Phase 8j): the gate over the evidence,
 //! the core's render with the production values, and the rover hand-off
 //! ([`export`]); `init` writes its four local-validation files ([`init`]).
-//! It adds no lint rule or tag vocabulary; it relaxes
+//! It adds no tag vocabulary; it relaxes
 //! the two core rules about `@source` that only a single-source renderer
-//! needs, names the Federation directives a subgraph composes with, and
-//! registers `supergraph_check`, an evidence layer that reports `not_run`
-//! until the next pass decides how a subgraph is composed against the
-//! user's supergraph. The questions it leaves open are written as questions
+//! needs, honours the types a resolved decision declares another
+//! subgraph's (ADR 0132: `type-prefix` and the entity rules read them as
+//! the owner's entity, its four lint rules check their shape, and
+//! `type-prefix`'s message says how to declare one), names the Federation
+//! directives a subgraph composes with, and
+//! registers `supergraph_check`, the evidence layer for composing the
+//! subgraph against the user's supergraph. The questions it leaves open are written as questions
 //! in `skills/graphos-factory/references/` (proposal §9).
 
 pub mod export;
@@ -70,7 +73,40 @@ fn export_flags(_: Option<&str>) -> Option<&'static Flags> {
     Some(&export::FLAGS)
 }
 
-fn no_lint(_: &LintInput, _: &mut Findings) {}
+/// The rules [`lint`] reports: what a type a resolved decision declares
+/// another subgraph's must carry to join the owner's entity.
+pub const LINT_RULES: &[&str] = &[
+    "foreign-type-without-key",
+    "foreign-type-key-field-missing",
+    "requires-on-foreign-type",
+    "foreign-type-not-object",
+];
+
+/// The target's rules: the declared foreign types' shape
+/// (`entity::foreign_type_findings`), from the set the core read off the
+/// resolved decisions.
+fn lint(input: &LintInput, findings: &mut Findings) {
+    for (severity, rule, message, line) in
+        graphos_factory_core::entity::foreign_type_findings(input.sdl, input.foreign_types)
+    {
+        findings.add(severity, rule, message, Some(input.schema_file), line);
+    }
+}
+
+/// `type-prefix` on an object type names the way to declare it another
+/// subgraph's, which lifts the rule for that type.
+fn type_prefix(message: &str) -> String {
+    let Some(name) = message
+        .strip_prefix("type ")
+        .and_then(|rest| rest.split_whitespace().next())
+    else {
+        return message.to_string();
+    };
+    format!(
+        "{}; to extend or reference a type another subgraph owns under its owner's name, record it as the user's resolved decision: graphos-factory-core decisions add . --foreign-type {} …",
+        message, name
+    )
+}
 
 /// A subgraph composes with others, so a second `@source` is a shape this
 /// target has not modelled yet, not one it forbids (proposal §9, question 6).
@@ -115,8 +151,8 @@ pub const TARGET: Target = Target {
         verbs: &[],
         flags: export_flags,
     }],
-    lint: no_lint,
-    lint_rules: &[],
+    lint: lint,
+    lint_rules: LINT_RULES,
     // No tag-based policy reads this target's schemas: every name is allowed.
     tag_vocabulary: Vec::new,
     rule_overrides: &[
@@ -130,7 +166,13 @@ pub const TARGET: Target = Target {
         ("source-name-secondary", Override::Message(source_name)),
         // No renderer here counts raw `@source(` text.
         ("commented-source", Override::Off),
+        // An unprefixed object type may be another subgraph's entity:
+        // say how to declare one.
+        ("type-prefix", Override::Message(type_prefix)),
     ],
+    // A subgraph joins a supergraph whose other subgraphs own entities it
+    // may extend or reference under their owners' names.
+    foreign_types: true,
     evidence_layers: &[EvidenceLayer {
         name: "supergraph_check",
         run: supergraph_check,

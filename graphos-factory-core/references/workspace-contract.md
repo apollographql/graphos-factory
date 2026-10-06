@@ -893,6 +893,7 @@ graphos-factory-core decisions add  . --title T [--question Q] [--choice id:labe
                                   [--resolved --chosen id --note TEXT --decision TEXT --by user|agent]   # raise a question, or record a call already made; refuses no-alternative
                                   [--omit 'operation|direction|path|reason']… \
                                   [--null-handling 'operation|argument|behavior']…   # behavior: send_null or omit
+                                  [--foreign-type NAME]…   # a type another subgraph owns, declared under its owner's name; read on a resolved record, by a target that allows it
 graphos-factory-core decisions resolve . --id D-id [--chosen id]… [--note TEXT] [--decision TEXT] [--by user|agent] [--force]
 graphos-factory-core decisions reopen  . --id D-id [--json]  # clear the answer so the user can revise it; status back to open
 graphos-factory-core decisions supersede . --id D-id [--json]  # a resolved decision a later one replaced; answer kept, omits, json_reasons and null_handling stop counting
@@ -1184,8 +1185,8 @@ waivers) and its `stale-omit`, lint's description waivers,
 or superseded decision and a superseded finding count for none of them. The
 one exception is the kept-link rule: a stale `links:` entry is kept only by
 its decision resolved `keep` (§ `selection.yaml`, `links`), never by a
-finding. `json_reasons`, `null_handling` and `secret_fields` stay on
-decisions. `findings.json` is a hash input of `selection review` and of the
+finding. `json_reasons`, `null_handling`, `secret_fields` and
+`foreign_types` stay on decisions. `findings.json` is a hash input of `selection review` and of the
 applied lock's provenance, as `decisions.json` is.
 
 ## `memory.md`

@@ -33,6 +33,7 @@ mod expansion;
 mod findings;
 mod fixtures;
 mod flags;
+mod foreign_types;
 mod help;
 mod infer;
 mod inference;

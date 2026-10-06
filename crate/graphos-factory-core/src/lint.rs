@@ -176,6 +176,7 @@ fn lint_schema(
     workspace: &Value,
     selection: Option<&Value>,
     target: &crate::target::Target,
+    foreign: &std::collections::BTreeSet<String>,
     findings: &mut Findings,
 ) {
     let sources = directives(sdl, "source");
@@ -388,6 +389,14 @@ fn lint_schema(
         let roots = ["Query", "Mutation", "Subscription"];
         for decl in type_declarations(sdl) {
             if roots.contains(&decl.name.as_str()) || decl.name.starts_with(&format!("{}_", tp)) {
+                continue;
+            }
+            // An object type a resolved decision declares another
+            // subgraph's keeps its owner's name (empty unless the target
+            // honours them). Only an object type can be an entity: a
+            // declared enum, input, interface, union or scalar keeps the
+            // rule, and the target says why (`foreign_type_findings`).
+            if decl.kind == "type" && foreign.contains(&decl.name) {
                 continue;
             }
             findings.error(
@@ -8675,28 +8684,37 @@ pub fn lint_workspace(dir: &Path, options: &LintOptions) -> LintResult {
         }
     };
 
+    // The decision log and its union with the findings, read and validated
+    // once per run and handed to every rule that reads them (ADR 0113).
+    // Either one not loading is reported below as `unreadable-file` and
+    // leaves its readers with nothing to count; a findings log that does
+    // not load leaves the union with the decisions alone, so one corrupt
+    // findings file never blanks a resolved decision. Read before the
+    // schema rules, which ask it for the declared foreign types.
+    let decisions_loaded = crate::decisions::load(dir, options.schemas_dir);
+    let (union_loaded, findings_error) = crate::findings::union_of(
+        decisions_loaded.as_ref().map_err(String::clone),
+        crate::findings::load(dir, options.schemas_dir),
+    );
+    // The types a resolved decision declares another subgraph's, for a
+    // target that honours them (ADR 0132); none otherwise.
+    let foreign = match &decisions_loaded {
+        Ok(doc) if options.target.foreign_types => crate::decisions::foreign_types(doc),
+        _ => Default::default(),
+    };
+
     lint_schema(
         &sdl,
         &schema_file,
         &workspace,
         selection.as_ref(),
         options.target,
+        &foreign,
         &mut findings,
     );
     lint_link_connectors(&sdl, &schema_file, &mut findings);
     lint_link_coverage(dir, &sdl, &schema_file, &mut findings);
     lint_template(dir, &sdl, options.target, &mut findings);
-    // The decision log and its union with the findings, read and validated
-    // once per run and handed to every rule that reads them (ADR 0113).
-    // Either one not loading is reported here as `unreadable-file` and
-    // leaves its readers with nothing to count; a findings log that does
-    // not load leaves the union with the decisions alone, so one corrupt
-    // findings file never blanks a resolved decision.
-    let decisions_loaded = crate::decisions::load(dir, options.schemas_dir);
-    let (union_loaded, findings_error) = crate::findings::union_of(
-        decisions_loaded.as_ref().map_err(String::clone),
-        crate::findings::load(dir, options.schemas_dir),
-    );
     if let Some(e) = findings_error {
         let file = crate::record_log::error_path(&crate::record_log::FINDINGS, &e).to_string();
         findings.error("unreadable-file", e, Some(&file), None);
@@ -8722,9 +8740,13 @@ pub fn lint_workspace(dir: &Path, options: &LintOptions) -> LintResult {
         &mut findings,
     );
     lint_batching(&sdl, selection.as_ref(), inventory.as_ref(), &mut findings);
-    for (severity, rule, message) in
-        crate::entity::check(&sdl, &workspace, selection.as_ref(), inventory.as_ref())
-    {
+    for (severity, rule, message) in crate::entity::check_with(
+        &sdl,
+        &workspace,
+        selection.as_ref(),
+        inventory.as_ref(),
+        &foreign,
+    ) {
         findings.add(severity, rule, message, Some(&schema_file), None);
     }
     lint_tags(&sdl, &schema_file, options.target, &mut findings);
@@ -8876,6 +8898,7 @@ pub fn lint_workspace(dir: &Path, options: &LintOptions) -> LintResult {
             sdl: &sdl,
             decisions: decisions_doc.as_ref(),
             decisions_and_findings: union_doc.as_ref(),
+            foreign_types: &foreign,
         },
         &mut findings,
     );

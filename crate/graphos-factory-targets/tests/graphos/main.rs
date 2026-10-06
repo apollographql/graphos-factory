@@ -11,6 +11,7 @@
 //! target's suite's (`targets.rs` there).
 
 mod export;
+mod foreign;
 mod init_files;
 
 use graphos_factory_targets::targets::graphos::{self, TARGET};
@@ -96,7 +97,16 @@ fn the_target_has_the_cores_two_placeholders_and_one_command() {
     assert!(TARGET.output_files.is_empty());
     let commands: Vec<&str> = TARGET.commands.iter().map(|c| c.name).collect();
     assert_eq!(commands, vec!["export"]);
-    assert!(TARGET.lint_rules.is_empty());
+    assert_eq!(
+        TARGET.lint_rules,
+        &[
+            "foreign-type-without-key",
+            "foreign-type-key-field-missing",
+            "requires-on-foreign-type",
+            "foreign-type-not-object"
+        ]
+    );
+    assert!(TARGET.foreign_types);
     assert!((TARGET.tag_vocabulary)().is_empty());
     assert!(TARGET.export_gate.is_some());
     assert!(TARGET.embedded_schemas.is_empty());
@@ -120,7 +130,8 @@ fn the_target_has_the_cores_two_placeholders_and_one_command() {
         vec![
             "multiple-sources",
             "source-name-secondary",
-            "commented-source"
+            "commented-source",
+            "type-prefix"
         ]
     );
     let layers: Vec<(&str, bool)> = TARGET
@@ -295,7 +306,7 @@ fn a_lone_misnamed_source_is_still_an_error() {
 }
 
 /// The pilot as committed lints clean against this target, with no
-/// target rule and the core findings only.
+/// target finding (it declares no foreign type) and the core findings only.
 #[test]
 fn the_pilot_lints_clean_against_this_target() {
     let (code, stdout, stderr) = run(&["lint", &graphos_pilot().to_string_lossy(), "--json"]);
@@ -306,8 +317,8 @@ fn the_pilot_lints_clean_against_this_target() {
         report["target"],
         serde_json::json!({
             "name": "graphos-factory",
-            "rules": [],
-            "overrides": ["multiple-sources", "source-name-secondary", "commented-source"],
+            "rules": ["foreign-type-without-key", "foreign-type-key-field-missing", "requires-on-foreign-type", "foreign-type-not-object"],
+            "overrides": ["multiple-sources", "source-name-secondary", "commented-source", "type-prefix"],
         })
     );
     // Unchanged by the overrides: 0 errors, 2 warnings.

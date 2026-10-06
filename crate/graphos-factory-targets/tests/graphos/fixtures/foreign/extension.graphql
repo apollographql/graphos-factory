@@ -1,0 +1,41 @@
+"""
+An account, owned by the accounts subgraph and keyed there by the login it
+shares with Gitea. This subgraph adds the Gitea user behind it.
+"""
+type Account @key(fields: "login") {
+  login: String!
+  """
+  The Gitea user with this login, fetched by the router through
+  get:/users/{username}, one request per Account that selects it.
+  """
+  giteaUser: Gitea_User
+    @connect(
+      source: "gitea"
+      http: { GET: "/users/{$this.login}" }
+      selection: """
+      id
+      login
+      loginName: login_name
+      sourceId: source_id
+      fullName: full_name
+      email
+      avatarUrl: avatar_url
+      htmlUrl: html_url
+      language
+      isAdmin: is_admin
+      lastLogin: last_login
+      created
+      restricted
+      active
+      prohibitLogin: prohibit_login
+      location
+      website
+      description
+      visibility
+      followersCount: followers_count->match([null, null], [@, @->jsonStringify])
+      followingCount: following_count->match([null, null], [@, @->jsonStringify])
+      starredReposCount: starred_repos_count->match([null, null], [@, @->jsonStringify])
+      """
+    )
+}
+

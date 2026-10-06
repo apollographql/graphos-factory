@@ -1,0 +1,14 @@
+# The owner's side of the foreign-type fixtures: a resolver subgraph that
+# owns Account. Not a workspace; composed beside one by hand to check that
+# the extension and the stub join it.
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.12", import: ["@key"])
+
+type Account @key(fields: "login") {
+  login: String!
+  displayName: String
+}
+
+type Query {
+  account(login: String!): Account
+}

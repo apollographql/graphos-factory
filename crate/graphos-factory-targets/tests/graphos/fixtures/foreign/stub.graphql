@@ -1,0 +1,8 @@
+"""
+An account, owned by the accounts subgraph, referenced here by its key: the
+accounts subgraph resolves every other field.
+"""
+type Account @key(fields: "login", resolvable: false) {
+  login: String!
+}
+

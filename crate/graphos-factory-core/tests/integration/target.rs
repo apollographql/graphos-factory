@@ -80,6 +80,7 @@ const EXAMPLE: Target = Target {
         ("commented-source", Override::Off),
         ("unknown-placeholder", Override::Message(shout)),
     ],
+    foreign_types: false,
     evidence_layers: &[EvidenceLayer {
         name: "example_gate",
         run: example_layer,
@@ -358,6 +359,7 @@ fn bare_adds_nothing_but_the_two_core_placeholders() {
     assert!(BARE.output_files.is_empty());
     assert!((BARE.tag_vocabulary)().is_empty());
     assert!(BARE.export_gate.is_none());
+    assert!(!BARE.foreign_types);
     let none = json!({});
     assert!((BARE.init_files)(&InitInput {
         workspace: &none,
@@ -371,6 +373,74 @@ fn bare_adds_nothing_but_the_two_core_placeholders() {
         }),
         vec![(PathBuf::from("example.yaml"), "example: true\n".to_string())]
     );
+}
+
+/// `Target::foreign_types` (ADR 0132): a target that honours a resolved
+/// decision's foreign types lets the declared type keep its owner's name
+/// and reads it as the owner's entity, and hands the set to its own rules;
+/// one that does not (BARE) holds it as any other type. An open record
+/// declares nothing under either.
+#[test]
+fn a_target_that_honours_foreign_types_exempts_only_a_resolved_declaration() {
+    static SEEN: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    fn record(input: &LintInput, _: &mut Findings) {
+        SEEN.lock()
+            .unwrap()
+            .extend(input.foreign_types.iter().cloned());
+    }
+    const HONOURS: Target = Target {
+        name: "honours",
+        foreign_types: true,
+        lint: record,
+        ..BARE
+    };
+    let extended = SDL.replacen(
+        "type Query {",
+        "type Product @key(fields: \"id\") {\n  id: ID!\n  widgetCount: Int\n    @connect(source: \"widget_co\", http: { GET: \"/widgets?product={$this.id}\" }, selection: \"$.count\")\n}\n\ntype Query {",
+        1,
+    );
+    let dir = workspace(&[("widget-co.graphql", &extended)]);
+    let declare = |resolved: bool| {
+        let mut argv: Vec<String> = [
+            "add",
+            &dir.path().to_string_lossy(),
+            "--title",
+            "Product is owned by the products subgraph",
+            "--question",
+            "Which subgraph owns Product?",
+            "--foreign-type",
+            "Product",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        if resolved {
+            argv.extend(["--resolved", "--note", "the user said so"].map(String::from));
+        }
+        assert_eq!(graphos_factory_core::cmd::decisions::main(&argv), 0);
+    };
+    let rules = |r: &LintResult| -> Vec<String> {
+        r.findings
+            .iter()
+            .filter(|f| f.rule == "type-prefix" || f.rule.starts_with("entity-"))
+            .map(|f| f.rule.clone())
+            .collect()
+    };
+    let held = vec![
+        "type-prefix".to_string(),
+        "entity-field-unresolved".to_string(),
+        "entity-without-consumer".to_string(),
+        "entity-without-lookup".to_string(),
+    ];
+
+    declare(false);
+    assert_eq!(rules(&lint(dir.path(), &HONOURS)), held);
+    assert!(SEEN.lock().unwrap().is_empty());
+
+    declare(true);
+    assert_eq!(rules(&lint(dir.path(), &BARE)), held);
+    assert!(rules(&lint(dir.path(), &HONOURS)).is_empty());
+    assert_eq!(*SEEN.lock().unwrap(), vec!["Product".to_string()]);
 }
 
 /// The harness binary is the core against BARE: `skill.name` is the
