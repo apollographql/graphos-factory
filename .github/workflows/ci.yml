@@ -84,3 +84,67 @@ jobs:
             echo "::endgroup::"
           done
           [ "$found" -eq 1 ] || { echo "no pilots under pilots/graphos/" >&2; exit 1; }
+
+  # npx skills and gh skill install skills/graphos-factory/ by copying that
+  # directory alone, for any agent (Claude Code, Codex, Cursor, ...). Install
+  # it both ways from this checkout and run it from each copy: its own
+  # bootstrap.sh --check and env.sh must find the binary this run built, and
+  # the copy's scripts must check it against the copy's release.env pin.
+  installed-skill:
+    needs: crate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: graphos-factory-bin
+          path: ${{ runner.temp }}/bin
+      - name: Ensure gh skill is available
+        run: |
+          if ! gh skill --help >/dev/null 2>&1; then
+            sudo mkdir -p -m 755 /etc/apt/keyrings
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq gh
+          fi
+          gh --version | head -1
+      - name: The skill passes gh skill's validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh skill publish --dry-run
+      - name: Install with gh skill and npx skills
+        run: |
+          mkdir -p "$RUNNER_TEMP/gh" "$RUNNER_TEMP/npx"
+          (cd "$RUNNER_TEMP/gh" && git init -q && gh skill install --from-local "$GITHUB_WORKSPACE" graphos-factory --agent codex --scope project)
+          (cd "$RUNNER_TEMP/npx" && npx -y skills@1.4.0 add "$GITHUB_WORKSPACE" --skill graphos-factory --agent codex --yes)
+      - name: Run each installed copy
+        run: |
+          BIN="$RUNNER_TEMP/bin/graphos-factory"
+          chmod +x "$BIN"
+          for how in gh npx; do
+            echo "::group::$how"
+            SKILL="$RUNNER_TEMP/$how/.agents/skills/graphos-factory"
+            test -f "$SKILL/graphos-factory-core/release.env"
+            CACHE="$RUNNER_TEMP/$how-cache"
+            mkdir -p "$CACHE/bin"
+            cp "$BIN" "$CACHE/bin/graphos-factory"
+            ln -s graphos-factory "$CACHE/bin/graphos-factory-core"
+            cp -R pilots/graphos/gitea "$RUNNER_TEMP/$how-pilot"
+            GRAPHOS_FACTORY_CORE_CACHE="$CACHE" bash "$SKILL/scripts/bootstrap.sh" --check
+            # shellcheck disable=SC2016 # expanded by the inner shell
+            GRAPHOS_FACTORY_CORE_CACHE="$CACHE" bash -c '
+              set -euo pipefail
+              . "$1/scripts/env.sh"
+              test "$GRAPHOS_FACTORY_CORE_SCRIPTS" = "$1/graphos-factory-core/scripts"
+              graphos-factory-core version
+              (cd "$2" && graphos-factory lint .)
+              . "$GRAPHOS_FACTORY_CORE_SCRIPTS/resolve-bin.sh" 2> "$RUNNER_TEMP/resolve.log"
+              cat "$RUNNER_TEMP/resolve.log"
+              grep -q "expected >= $(sed -n "s/^version=//p" "$1/graphos-factory-core/release.env")" "$RUNNER_TEMP/resolve.log"
+            ' installed "$SKILL" "$RUNNER_TEMP/$how-pilot"
+            echo "::endgroup::"
+          done

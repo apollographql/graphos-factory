@@ -1,7 +1,8 @@
 //! Which product binary the wrappers run (ADR 0087). Every wrapper
 //! sources `scripts/resolve-bin.sh`: $GRAPHOS_FACTORY_CORE_BIN, then the bootstrap
 //! cache's `graphos-factory-core` link, then `graphos-factory-core` on PATH, and a binary reporting a version older than the pin
-//! (crate/Cargo.toml, or $GRAPHOS_FACTORY_CORE_VERSION) is refused with exit 78 —
+//! (crate/Cargo.toml, release.env in a copy of the core with no crate/ above
+//! it, or $GRAPHOS_FACTORY_CORE_VERSION) is refused with exit 78 —
 //! never used silently. The binaries here are stubs that print a version and
 //! drop a marker file when asked to do anything else, so a test can tell
 //! "refused before use" from "used". The other tools each wrapper checks for
@@ -75,6 +76,18 @@ impl Env {
         extra_path: Option<&Path>,
         version: Option<&str>,
     ) -> (i32, String) {
+        self.wrapper_in(&scripts(), name, bin, extra_path, version)
+    }
+
+    /// `wrapper`, run from the scripts directory `dir`.
+    fn wrapper_in(
+        &self,
+        dir: &Path,
+        name: &str,
+        bin: Option<&Path>,
+        extra_path: Option<&Path>,
+        version: Option<&str>,
+    ) -> (i32, String) {
         let mut path = format!("{}:{}", self.tools.display(), system_path());
         if let Some(p) = extra_path {
             path = format!("{}:{}", p.display(), path);
@@ -82,7 +95,7 @@ impl Env {
         let ws = self.root.path().join("ws");
         std::fs::create_dir_all(ws.join(".factory")).unwrap();
         let mut c = Command::new("bash");
-        c.arg(scripts().join(format!("{}.sh", name))).arg(&ws);
+        c.arg(dir.join(format!("{}.sh", name))).arg(&ws);
         c.env("PATH", path)
             .env("GRAPHOS_FACTORY_CORE_CACHE", &self.cache)
             // The user's own acceptance of the plugin's ELv2 (elv2.sh); the
@@ -251,6 +264,58 @@ fn the_version_variable_sets_the_pin() {
     let (code, out) = env.wrapper("compose", Some(&cur), None, Some("99.0.0"));
     assert_eq!(code, 78, "{}", out);
     assert!(out.contains("(GRAPHOS_FACTORY_CORE_VERSION)"), "{}", out);
+}
+
+/// The core's scripts copied the way the public tree copies them into an
+/// installed skill: `<skill>/graphos-factory-core/scripts`, with no crate/
+/// two levels up, and `release` (when given) as its release.env.
+fn detached_scripts(env: &Env, release: Option<&str>) -> PathBuf {
+    let core = env.root.path().join("skill/graphos-factory-core");
+    copy_dir(&scripts(), &core.join("scripts"));
+    if let Some(text) = release {
+        std::fs::write(core.join("release.env"), text).unwrap();
+    }
+    core.join("scripts")
+}
+
+#[test]
+fn a_copy_of_the_core_reads_its_pin_from_release_env() {
+    // npx skills and gh skill copy a skill directory alone: its copy of the
+    // core has no crate/Cargo.toml above it, so the pin comes from the
+    // release.env written beside scripts/ when the copy was made.
+    let env = Env::new();
+    let dir = detached_scripts(
+        &env,
+        Some("# a comment\nversion=99.0.0\nrepository=owner/repo\n"),
+    );
+    let cur = env.stub(&env.root.path().join("cur/factory"), Some(PIN));
+    let (code, out) = env.wrapper_in(&dir, "compose", Some(&cur), None, None);
+    assert_eq!(code, 78, "{}", out);
+    assert!(out.contains("older than the 99.0.0"), "{}", out);
+    assert!(out.contains("(release.env)"), "{}", out);
+    assert!(!env.used(&cur), "{}", out);
+    std::fs::write(dir.join("../release.env"), format!("version={}\n", PIN)).unwrap();
+    let (code, out) = env.wrapper_in(&dir, "compose", Some(&cur), None, None);
+    assert_ne!(code, 78, "{}", out);
+    assert!(out.contains(&format!("(expected >= {})", PIN)), "{}", out);
+    // The variable still overrides the file.
+    let (code, out) = env.wrapper_in(&dir, "compose", Some(&cur), None, Some("99.0.0"));
+    assert_eq!(code, 78, "{}", out);
+    assert!(out.contains("(GRAPHOS_FACTORY_CORE_VERSION)"), "{}", out);
+}
+
+#[test]
+fn a_copy_with_no_pin_warns_and_names_both_sources() {
+    let env = Env::new();
+    let dir = detached_scripts(&env, None);
+    let cur = env.stub(&env.root.path().join("cur/factory"), Some(PIN));
+    let (code, out) = env.wrapper_in(&dir, "compose", Some(&cur), None, None);
+    assert_ne!(code, 78, "{}", out);
+    assert!(
+        out.contains("WARNING: no pin to check it against (no crate/Cargo.toml or release.env beside the scripts"),
+        "{}",
+        out
+    );
 }
 
 #[test]

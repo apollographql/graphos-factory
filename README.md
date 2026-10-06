@@ -38,24 +38,50 @@ editing your shell profile (`~/.profile`, `~/.zshenv`).
 
 ## Install
 
-The plugin is listed in Apollo's Claude Code plugin marketplace
-(`apollographql/skills`). In Claude Code:
+The skill follows the [Agent Skills](https://agentskills.io/) format, so it
+works with Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI and any
+other agent that reads skills and can run shell commands. Install it one of
+three ways.
+
+**With the Skills CLI** ([skills.sh](https://skills.sh/)), for any agent:
+
+```bash
+npx skills add apollographql/graphos-factory
+```
+
+**With the GitHub CLI** (`gh skill`, in preview), for any agent:
+
+```bash
+gh skill install apollographql/graphos-factory graphos-factory --agent codex   # or claude-code, cursor, github-copilot, ...
+```
+
+**As a Claude Code plugin**, from Apollo's marketplace
+(`apollographql/skills`):
 
 ```
 /plugin marketplace add apollographql/skills
 /plugin install graphos-factory@apollo-marketplace
 ```
 
-At the start of each session the plugin's hook installs the
-`graphos-factory` binary from this repository's releases
-(`skills/graphos-factory/scripts/session-start.sh`, which runs
-`bootstrap.sh`), with a `graphos-factory-core` link beside it, and puts both
-on the session's `PATH`: the shared references write
-`graphos-factory-core <command>`, and here that is `graphos-factory`. To
-build it from source instead, run
-`bash skills/graphos-factory/scripts/bootstrap.sh --build`. The toolchain
-above is not installed at session start: the agent runs `toolchain.sh` as a
-step you see and approve, the first time a layer needs it.
+The first two copy `skills/graphos-factory/` alone, which is why it carries
+its own `graphos-factory-core/` (the shared references and the validation
+scripts, plus `release.env`, the binary version it pins). The agent sets up
+the binary itself, as `SKILL.md` tells it: `scripts/bootstrap.sh` downloads
+`graphos-factory` from this repository's releases into
+`~/.cache/graphos-factory-core/`, with a `graphos-factory-core` link beside
+it, and `. scripts/env.sh` puts both, and rover, on `PATH` and sets
+`GRAPHOS_FACTORY_CORE_SCRIPTS`. You can run the same two commands yourself
+from the installed skill's directory.
+
+The plugin does that at the start of each session instead: its hook
+(`skills/graphos-factory/scripts/session-start.sh`) runs `bootstrap.sh` and
+puts the binary on the session's `PATH`. The shared references write
+`graphos-factory-core <command>`; here that is `graphos-factory`. To build
+it from source instead, run
+`bash skills/graphos-factory/scripts/bootstrap.sh --build` in a clone. Under
+any install, the toolchain above is not installed up front: the agent runs
+`toolchain.sh` as a step you see and approve, the first time a layer needs
+it.
 
 ## Quick start
 
@@ -113,9 +139,13 @@ compose, unit, end-to-end and live layers report `not_run`. Java
 ## Layout
 
 - `skills/graphos-factory/`: the skill itself, its `SKILL.md`, its
-  references and its `scripts/bootstrap.sh`.
+  references, its `scripts/` (`bootstrap.sh`, `env.sh` and the plugin's
+  `session-start.sh`) and its own copy of the core in
+  `graphos-factory-core/`, so the directory works when it is installed on
+  its own.
 - `graphos-factory-core/`: the core the skill is built on: the shared
-  references, the validation scripts, and `SKILL-core.md`.
+  references, the validation scripts, and `SKILL-core.md`. The copy inside
+  the skill is made from it at every sync.
 - `crate/`: the Rust workspace: `graphos-factory-core`, the library, and
   `graphos-factory-targets`, whose one binary here is `graphos-factory`.
 - `schemas/`: the JSON Schemas of the workspace contract.

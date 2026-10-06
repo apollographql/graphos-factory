@@ -1,6 +1,8 @@
 ---
 name: graphos-factory
 description: Build and iterate on an Apollo Connectors subgraph for a GraphOS supergraph from a REST API, with or without an OpenAPI or Swagger spec, in a dedicated git workspace that records what the API offers, the user's operation and field selection, every design decision, and the evidence each verification layer produced. Use whenever the user wants to wrap a REST API as a GraphQL subgraph for their supergraph, add or remove operations or fields from an existing connector subgraph, refresh one against a new spec, or record live API traffic as test fixtures, even if they do not say "connector", "subgraph" or "Apollo".
+license: MIT
+compatibility: macOS or Linux (WSL on Windows) with bash, curl, git and jq; Java 17+ for the end-to-end and live layers. Any Agent Skills host (Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI and others) that can run shell commands.
 ---
 
 # graphos-factory
@@ -30,7 +32,7 @@ edits, the decision log (the calls, each with its alternatives:
 via `graphos-factory decisions`), the findings log (settled facts, likewise, via
 `graphos-factory findings`) and `memory.md` are what you and your predecessors
 learned. Read
-[`workspace-contract.md`](../../graphos-factory-core/references/workspace-contract.md) once for the full
+[`workspace-contract.md`](graphos-factory-core/references/workspace-contract.md) once for the full
 layout. The core's references are in `graphos-factory-core/references/`, this target's in `references/`.
 
 **Never regenerate the schema wholesale after the first commit.** Compute the
@@ -51,6 +53,8 @@ layers model, and a second is a lint warning (unmodelled, not forbidden). **`@ta
 for GraphOS Contracts, and off by default**: apply it only when the user's supergraph
 uses contracts, with the names their contracts already filter on, recorded as a
 decision. Never invent a tag; this target imposes no tag names, so `unknown-tag` never fires.
+
+**Setup, before the first command.** `<skill>` below is the directory that holds this file. Under the Claude Code plugin, its SessionStart hook (`scripts/session-start.sh`) has already run `bootstrap.sh` and put the binary on `PATH`: its output says so. Anywhere else (`npx skills add`, `gh skill install`, a copied directory; Codex, Cursor, GitHub Copilot, Gemini CLI or any other agent), check with `bash <skill>/scripts/bootstrap.sh --check`, and on exit 127 run `bash <skill>/scripts/bootstrap.sh` once (about 3 MB into `~/.cache/graphos-factory-core/`). Then run `. <skill>/scripts/env.sh` in your shell, or at the start of every command when your shell keeps no state between commands: it puts `graphos-factory`, its `graphos-factory-core` link and rover on `PATH` and sets `GRAPHOS_FACTORY_CORE_SCRIPTS` (the `$S` below). The toolchain (`toolchain.sh`) is installed only once the user agrees, whatever the host.
 
 <!-- core:begin -->
 ## Before anything else
@@ -122,7 +126,7 @@ product's session-start hook may run it; otherwise run it yourself), which also 
 `crate/` only when developing the skill itself (`bootstrap.sh --build`). Every wrapper takes
 the binary from `$GRAPHOS_FACTORY_CORE_BIN`, then that link in the bootstrap cache, then PATH, prints which
 one and its version to stderr, and exits **78** (a `fail`, never a skip) when it is
-older than the pin (`crate/Cargo.toml`, or `$GRAPHOS_FACTORY_CORE_VERSION`); `evidence` hands the
+older than the pin (`crate/Cargo.toml`, an installed skill's `release.env`, or `$GRAPHOS_FACTORY_CORE_VERSION`); `evidence` hands the
 wrappers its own binary. On 78, re-run `bootstrap.sh` (`--build` in a checkout) or set
 `GRAPHOS_FACTORY_CORE_BIN` — never lower the pin to get past it. Run everything from the workspace
 root. `graphos-factory-core <command> [verb] --help` (or `-h`) prints that command's usage and reads
@@ -208,13 +212,7 @@ graphos-factory init <dir> --name N --spec FILE [--url U] [--retrieved-at T] [--
 graphos-factory export . --out DIR [--base-url URL] [--json]   # the gate over evidence/latest.json, then DIR/<directory>.graphql rendered with the production host and the rover hand-off (link fields lint leaves not validated among what it did not verify); exit 1 refused, 2 usage; never runs rover
 ```
 
-The plugin's SessionStart hook (`scripts/session-start.sh`) runs `bootstrap.sh`, puts the binary
-on `PATH` and only checks the toolchain; `toolchain.sh` installs it once the user agrees.
-`export` is the target's one command; every other instrument above is the core's. One
-validated workspace shows the path end to end: [`gitea`](../../pilots/graphos/gitea/) (Swagger
-2.0, pinned and patched; `supergraph_check` recorded `not_run`). Every layer, the write and a live
-run against a seeded Gitea included, is executed upstream before a snapshot is published; this
-repository's CI re-runs only the offline checks (`lint`, `validate`, `reconcile`, `lock --check --provenance`).
+`export` is the target's one command; every other instrument above is the core's. One validated workspace shows the path end to end: [`gitea`](https://github.com/apollographql/graphos-factory/tree/main/pilots/graphos/gitea/) (Swagger 2.0, pinned and patched; `supergraph_check` recorded `not_run`). Every layer, the write and a live run against a seeded Gitea included, is executed upstream before a snapshot is published; this repository's CI re-runs only the offline checks (`lint`, `validate`, `reconcile`, `lock --check --provenance`).
 
 <!-- core:begin -->
 ## Policies you apply every time (the why is in the references)
@@ -436,17 +434,17 @@ references/export-graphos.md: `export`, then rover, which the user runs.
 
 ## References
 
-- [`customer-context.md`](../../graphos-factory-core/references/customer-context.md) — **read only when the intake is specialized or unclear** (step 3 gates it): the specialized workflow, missing inputs, discovery, questions, and the `context.yaml` requirements contract
-- [`workspace-contract.md`](../../graphos-factory-core/references/workspace-contract.md) — files, shapes, git conventions
-- [`connectors-language.md`](../../graphos-factory-core/references/connectors-language.md) — `@source`/`@connect`, expression variables, relationship fields, entities, errors, v0.3 vs v0.4
-- [`mapping-language.md`](../../graphos-factory-core/references/mapping-language.md) — `selection`/`body`/`queryParams`: shapes, the methods the router runs, literals, absence, troubleshooting
-- [`naming.md`](../../graphos-factory-core/references/naming.md) — prefixes, snake_case, the semantic root, aliasing
-- [`schema-authoring.md`](../../graphos-factory-core/references/schema-authoring.md) — envelopes, pagination, argument constraints, scalar choice, enums, nullability, depth, the JSON policy
-- [`spec-intake.md`](../../graphos-factory-core/references/spec-intake.md) — reading a description document (OpenAPI 3.x or Swagger 2.0); what `securitySchemes` and `security` become in the inventory; spec pathology classes; pinned specs and `patches[]`
-- [`api-discovery.md`](../../graphos-factory-core/references/api-discovery.md) — the no-spec playbook: docs, probes, provenance, confidence; recording an OAuth flow from the docs
-- [`testing.md`](../../graphos-factory-core/references/testing.md) — the eight layers, what each is blind to, and the traps
-- [`selection-review.md`](../../graphos-factory-core/references/selection-review.md) — the `selection review` contract a UI or a headless agent uses to propose a selection change
-- [`lessons.md`](../../graphos-factory-core/references/lessons.md) — cross-subgraph memory; append when you learn something vendor-independent
+- [`customer-context.md`](graphos-factory-core/references/customer-context.md) — **read only when the intake is specialized or unclear** (step 3 gates it): the specialized workflow, missing inputs, discovery, questions, and the `context.yaml` requirements contract
+- [`workspace-contract.md`](graphos-factory-core/references/workspace-contract.md) — files, shapes, git conventions
+- [`connectors-language.md`](graphos-factory-core/references/connectors-language.md) — `@source`/`@connect`, expression variables, relationship fields, entities, errors, v0.3 vs v0.4
+- [`mapping-language.md`](graphos-factory-core/references/mapping-language.md) — `selection`/`body`/`queryParams`: shapes, the methods the router runs, literals, absence, troubleshooting
+- [`naming.md`](graphos-factory-core/references/naming.md) — prefixes, snake_case, the semantic root, aliasing
+- [`schema-authoring.md`](graphos-factory-core/references/schema-authoring.md) — envelopes, pagination, argument constraints, scalar choice, enums, nullability, depth, the JSON policy
+- [`spec-intake.md`](graphos-factory-core/references/spec-intake.md) — reading a description document (OpenAPI 3.x or Swagger 2.0); what `securitySchemes` and `security` become in the inventory; spec pathology classes; pinned specs and `patches[]`
+- [`api-discovery.md`](graphos-factory-core/references/api-discovery.md) — the no-spec playbook: docs, probes, provenance, confidence; recording an OAuth flow from the docs
+- [`testing.md`](graphos-factory-core/references/testing.md) — the eight layers, what each is blind to, and the traps
+- [`selection-review.md`](graphos-factory-core/references/selection-review.md) — the `selection review` contract a UI or a headless agent uses to propose a selection change
+- [`lessons.md`](graphos-factory-core/references/lessons.md) — cross-subgraph memory; append when you learn something vendor-independent
 - [`federation-subgraph.md`](references/federation-subgraph.md) — versions from the user's graph, the directives a connector subgraph may carry and may not, `@tag` and contracts, what is still open
 - [`export-graphos.md`](references/export-graphos.md) — when to export, the command and its gate, what the user runs (rover, the router), and what an export does not verify
 - [`verification.md`](references/verification.md) — what the layers prove, why `supergraph_check` is `not_run`, and the `rover subgraph check` hand-off

@@ -10,7 +10,7 @@ instead.
 
 | Path | What it is |
 |---|---|
-| `skills/graphos-factory/` | the skill: `SKILL.md`, its references, `scripts/bootstrap.sh` and `scripts/session-start.sh` (the SessionStart hook `hooks/hooks.json` runs) |
+| `skills/graphos-factory/` | the skill: `SKILL.md`, its references, `scripts/bootstrap.sh`, `scripts/env.sh` (PATH for an agent with no hook), `scripts/session-start.sh` (the SessionStart hook `hooks/hooks.json` runs) and `graphos-factory-core/`, its own copy of the core with a `release.env` pin, so `npx skills` and `gh skill`, which copy this directory alone, install a working skill |
 | `graphos-factory-core/` | the core skill material: `references/`, `scripts/` (every layer's bash wrappers), `SKILL-core.md` |
 | `crate/` | cargo workspace: `graphos-factory-core` (lib) and `graphos-factory-targets` (the `graphos-factory` binary) |
 | `schemas/` | JSON Schemas for the workspace contract, embedded into the binary |

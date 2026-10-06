@@ -64,7 +64,7 @@ product's session-start hook may run it; otherwise run it yourself), which also 
 `crate/` only when developing the skill itself (`bootstrap.sh --build`). Every wrapper takes
 the binary from `$GRAPHOS_FACTORY_CORE_BIN`, then that link in the bootstrap cache, then PATH, prints which
 one and its version to stderr, and exits **78** (a `fail`, never a skip) when it is
-older than the pin (`crate/Cargo.toml`, or `$GRAPHOS_FACTORY_CORE_VERSION`); `evidence` hands the
+older than the pin (`crate/Cargo.toml`, an installed skill's `release.env`, or `$GRAPHOS_FACTORY_CORE_VERSION`); `evidence` hands the
 wrappers its own binary. On 78, re-run `bootstrap.sh` (`--build` in a checkout) or set
 `GRAPHOS_FACTORY_CORE_BIN` — never lower the pin to get past it. Run everything from the workspace
 root. `graphos-factory-core <command> [verb] --help` (or `-h`) prints that command's usage and reads

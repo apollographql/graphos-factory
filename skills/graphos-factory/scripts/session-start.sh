@@ -4,6 +4,9 @@
 #
 #   session-start.sh        # what Claude Code runs; by hand it does the same
 #
+# Other agents have no SessionStart hook: they run scripts/bootstrap.sh once
+# and source scripts/env.sh, which sets the same two variables.
+#
 # 1. Puts the graphos-factory binary (and the graphos-factory-core link) in
 #    the bootstrap cache: no network when a binary at least as new as this
 #    checkout's pin is already there, else scripts/bootstrap.sh downloads the
@@ -32,12 +35,16 @@ set -euo pipefail
 
 NAME=graphos-factory
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="${CLAUDE_PLUGIN_ROOT:-$HERE/../../..}"
-ROOT="$(cd "$ROOT" 2>/dev/null && pwd)" || { echo "$NAME: plugin root not found; the binary was not installed"; exit 0; }
-SCRIPTS="$ROOT/graphos-factory-core/scripts"
-BOOTSTRAP="$ROOT/skills/$NAME/scripts/bootstrap.sh"
-if [ ! -f "$SCRIPTS/cache.sh" ] || [ ! -f "$BOOTSTRAP" ]; then
-  echo "$NAME: $ROOT holds no graphos-factory-core/scripts; the binary was not installed"
+BOOTSTRAP="$HERE/bootstrap.sh"
+# The core: the copy inside this skill (the public tree carries one, so a
+# skill installed on its own has it too), else the plugin's or checkout's
+# root copy.
+SCRIPTS=""
+for core in "$HERE/../graphos-factory-core" "${CLAUDE_PLUGIN_ROOT:-$HERE/../../..}/graphos-factory-core"; do
+  if [ -f "$core/scripts/cache.sh" ]; then SCRIPTS="$(cd "$core/scripts" && pwd)"; break; fi
+done
+if [ -z "$SCRIPTS" ] || [ ! -f "$BOOTSTRAP" ]; then
+  echo "$NAME: no graphos-factory-core/scripts beside $HERE or at the plugin root; the binary was not installed"
   exit 0
 fi
 
@@ -48,11 +55,9 @@ BIN_DIR="$CACHE/bin"
 BIN="$BIN_DIR/$NAME"
 LOG="$CACHE/session-start.log"
 # The pin bootstrap.sh installs and resolve-bin.sh checks, read the same way:
-# $GRAPHOS_FACTORY_CORE_VERSION when set, else crate/Cargo.toml's version.
-PIN="${GRAPHOS_FACTORY_CORE_VERSION:-}"
-if [ -z "$PIN" ]; then
-  PIN="$(sed -n 's/^version = "\([^"]*\)".*/\1/p' "$ROOT/crate/Cargo.toml" 2>/dev/null | head -1 || true)"
-fi
+# $GRAPHOS_FACTORY_CORE_VERSION when set, else cache.sh's (crate/Cargo.toml
+# in a checkout, release.env in the skill's own copy of the core).
+PIN="${GRAPHOS_FACTORY_CORE_VERSION:-$GRAPHOS_FACTORY_CORE_PIN}"
 
 # The environment first: static, so it is right whether or not the install
 # below succeeds. $HOME and $PATH reach the env file unexpanded.
