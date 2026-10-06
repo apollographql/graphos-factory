@@ -120,9 +120,15 @@ did: passed, failed, skipped or not run.
 
 ## Versions
 
-The plugin's version (`0.1.0`) is independent of the binary's:
-`bootstrap.sh` installs the release matching the crate version pinned in
-the plugin's own copy (`crate/Cargo.toml`).
+A release is versioned by the product, `.claude-plugin/plugin.json`
+(also the skill's `metadata.version`): each `vX.Y.Z` tag here is a release
+of the skill and plugin, with the `graphos-factory` binary built from the
+same commit attached. The binary keeps its own version (`crate/Cargo.toml`),
+which moves only when the binary changes; the skill's
+`graphos-factory-core/release.env` names both, and `bootstrap.sh` downloads
+the binary from that release. `gh skill install` installs the latest
+release, Apollo's marketplace pins one, and `npx skills add` and a clone read
+`main`.
 
 The hook only checks for the validation toolchain (rover and its supergraph
 plugin, the Apollo Router, WireMock); the agent asks you before it runs

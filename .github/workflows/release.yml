@@ -1,18 +1,27 @@
 name: release
 
-# Publishes the prebuilt graphos-factory binary that
-# skills/graphos-factory/scripts/bootstrap.sh downloads, through the core's
-# graphos-factory-core/scripts/bootstrap.sh (graphos-factory-v<version>-<target>.tar.gz,
-# graphos-factory-edge-<target>.tar.gz). Two channels:
+# Publishes a graphos-factory release: the product (the skill and the plugin,
+# versioned by .claude-plugin/plugin.json) and the graphos-factory binary
+# built from the same commit, which skills/graphos-factory/scripts/bootstrap.sh
+# downloads through the core's bootstrap.sh
+# (graphos-factory-<tag>-<target>.tar.gz; the skill's release.env names the
+# tag). The product and the binary are versioned apart: the binary's version
+# is crate/Cargo.toml's, and a release whose skill text alone changed
+# carries the same binary version as the one before. Two channels:
 #
 #   edge      every push to main rebuilds the single `edge` pre-release: the
 #             tag `edge` is moved to the commit, the previous pre-release is
 #             replaced, and the four platform archives are uploaded. This is
-#             the channel bootstrap.sh falls back to while the project has no
-#             versioned release.
-#   release   a tag v<version> (which must equal crate/Cargo.toml's
-#             version), pushed or created by a manual dispatch with `version`,
-#             for environments whose git proxy cannot push tags.
+#             the channel bootstrap.sh falls back to when the release its
+#             release.env names has no asset for the platform yet.
+#   release   a tag v<version> (which must equal .claude-plugin/plugin.json's
+#             version), pushed by the mirror when a product version reaches
+#             main, or created by a manual dispatch with `version`. After the
+#             assets, the marketplace job opens a pull request on
+#             apollographql/skills that moves the plugin's marketplace entry
+#             to the new tag (it needs the SKILLS_MARKETPLACE_TOKEN secret: a
+#             token that can push a branch to that repository and open a pull
+#             request; without it the job says so and does nothing).
 #
 # Every repository reference is ${{ github.repository }}, so the same file
 # releases from whichever repository it runs in.
@@ -24,7 +33,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Cut a versioned release v<version> at this ref (must equal crate/Cargo.toml). Leave empty to rebuild the edge pre-release."
+        description: "Cut a versioned release v<version> at this ref (must equal .claude-plugin/plugin.json). Leave empty to rebuild the edge pre-release."
         required: false
         type: string
 
@@ -50,7 +59,7 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
-          crate_version="$(sed -n 's/^version = "\([^"]*\)".*/\1/p' crate/Cargo.toml | head -1)"
+          product_version="$(jq -r .version .claude-plugin/plugin.json)"
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             tag="${GITHUB_REF_NAME}"; channel=release
           elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${INPUT_VERSION}" ]; then
@@ -58,8 +67,8 @@ jobs:
           else
             tag=edge; channel=edge
           fi
-          if [ "$channel" = release ] && [ "$tag" != "v$crate_version" ]; then
-            echo "tag $tag != crate version v$crate_version" >&2; exit 1
+          if [ "$channel" = release ] && [ "$tag" != "v$product_version" ]; then
+            echo "tag $tag != the product version v$product_version (.claude-plugin/plugin.json)" >&2; exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
@@ -91,7 +100,7 @@ jobs:
             gh release delete edge --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
             gh release create edge --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
               --title "edge: main @ ${GITHUB_SHA::7}" \
-              --notes "Rolling pre-release built from main at ${GITHUB_SHA} ($(date -u +%Y-%m-%dT%H:%M:%SZ)). Not a versioned release: skills/graphos-factory/scripts/bootstrap.sh installs it when no v<version> release exists for the pinned crate version. Replaced on every push to main."
+              --notes "Rolling pre-release built from main at ${GITHUB_SHA} ($(date -u +%Y-%m-%dT%H:%M:%SZ)). Not a versioned release: skills/graphos-factory/scripts/bootstrap.sh installs it when the release its release.env names has no asset for the platform. Replaced on every push to main."
           elif gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "release $TAG already exists (a re-run after a partial upload); keeping it"
           else
@@ -129,3 +138,52 @@ jobs:
           archive: $bin-$tag-$target
           ref: refs/tags/${{ needs.prepare.outputs.tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Move the plugin's entry in Apollo's marketplace (apollographql/skills,
+  # .claude-plugin/marketplace.json) to this release's tag, as a pull request
+  # that a person reviews and merges. Re-running it for the same tag updates
+  # the same branch.
+  marketplace:
+    needs: [prepare, upload-assets]
+    if: needs.prepare.outputs.channel == 'release'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      GH_TOKEN: ${{ secrets.SKILLS_MARKETPLACE_TOKEN }}
+      MARKETPLACE_REPO: apollographql/skills
+      PLUGIN: graphos-factory
+    steps:
+      - name: Open the marketplace pull request
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::SKILLS_MARKETPLACE_TOKEN is not set: move $PLUGIN to $TAG in $MARKETPLACE_REPO's .claude-plugin/marketplace.json by hand."
+            exit 0
+          fi
+          branch="$PLUGIN/release-$TAG"
+          gh repo clone "$MARKETPLACE_REPO" skills -- --depth 1
+          cd skills
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
+          f=.claude-plugin/marketplace.json
+          jq -e --arg p "$PLUGIN" '.plugins | any(.name == $p)' "$f" >/dev/null ||
+            { echo "$f lists no plugin named $PLUGIN" >&2; exit 1; }
+          current="$(jq -r --arg p "$PLUGIN" '.plugins[] | select(.name == $p) | .source.ref // empty' "$f")"
+          if [ "$current" = "$TAG" ]; then
+            echo "$MARKETPLACE_REPO already lists $PLUGIN at $TAG"; exit 0
+          fi
+          jq --arg p "$PLUGIN" --arg t "$TAG" --arg r "$GITHUB_REPOSITORY" '
+            .plugins |= map(if .name == $p
+              then .source = {source: "github", repo: $r, ref: $t}
+              else . end)' "$f" > "$f.new"
+          mv "$f.new" "$f"
+          git checkout -b "$branch"
+          git commit -am "Release $PLUGIN ${TAG#v} to the marketplace"
+          git push -f origin "$branch"
+          if [ -n "$(gh pr list --repo "$MARKETPLACE_REPO" --head "$branch" --json number --jq '.[].number')" ]; then
+            echo "the pull request for $branch already exists; its branch is updated"
+          else
+            gh pr create --repo "$MARKETPLACE_REPO" --head "$branch" \
+              --title "Release $PLUGIN ${TAG#v} to the marketplace" \
+              --body "Moves the \`$PLUGIN\` plugin's marketplace entry to [\`$TAG\`](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG), released by $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. Opened by the release workflow."
+          fi

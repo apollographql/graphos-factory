@@ -3,6 +3,8 @@ name: graphos-factory
 description: Build and iterate on an Apollo Connectors subgraph for a GraphOS supergraph from a REST API, with or without an OpenAPI or Swagger spec, in a dedicated git workspace that records what the API offers, the user's operation and field selection, every design decision, and the evidence each verification layer produced. Use whenever the user wants to wrap a REST API as a GraphQL subgraph for their supergraph, add or remove operations or fields from an existing connector subgraph, refresh one against a new spec, or record live API traffic as test fixtures, even if they do not say "connector", "subgraph" or "Apollo".
 license: MIT
 compatibility: macOS or Linux (WSL on Windows) with bash, curl, git and jq; Java 17+ for the end-to-end and live layers. Any Agent Skills host (Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI and others) that can run shell commands.
+metadata:
+  version: "0.11.0"
 ---
 
 # graphos-factory

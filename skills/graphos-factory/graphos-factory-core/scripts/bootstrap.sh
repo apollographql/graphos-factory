@@ -22,13 +22,13 @@
 #
 # Download channels (GitHub Releases of $GRAPHOS_FACTORY_CORE_RELEASE_REPO, by
 # default the `repository` of crate/Cargo.toml, or of release.env in a copy):
-#   release   tag v<version>, asset <name>-v<version>-<target>.tar.gz, where
-#             <version> is cache.sh's pin (or $GRAPHOS_FACTORY_CORE_VERSION).
+#   release   tag <tag>, asset <name>-<tag>-<target>.tar.gz: cache.sh's
+#             release tag (a product release, from release.env) or v<pin>.
 #   edge      the rolling pre-release rebuilt from main on every push, asset
 #             <name>-edge-<target>.tar.gz; re-downloaded whenever the
 #             pre-release points at a new commit.
-# GRAPHOS_FACTORY_CORE_CHANNEL=auto (default) uses the versioned release when one
-# exists for the pinned version and falls back to edge; `release` or `edge`
+# GRAPHOS_FACTORY_CORE_CHANNEL=auto (default) uses that release when it
+# exists and falls back to edge; `release` or `edge`
 # force one. A GH_TOKEN / GITHUB_TOKEN is used when present (the repository
 # may be private); without one the plain download URL is tried and, when it
 # fails, the script says so and how to fix it.
@@ -74,6 +74,10 @@ case "$CHANNEL" in auto|release|edge) ;; *) echo "bootstrap: GRAPHOS_FACTORY_COR
 VERSION="${GRAPHOS_FACTORY_CORE_VERSION:-$GRAPHOS_FACTORY_CORE_PIN}"
 [ -n "$VERSION" ] || { echo "bootstrap: cannot determine the version (no $CRATE/Cargo.toml, no release.env beside $HERE and no GRAPHOS_FACTORY_CORE_VERSION)" >&2; exit 1; }
 
+# The release that carries the pinned binary: a product release names its
+# own tag in release.env; a checkout's binary is released as v<version>.
+RELEASE_TAG="${GRAPHOS_FACTORY_CORE_RELEASE_TAG:-v$VERSION}"
+
 TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
 # Every request is bounded, so a stalled connection cannot outlast a caller's
 # own timeout: an API call or the HEAD probe 15 s, the archive 90 s, each with
@@ -118,14 +122,14 @@ build() {
 # Which release tag to install from, given the channel and what exists.
 resolve_tag() {
   case "$CHANNEL" in
-    release) echo "v$VERSION" ;;
+    release) echo "$RELEASE_TAG" ;;
     edge) echo edge ;;
     auto)
       if [ -n "$TOKEN" ]; then
-        if api "releases/tags/v$VERSION" >/dev/null; then echo "v$VERSION"; else echo edge; fi
+        if api "releases/tags/$RELEASE_TAG" >/dev/null; then echo "$RELEASE_TAG"; else echo edge; fi
       else
         # No API access: probe the public download URL for the versioned asset.
-        if curl -fsSLI "${CURL_API[@]}" -o /dev/null "https://github.com/$OWNER_REPO/releases/download/v$VERSION/$NAME-v$VERSION-$1.tar.gz" 2>/dev/null; then echo "v$VERSION"; else echo edge; fi
+        if curl -fsSLI "${CURL_API[@]}" -o /dev/null "https://github.com/$OWNER_REPO/releases/download/$RELEASE_TAG/$NAME-$RELEASE_TAG-$1.tar.gz" 2>/dev/null; then echo "$RELEASE_TAG"; else echo edge; fi
       fi ;;
   esac
 }
