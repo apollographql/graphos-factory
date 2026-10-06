@@ -243,7 +243,9 @@ takes the JSON type of the wire slot it feeds (an `Int64` on an integer slot
 is an integer literal, a map slot a one-key object). A `String` on a slot
 that declares a closed set the schema could not make an enum (SCIM URNs)
 takes the set's first value. An `ID` on an integer slot is an integer
-literal; a `String` on a numeric or boolean slot (the non-identifying int64)
+literal, inside an input object as well (the field is read from the wire
+property its mapping names, a whole-body `$args.input { wire: field }`
+included); an `ID` on a string slot (a uuid) stays a string. A `String` on a numeric or boolean slot (the non-identifying int64)
 is that value as a string (`"1"`), since GraphQL rejects `1` for a `String`.
 rover cannot pass an
 object-valued `$args`, so a required input object means no unit entry (a note
@@ -797,7 +799,8 @@ alone, whatever shares its line. What is still not read, on one line as on
 many: a body that is not a pure list of pairs — a nested object, a literal,
 a method, a `$args.x.y` path, a bare `$args.input`, or pairs separated by
 commas (the mapping language has none) — is not flat. `scaffold` evaluates
-one of those itself, the `key: $args.x { wire: gql … }` sub-selection,
+two of those itself, the `key: $args.x { wire: gql … }` sub-selection and the
+whole-body `$args.input { wire: gql … }`,
 and says so in its notes for the rest. One pair per line stays the house style, and every pilot
 writes it; a one-line block is no longer a way to lose a rule.
 

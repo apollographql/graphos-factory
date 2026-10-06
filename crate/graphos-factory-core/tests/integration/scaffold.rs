@@ -2417,6 +2417,83 @@ fn a_whole_body_argument_is_asserted_as_the_body() {
     );
 }
 
+/// `body: "$args.input { wire: field … }"` is the whole body with each field
+/// mapped to its wire name. Its `ID` fields are sampled from the wire
+/// properties they read: an `ID` over an `integer` is a JSON number in the
+/// document and in the stub's body (the router passes the literal through),
+/// an `ID` over a string, a string. The mapping used to be "not flat", so the
+/// fields had no wire slot and every `ID` was a string the spec rejects.
+#[test]
+fn an_id_over_an_integer_in_a_whole_body_sub_selection_is_a_number_everywhere() {
+    let dir = workspace();
+    let d = dir.path();
+    let sdl = SDL.replace(
+        "type Mutation {\n",
+        concat!(
+            "input Widget_Co_ItemInput {\n  id: ID\n  label: String!\n  ownerRef: ID!\n  sku: ID!\n}\n\n",
+            "type Mutation {\n",
+            "  widget_co_addItem(input: Widget_Co_ItemInput!): Widget_Co_Widget\n",
+            "    @connect(\n      source: \"widget_co\"\n      http: {\n        POST: \"/items\"\n        body: \"\"\"\n",
+            "        $args.input {\n          id\n          label\n          owner_ref: ownerRef\n          sku\n        }\n        \"\"\"\n      }\n",
+            "      selection: \"\"\"\n      id\n      name\n      \"\"\"\n    )\n",
+        ),
+    );
+    std::fs::write(d.join("widget-co.graphql"), sdl).unwrap();
+    std::fs::write(
+        d.join(".factory/selection.yaml"),
+        format!(
+            "{}  \"post:/items\":\n    include: true\n    graphql: {{ root: mutation, name: addItem }}\n",
+            SELECTION
+        ),
+    )
+    .unwrap();
+    let mut inv = inventory();
+    inv["operations"].as_array_mut().unwrap().push(json!({
+        "key": "post:/items", "operation_id": "addItem", "method": "POST", "path": "/items",
+        "semantics": "create", "provenance": "spec", "confidence": 1, "parameters": [],
+        "request_body": {"shape_ref": "#/shapes/Item", "content_type": "application/json", "required": true},
+        "response": {"status": "200", "envelope": null, "shape_ref": "#/shapes/Widget", "list": false},
+        "errors": [], "support": "supported", "support_reason": null}));
+    inv["shapes"]["Item"] = json!({"type": "object", "required": ["label", "owner_ref", "sku"], "properties": {
+        "id": {"type": "integer", "format": "int64"},
+        "label": {"type": "string"},
+        "owner_ref": {"type": "integer", "format": "int64"},
+        "sku": {"type": "string", "format": "uuid"}}});
+    std::fs::write(
+        d.join(".factory/inventory.json"),
+        graphos_factory_core::json::pretty(&inv),
+    )
+    .unwrap();
+
+    assert_eq!(scaffold(d, &["--op", "post:/items"]), 0);
+    let stub = read_json(d, "tests/fixtures/mappings/add_item.json");
+    let body = &stub["request"]["bodyPatterns"][0]["equalToJson"];
+    assert!(body["id"].is_i64(), "an integer id is a number: {}", stub);
+    assert!(body["owner_ref"].is_i64(), "{}", stub);
+    assert!(
+        body["sku"].is_string(),
+        "a uuid id stays a string: {}",
+        stub
+    );
+    assert!(body["label"].is_string(), "{}", stub);
+    // The document and the stub agree: the same literal on both sides.
+    let case = read(d, "tests/cases/add_item.graphql");
+    for (gql, wire) in [("id", "id"), ("ownerRef", "owner_ref"), ("sku", "sku")] {
+        assert!(
+            case.contains(&format!("{}: {}", gql, body[wire])),
+            "{} in the document must be the value the stub demands: {}",
+            gql,
+            case
+        );
+    }
+    let notes = notes_for(d, "post:/items");
+    assert!(
+        !notes.iter().any(|n| n.contains("not a flat")),
+        "{:?}",
+        notes
+    );
+}
+
 /// A DELETE that sends a body is not a write to `body_cannot_conform`, so a
 /// required integer body argument stays in its unit entry as the string
 /// rover sends. The note had lost its warning that `validate` fails that

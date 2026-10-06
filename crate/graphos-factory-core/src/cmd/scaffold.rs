@@ -1432,13 +1432,27 @@ fn parse_body_entries(src: &[char], i: &mut usize, top: bool) -> Option<Vec<Body
             *i += 6;
             let path = body_path(src, i)?;
             skip_body_ws(src, i);
+            // `$args.input { wire: field … }`: the whole body, each field
+            // mapped back to its wire name.
+            let children = if *i < src.len() && src[*i] == '{' {
+                *i += 1;
+                let c = parse_body_entries(src, i, false)?;
+                if *i >= src.len() || src[*i] != '}' {
+                    return None;
+                }
+                *i += 1;
+                skip_body_ws(src, i);
+                Some(c)
+            } else {
+                None
+            };
             if *i < src.len() {
                 return None; // anything after the whole-body argument is not this grammar
             }
             out.push(BodyEntry {
                 key: String::new(),
                 path,
-                children: None,
+                children,
             });
             return Some(out);
         }
@@ -1504,10 +1518,14 @@ fn parse_body_entries(src: &[char], i: &mut usize, top: bool) -> Option<Vec<Body
 fn eval_body(entries: &[BodyEntry], args: &Object) -> Value {
     if let [e] = entries {
         if e.key.is_empty() {
-            return args
+            let whole = args
                 .get(&e.path[0])
                 .and_then(|v| walk_path(v, &e.path[1..]))
                 .unwrap_or(Value::Null);
+            return match &e.children {
+                Some(c) if !whole.is_null() => apply_body_selection(c, &whole),
+                _ => whole,
+            };
         }
     }
     let mut out = obj();
@@ -2334,6 +2352,10 @@ pub fn main(argv: &[String]) -> i32 {
             Some([e]) if e.key.is_empty() => Some(e.path[0].clone()),
             _ => None,
         };
+        let whole_children: Option<Vec<BodyEntry>> = match nested.as_deref() {
+            Some([e]) if e.key.is_empty() => e.children.clone(),
+            _ => None,
+        };
         // The `queryParams` entries that read an input object's leaf
         // (`"filter_by.x": $args.filterBy.x`, the dotted keys it is sent as):
         // (argument path, wire key).
@@ -2384,7 +2406,13 @@ pub fn main(argv: &[String]) -> i32 {
                     .or_else(|| get(p, "schema").cloned());
             }
             if whole_arg.as_deref() == Some(a.name.as_str()) {
-                return request_shape.clone();
+                // With a sub-selection the argument's fields are the
+                // GraphQL names it maps from, each carrying its wire
+                // property: an `ID` over an `integer` stays a number.
+                return match whole_children.as_ref().zip(request_shape.as_ref()) {
+                    Some((c, rs)) => Some(mapped_shape(c, rs, &shapes)),
+                    None => request_shape.clone(),
+                };
             }
             body_shape
                 .as_ref()
