@@ -23,8 +23,13 @@
 //!   at any depth when the argument's own type resolves to a known `input`
 //!   declaration (a cycle stops expanding rather than recursing forever, and
 //!   never silently drops the member that closes it). A list of input
-//!   objects is proven whole, by the
-//!   exact match of the array at its pointer.
+//!   objects the connector forwards whole is proven whole, by the exact
+//!   match of the array at its pointer. A member under a list (`input.tags.id`
+//!   under `tags: [TagInput]`, or a top-level list placed member by member)
+//!   sits at `/tags/*/id` and is proven at each element's own index: every
+//!   element the case passes with the member must be demanded with that
+//!   value at `/tags/<i>/id`, as every element of a scalar list is, and at
+//!   least one element must carry it.
 //! - **Where each argument goes** (`WireMap`, ADR 0079): the connector is
 //!   read structurally. A body entry `key: $args.x` at any depth, inside
 //!   `$({...})` or bare, is a JSON pointer; `$args.input { Wire: field }`
@@ -1092,9 +1097,10 @@ fn build_ctx<'a>(
     };
     let args = args_with_nesting(schema, &args_top);
     let wire = text.as_deref().map(wiring).unwrap_or_default();
+    let lists = list_paths(&args);
     let places = text
         .as_deref()
-        .map(|t| wire_map(t, &wire))
+        .map(|t| wire_map(t, &wire, &lists))
         .unwrap_or_default();
     let body_flat = text.as_deref().and_then(|t| match body_mapping(t) {
         BodyMapping::Flat(v) => Some(v),
@@ -1149,6 +1155,12 @@ enum Location {
     /// array: a JSON pointer whose array-index segments are `*`. Only an
     /// executed placement produces it.
     BodyElements(Vec<String>),
+    /// A member of the elements of a list of input objects (`input.tags.id`
+    /// under `tags: [TagInput]`): a JSON pointer whose segment after each
+    /// list is `*` (`/tags/*/id`), and, per `*` in order, the length of the
+    /// argument path whose list it iterates (`2`, for `input.tags`). Each
+    /// element the case passes is checked at its own index.
+    BodyMembers(Vec<String>, Vec<usize>),
     /// A query-parameter key.
     Query(String),
     /// The URL path template the argument is a `{$args.…}` placeholder of.
@@ -1177,6 +1189,9 @@ struct WireMap {
     /// assertions are trusted as proof (B4) -- `serves()` alone only checks
     /// case ownership by name/tag, not endpoint.
     path_template: Option<String>,
+    /// Every argument path, at any depth, whose declared type is a list
+    /// (`["input", "tags"]`): a member below one sits under an array index.
+    lists: HashSet<Vec<String>>,
 }
 
 /// `$args.a.b` as `["a", "b"]`; `None` for anything but a plain path.
@@ -1230,7 +1245,14 @@ fn walk_body(expr: &str, pointer: Vec<String>, out: &mut WireMap) {
         if let Some(open) = e.find('{') {
             if let Some(arg) = args_path(&e[..open]) {
                 let nodes = crate::reconcile::parse_selection(&e[open + 1..e.len() - 1]);
-                walk_sub_selection(&nodes, &arg, &pointer, out);
+                // A sub-selection over a list maps each element: its
+                // members sit under an array index.
+                let (pointer, depths) = if out.lists.contains(&arg) {
+                    (pushed(&pointer, "*"), vec![arg.len()])
+                } else {
+                    (pointer, Vec::new())
+                };
+                walk_sub_selection(&nodes, &arg, &pointer, &depths, out);
                 return;
             }
         }
@@ -1251,6 +1273,7 @@ fn walk_sub_selection(
     nodes: &[crate::reconcile::Node],
     arg: &[String],
     pointer: &[String],
+    depths: &[usize],
     out: &mut WireMap,
 ) {
     for n in nodes {
@@ -1276,10 +1299,41 @@ fn walk_sub_selection(
         let mut path = arg.to_vec();
         path.extend(key.iter().cloned());
         match &n.children {
-            Some(children) => walk_sub_selection(children, &path, &at, out),
-            None => out.places.push((path, Location::Body(at))),
+            Some(children) if out.lists.contains(&path) => {
+                let mut depths = depths.to_vec();
+                depths.push(path.len());
+                walk_sub_selection(children, &path, &pushed(&at, "*"), &depths, out)
+            }
+            Some(children) => walk_sub_selection(children, &path, &at, depths, out),
+            None => out.places.push((path, body_location(at, depths.to_vec()))),
         }
     }
+}
+
+/// A body place: a plain pointer, or one under list elements.
+fn body_location(pointer: Vec<String>, depths: Vec<usize>) -> Location {
+    if depths.is_empty() {
+        Location::Body(pointer)
+    } else {
+        Location::BodyMembers(pointer, depths)
+    }
+}
+
+/// Every argument path, at any depth, whose declared type is a list.
+fn list_paths(args: &[ArgInfo]) -> HashSet<Vec<String>> {
+    fn walk(prefix: &[String], args: &[ArgInfo], out: &mut HashSet<Vec<String>>) {
+        for a in args {
+            let mut path = prefix.to_vec();
+            path.push(a.name.clone());
+            if a.is_list() {
+                out.insert(path.clone());
+            }
+            walk(&path, &a.nested, out);
+        }
+    }
+    let mut out = HashSet::new();
+    walk(&[], args, &mut out);
+    out
 }
 
 /// Every `{$args.…}` placeholder of `template` that is a plain argument path.
@@ -1290,8 +1344,11 @@ fn template_args(template: &str) -> Vec<Vec<String>> {
         .collect()
 }
 
-fn wire_map(field_text: &str, wire: &Wiring) -> WireMap {
-    let mut out = WireMap::default();
+fn wire_map(field_text: &str, wire: &Wiring, lists: &HashSet<Vec<String>>) -> WireMap {
+    let mut out = WireMap {
+        lists: lists.clone(),
+        ..WireMap::default()
+    };
     if let Some(body) = crate::lint::connector_block(field_text, "body") {
         let b = body.trim();
         if b.starts_with("$args.") {
@@ -1362,13 +1419,22 @@ fn locations_of(map: &WireMap, path: &[String]) -> Vec<Location> {
             .places
             .iter()
             .filter(|(p, _)| p.as_slice() == &path[..cut])
-            .filter_map(|(_, l)| match l {
-                Location::Body(ptr) => {
-                    let mut ptr = ptr.clone();
-                    ptr.extend(path[cut..].iter().cloned());
-                    Some(Location::Body(ptr))
+            .filter_map(|(_, l)| {
+                let (mut ptr, mut depths) = match l {
+                    Location::Body(ptr) => (ptr.clone(), Vec::new()),
+                    Location::BodyMembers(ptr, depths) => (ptr.clone(), depths.clone()),
+                    _ => return None,
+                };
+                // The forwarded parent and every list on the way down hold
+                // their members under an array index.
+                for end in cut..path.len() {
+                    if map.lists.contains(&path[..end]) {
+                        ptr.push("*".to_string());
+                        depths.push(end);
+                    }
+                    ptr.push(path[end].clone());
                 }
-                _ => None,
+                Some(body_location(ptr, depths))
             })
             .collect();
         if !derived.is_empty() {
@@ -1404,6 +1470,109 @@ fn case_value(passed: &[(String, String)], path: &[String]) -> Option<String> {
 
 fn at_pointer<'a>(body: &'a Value, pointer: &[String]) -> Option<&'a Value> {
     pointer.iter().try_fold(body, |v, k| v.get(k))
+}
+
+/// `at_pointer` for a pointer whose array indexes are spelled out
+/// (`/tags/1/id`): a numeric segment indexes an array.
+fn at_indexed_pointer<'a>(body: &'a Value, pointer: &[String]) -> Option<&'a Value> {
+    pointer.iter().try_fold(body, |v, k| match v {
+        Value::Array(items) => items.get(k.parse::<usize>().ok()?),
+        _ => v.get(k),
+    })
+}
+
+/// What a case passes for `path`, a member under list elements, one value
+/// per element that carries it, each with the pointer it must sit at:
+/// `pointer` (a `BodyMembers` pattern) with every `*` replaced by the
+/// element's index. `value` is the text of the top-level argument
+/// `path[0]`; `depths` names, per `*`, the argument-path length whose list
+/// it iterates. A single value where a list is declared is the one-element
+/// list GraphQL coerces it to. A null or missing member yields nothing.
+fn member_instances(
+    value: &str,
+    path: &[String],
+    pointer: &[String],
+    depths: &[usize],
+) -> Vec<(Vec<String>, Value)> {
+    struct Walk<'p> {
+        path: &'p [String],
+        depths: &'p [usize],
+        index: Vec<usize>,
+        out: Vec<(Vec<usize>, Value)>,
+    }
+    fn go(w: &mut Walk, v: &Value, consumed: usize, iterated: bool) {
+        if !iterated && w.depths.contains(&consumed) {
+            let elements: Vec<&Value> = match v {
+                Value::Array(items) => items.iter().collect(),
+                Value::Null => return,
+                single => vec![single],
+            };
+            for (i, e) in elements.into_iter().enumerate() {
+                w.index.push(i);
+                go(w, e, consumed, true);
+                w.index.pop();
+            }
+            return;
+        }
+        if consumed == w.path.len() {
+            if !v.is_null() {
+                w.out.push((w.index.clone(), v.clone()));
+            }
+            return;
+        }
+        if let Some(child) = v.get(&w.path[consumed]) {
+            go(w, child, consumed + 1, false);
+        }
+    }
+    let Some(json) = graphql_member_to_json(value) else {
+        return Vec::new();
+    };
+    let mut w = Walk {
+        path,
+        depths,
+        index: Vec::new(),
+        out: Vec::new(),
+    };
+    go(&mut w, &json, 1, false);
+    w.out
+        .into_iter()
+        .map(|(index, v)| {
+            let mut next = index.iter();
+            let concrete = pointer
+                .iter()
+                .map(|seg| match seg.as_str() {
+                    "*" => next.next().map(usize::to_string).unwrap_or_default(),
+                    _ => seg.clone(),
+                })
+                .collect();
+            (concrete, v)
+        })
+        .collect()
+}
+
+/// The text a case passes for the argument `path` belongs to, as `loc`
+/// reads it: a member under list elements reads the whole top-level
+/// argument (`member_instances` walks it), anything else its own value.
+fn case_value_for(passed: &[(String, String)], path: &[String], loc: &Location) -> Option<String> {
+    match loc {
+        Location::BodyMembers(..) => passed
+            .iter()
+            .find(|(n, _)| n == &path[0])
+            .map(|(_, v)| v.clone()),
+        _ => case_value(passed, path),
+    }
+}
+
+/// Whether a case passes a value for `path` at `loc` at all: for a member
+/// under list elements, whether any element it passes carries one.
+fn supplies(passed: &[(String, String)], path: &[String], loc: &Location) -> bool {
+    match (case_value_for(passed, path, loc), loc) {
+        (Some(v), Location::BodyMembers(pointer, depths)) => {
+            !member_instances(&v, path, pointer, depths).is_empty()
+        }
+        (Some(v), _) => !is_null_literal(&v),
+        (None, _) => false,
+    }
 }
 
 /// The scalar text a query parameter, path segment or header carries for a
@@ -1494,6 +1663,20 @@ fn demands_at(mapping: &Value, loc: &Location, path: &[String], value: &str) -> 
                 None => false,
             }
         }
+        Location::BodyMembers(pointer, depths) => {
+            // Every element the case passes with the member is demanded
+            // with the same value at its own index, as every element of a
+            // list argument is; an element passed without it demands
+            // nothing here.
+            let Some(body) = demanded_body(mapping) else {
+                return false;
+            };
+            let wanted = member_instances(value, path, pointer, depths);
+            !wanted.is_empty()
+                && wanted
+                    .iter()
+                    .all(|(at, want)| at_indexed_pointer(&body, at) == Some(want))
+        }
         Location::BodyElements(shape) => {
             let Some(body) = demanded_body(mapping) else {
                 return false;
@@ -1563,6 +1746,13 @@ fn location_label(loc: &Location) -> String {
     match loc {
         Location::Body(p) => format!("body /{}", p.join("/")),
         Location::BodyElements(p) => format!("body elements /{}", p.join("/")),
+        Location::BodyMembers(p, _) => format!(
+            "body /{}",
+            p.iter()
+                .map(|s| if s == "*" { "0" } else { s.as_str() })
+                .collect::<Vec<_>>()
+                .join("/")
+        ),
         Location::Query(k) => format!("query {}", k),
         Location::Path(t) => format!("path {}", t),
         Location::Header(n, _) => format!("header {}", n),
@@ -1680,7 +1870,7 @@ fn proven_at(
 ) -> Option<CaseExec> {
     let mut found: Option<CaseExec> = None;
     for (case, passed) in &ctx.calls {
-        let Some(value) = case_value(passed, path) else {
+        let Some(value) = case_value_for(passed, path, loc) else {
             continue;
         };
         if is_null_literal(&value) {
@@ -1697,6 +1887,46 @@ fn proven_at(
         }
     }
     found
+}
+
+/// Where a gap says `path`'s value must be demanded. For a member under
+/// list elements it is the concrete pointer a stub must hold: the first
+/// one the first case passing the member leaves undemanded in its own
+/// stub, or, with no such stub, every pointer that case's elements reach;
+/// with no case passing it, the first element's. Anything else is its
+/// location's own label.
+fn gap_label(ctx: &OpCtx, path: &[String], loc: &Location, mappings: &[(String, Value)]) -> String {
+    let Location::BodyMembers(pointer, depths) = loc else {
+        return location_label(loc);
+    };
+    for (case, passed) in &ctx.calls {
+        let Some(value) = case_value_for(passed, path, loc) else {
+            continue;
+        };
+        let wanted = member_instances(&value, path, pointer, depths);
+        if wanted.is_empty() {
+            continue;
+        }
+        let missing = proof_stubs(ctx, case, mappings)
+            .into_iter()
+            .filter_map(|(_, m)| demanded_body(m))
+            .find_map(|body| {
+                wanted
+                    .iter()
+                    .find(|(at, want)| at_indexed_pointer(&body, at) != Some(want))
+                    .map(|(at, _)| vec![at])
+            });
+        let named = missing.unwrap_or_else(|| wanted.iter().map(|(at, _)| at).collect());
+        return format!(
+            "body {}",
+            named
+                .iter()
+                .map(|at| format!("/{}", at.join("/")))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
+    location_label(loc)
 }
 
 // ── Executed placement (ADR 0079): where a case's own stub says it went ────
@@ -2106,12 +2336,15 @@ fn write_body_assertions(
         for arg in &ctx.args {
             any_arg = true;
             let mut paths: Vec<(Vec<String>, bool)> = vec![(vec![arg.name.clone()], false)];
-            // A list of input objects is proven whole: the exact match of
-            // the array at its pointer covers every element's members. A
-            // non-list argument's nested `input` members are walked at
-            // every depth (B1): a member two or more levels down is just as
-            // real an obligation as a top-level one.
-            if !arg.is_list() {
+            // A list of input objects forwarded whole is proven whole: the
+            // exact match of the array at its pointer covers every
+            // element's members. One whose members the connector places
+            // one by one (a sub-selection), and a non-list argument, have
+            // their nested `input` members walked at every depth (B1): a
+            // member two or more levels down is just as real an obligation
+            // as a top-level one, and a member under a list is proven at
+            // each element's own index.
+            if !arg.is_list() || is_container(&ctx.places, std::slice::from_ref(&arg.name)) {
                 nested_paths(&[arg.name.clone()], &arg.nested, &mut paths);
             }
             for (path, nested) in paths {
@@ -2154,7 +2387,7 @@ fn write_body_assertions(
                             ctx.key,
                             ctx.field,
                             label,
-                            location_label(loc),
+                            gap_label(ctx, &path, loc, mappings),
                             match &exec {
                                 Some(CaseExec::Failed) =>
                                     "the proving case is recorded as failed".to_string(),
@@ -2277,12 +2510,35 @@ fn list_argument_proof(
                 }
                 for (_, mapping) in proof_stubs(ctx, case, mappings) {
                     let asserted = if in_body {
-                        locations_of(&ctx.places, std::slice::from_ref(&arg.name))
-                            .iter()
-                            .filter(|l| matches!(l, Location::Body(_) | Location::BodyElements(_)))
-                            .any(|l| {
-                                demands_at(mapping, l, std::slice::from_ref(&arg.name), &value)
-                            })
+                        let own = locations_of(&ctx.places, std::slice::from_ref(&arg.name));
+                        if own.is_empty() {
+                            // Placed member by member: the list is asserted
+                            // when every member its elements carry is
+                            // demanded at each element's own index.
+                            let members: Vec<&(Vec<String>, Location)> = ctx
+                                .places
+                                .places
+                                .iter()
+                                .filter(|(p, l)| {
+                                    p.len() > 1
+                                        && p[0] == arg.name
+                                        && matches!(l, Location::BodyMembers(..))
+                                        && supplies(passed, p, l)
+                                })
+                                .collect();
+                            !members.is_empty()
+                                && members
+                                    .iter()
+                                    .all(|(p, l)| demands_at(mapping, l, p, &value))
+                        } else {
+                            own.iter()
+                                .filter(|l| {
+                                    matches!(l, Location::Body(_) | Location::BodyElements(_))
+                                })
+                                .any(|l| {
+                                    demands_at(mapping, l, std::slice::from_ref(&arg.name), &value)
+                                })
+                        }
                     } else {
                         let q = get(mapping, "request").and_then(|r| get_obj(r, "queryParameters"));
                         q.map(|q| {
@@ -2484,9 +2740,20 @@ fn mutation_cases(
                     .filter(|(p, _)| p.len() > 1 && p[0] == opt.name)
                     .filter_map(|(_, l)| match l {
                         Location::Body(ptr) => Some(ptr.clone()),
+                        // A member under list elements: the array they sit
+                        // in is what an omitted argument leaves out.
+                        Location::BodyMembers(ptr, _) => {
+                            let cut = ptr.iter().position(|s| s == "*").unwrap_or(ptr.len());
+                            Some(ptr[..cut].to_vec())
+                        }
                         _ => None,
                     })
-                    .collect()
+                    .fold(Vec::new(), |mut seen: Vec<Vec<String>>, p| {
+                        if !seen.contains(&p) {
+                            seen.push(p);
+                        }
+                        seen
+                    })
             } else {
                 Vec::new()
             };
@@ -3018,7 +3285,9 @@ pub fn report_with_evidence(workspace: &Path, evidence: Option<&Value>) -> Repor
                     .places
                     .iter()
                     .filter_map(|(_, l)| match l {
-                        Location::Body(p) | Location::BodyElements(p) => top(p),
+                        Location::Body(p)
+                        | Location::BodyElements(p)
+                        | Location::BodyMembers(p, _) => top(p),
                         _ => None,
                     })
                     .chain(ctx.places.literals.iter().filter_map(|(p, _)| top(p)))

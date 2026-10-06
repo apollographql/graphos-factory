@@ -742,6 +742,19 @@ connector reshapes (a date, a casing) is not found and stays
 covered. `graphos-factory-core serialization --json` lists each argument's
 `placements` (`static` or `executed`, with the proving case).
 
+A member under a list of input objects (`input.tags.id`, where `tags` is
+`[TagInput]`) is proven at each element's own index, not at a pointer
+without one: every element the case passes with the member must be
+demanded with that value at `/tags/0/id`, `/tags/1/id`, …, the same
+every-element rule a scalar list argument is held to, and at least one
+element must carry it; an element the case passes without the member
+demands nothing. A list inside an element is indexed the same way
+(`/lines/1/options/0/code`). A gap names the pointer its stub must demand
+(`body /tags/1/id`). A top-level list of input objects the connector
+places member by member (`tags: $args.tags { id name }`) is proven the same
+way; one it forwards whole is still proven by the exact match of the whole
+array at its pointer.
+
 Same-run evidence contract: the layer takes the CURRENT
 `evidence` run's own `wiremock_e2e` status and log — built earlier in the
 same invocation — never `.factory/evidence/latest.json` on disk, which

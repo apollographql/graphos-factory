@@ -1317,7 +1317,7 @@ fn wire_map_places_sub_selection_members_headers_and_path_placeholders() {
       }
       selection: "id"
     )"#;
-    let map = wire_map(field, &wiring(field));
+    let map = wire_map(field, &wiring(field), &HashSet::new());
     let place =
         |p: &[&str]| locations_of(&map, &p.iter().map(|s| s.to_string()).collect::<Vec<_>>());
     assert_eq!(
@@ -1772,7 +1772,7 @@ fn a_header_entry_with_value_before_name_is_still_recognized() {
     // invisible to the wire map whenever a connector wrote it the other way.
     let field_text =
         r#"http: { POST: "/ping", headers: [{ value: "{$args.token}", name: "X-Token" }] }"#;
-    let map = wire_map(field_text, &Wiring::default());
+    let map = wire_map(field_text, &Wiring::default(), &HashSet::new());
     assert!(
         map.places
             .iter()
