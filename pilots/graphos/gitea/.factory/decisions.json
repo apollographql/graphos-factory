@@ -6,8 +6,8 @@
       "title": "Purpose and scope: a live CI fixture, eight operations",
       "status": "resolved",
       "date": "2026-09-10",
-      "context": "the skill's live layer had one credential-gated fixture (PagerDuty, a shared free account) and one no-auth public API (Deck of Cards). Neither can prove a write live, and neither runs without a secret or a third party. Gitea is open source, ships a single static binary with an embedded SQLite database, and publishes its Swagger 2.0 description (467 operations), so CI can start a real instance, seed it, mint a token and run every selected operation — reads and a write — against it in about ten seconds, with nothing shared and nothing to leak.",
-      "requested_by": "docs/plan.md §5 (Phase 4d live fixture; task \"PR1b\").",
+      "context": "the skill's live layer had one credential-gated fixture (another API, on a shared free account) and one no-auth public API. Neither can prove a write live, and neither runs without a secret or a third party. Gitea is open source, ships a single static binary with an embedded SQLite database, and publishes its Swagger 2.0 description (467 operations), so CI can start a real instance, seed it, mint a token and run every selected operation — reads and a write — against it in about ten seconds, with nothing shared and nothing to leak.",
+      "requested_by": "the plan's live-fixture task.",
       "affects": [
         "every operation"
       ],
@@ -168,7 +168,7 @@
       ],
       "resolution": {
         "decision": "expose them as `String` and pass them through. A list argument would need a `->joinNotNull(\",\")` mapping and would still be the same wire value.",
-        "note": "Alternatives: `[String!]` with a join (deferred: revisit when the Phase 4d list-argument lint rule wants an e2e case proving the join).",
+        "note": "Alternatives: `[String!]` with a join (deferred: revisit when the list-argument lint rule wants an e2e case proving the join).",
         "chosen": [
           "string"
         ],
@@ -210,7 +210,7 @@
         "chosen": [
           "flat"
         ],
-        "note": "Alternatives: an input object mirroring the body (rejected: flat arguments keep the write expressible in `rover connector test`, D-0009 of the pagerduty pilot). Amended 2026-09-30 (D-0019 to D-0025): the constructor does not drop null arguments; the router sends an explicit null as JSON null (measured by create_issue_nulls). What drops a null is `$args.x?` on the body member, which also drops an absent argument and nothing else -- an empty string, empty list, false and zero go through. The minimal call sends {title} alone only because absent arguments are left out. Amended 2026-10-05 (reopened and resolved again): the mutation no longer carries `@tag(name: \"write\")`, and selection.yaml no longer lists `tags: [write]`. This target applies `@tag` only when the user's supergraph uses GraphOS Contracts, with the names those contracts already filter on, and this pilot's supergraph has none; the `flat` choice's label still reads 'tagged write' as it was offered on 2026-09-10. The shape (flat scalar arguments) is unchanged.",
+        "note": "Alternatives: an input object mirroring the body (rejected: flat arguments keep the write expressible in `rover connector test`, which never builds an object-valued argument into the request body). Amended 2026-09-30 (D-0019 to D-0025): the constructor does not drop null arguments; the router sends an explicit null as JSON null (measured by create_issue_nulls). What drops a null is `$args.x?` on the body member, which also drops an absent argument and nothing else -- an empty string, empty list, false and zero go through. The minimal call sends {title} alone only because absent arguments are left out. Amended 2026-10-05 (reopened and resolved again): the mutation no longer carries `@tag(name: \"write\")`, and selection.yaml no longer lists `tags: [write]`. This target applies `@tag` only when the user's supergraph uses GraphOS Contracts, with the names those contracts already filter on, and this pilot's supergraph has none; the `flat` choice's label still reads 'tagged write' as it was offered on 2026-09-10. The shape (flat scalar arguments) is unchanged.",
         "decision": "`gitea_createIssue(owner!, repo!, title!, body, assignees: [String!], labels: [ID!], milestone: ID, dueDate, ref, closed)` → `Gitea_Issue`, with no `@tag`. The body maps each argument by name; the constructor drops null arguments, so the minimal call sends `{title}` alone (asserted at unit and e2e). `assignee` is not exposed.",
         "by": "user",
         "at": "2026-10-05"
@@ -284,10 +284,10 @@
       "title": "Scalar choice for the 19 int64-backed slots the int-overflow lint reports",
       "status": "resolved",
       "date": "2026-09-21",
-      "phase": "Phase 7f (ADR 0030)",
+      "phase": "lint",
       "question": "Gitea declares 155 numeric properties as format: int64. GraphQL Int is 32-bit. Which of the 19 selected Int-typed slots become String, which become ID, and which keep Int?",
       "context": "factory lint pilots/gitea reported 19 int-overflow errors: 18 response leaves and the index argument of gitea_issue. Gitea itself declares no minimum or maximum on any numeric property, so the format hint is the only fact available.",
-      "requested_by": "the int-overflow lint (ADR 0030)",
+      "requested_by": "the int-overflow lint",
       "affects": [
         "Gitea_Repository.size",
         "Gitea_Attachment.size",
@@ -297,7 +297,7 @@
       ],
       "resolution": {
         "note": "Alternatives: keep the counters Int behind a doc comment saying the value fits in Int (rejected: it invents a suppression mechanism the task's pre-decisions explicitly forbade, and a sentence beside a field does not change what the router coerces; it also left 15 of 19 findings cleared by prose rather than by a fix). Type Gitea_Issue.number as ID for symmetry with the argument (rejected: the pre-decided policy names ID for id, *Id and *_id only, and an output ID is emitted by this router as a bare JSON number, so it would not carry the String contract the other 17 fields now carry). Map with $(path?->jsonStringify ?? null), which preserves null identically (rejected: reconcile::parse_selection does not read a $(...) expression block as a mapping of its path, so all 77 converted leaves were reported as 'renamed by the selection but the connector does not map it' and 'selection says all fields; N not mapped' — the ->match form keeps reconcile clean). Pin the null behaviour with unit cases in this workspace's own tests/gitea.connector.yaml (rejected on measurement, see the decision). Waive the findings (rejected: selection.schema.json $defs/waiver carries only the conformance statuses unchecked and unmatched, and lint has no waiver mechanism at all).",
-        "decision": "All 18 int64-backed response leaves become String, mapped with path->match([null, null], [@, @->jsonStringify]): the three magnitudes (Gitea_Repository.size kilobytes, Gitea_Attachment.size bytes, Gitea_Issue.timeEstimate seconds) and the 15 counters alike, per the pre-decided pilot fix policy. The index argument of gitea_issue becomes ID!, matching uid, priorityOwnerId, teamId and starredBy on gitea_searchRepos; ID input coercion takes an integer literal, so tests/cases/issue.graphql and tests/live/issue.graphql keep index: 1 unchanged. The null guard is not decoration: a bare ->jsonStringify turns a JSON null into the 4-character string \"null\". THIS WORKSPACE DOES NOT PIN THAT, and cannot: unit cases feeding a JSON null into the converted fields were written and then removed, because every apiResponseBody here is also a conformance body and Gitea's swagger declares all eighteen properties non-nullable — one such case, measured on a throwaway copy, takes validate from \"23 bodies conform, 0 do not\" to \"22 bodies conform, 1 do not\" with \"$.followers_count: null is not allowed (shape is not nullable)\" and exit 1. tests/gitea.connector.yaml therefore carries 9 cases and no null body, and unguarding the mappings leaves it green — measured: rewriting all 77 ->match(...) mappings back to a bare ->jsonStringify on a throwaway copy still gives \"TEST RESULTS: SUCCESSFUL 46 passed; 0 failed\", exit 0. The proof lives outside the pilot, in .github/scripts/null-mapping-probe.sh, run by CI's stack job on a throwaway workspace nobody validates: guarded \"TEST RESULTS: SUCCESSFUL 8 passed; 0 failed\", bare ->jsonStringify \"TEST RESULTS: FAILED 7 passed; 1 failed\" with the actual carrying \"bytes\": \"null\". Before touching these 18 fields, read that script and ADR 0030 § Where the null probe lives — not this suite. What this workspace does prove: unit 46 passed, 0 failed; e2e 11 passed, 0 failed through a real router; validate 23 conform, 0 do not, 0 unchecked, 2 waived. tests/live.yaml's four numeric predicates now pipe through tonumber, which fails loudly on a non-number, where a bare >= on a JSON string compares as a string and is true for every value the API will ever send.",
+        "decision": "All 18 int64-backed response leaves become String, mapped with path->match([null, null], [@, @->jsonStringify]): the three magnitudes (Gitea_Repository.size kilobytes, Gitea_Attachment.size bytes, Gitea_Issue.timeEstimate seconds) and the 15 counters alike, per the pre-decided pilot fix policy. The index argument of gitea_issue becomes ID!, matching uid, priorityOwnerId, teamId and starredBy on gitea_searchRepos; ID input coercion takes an integer literal, so tests/cases/issue.graphql and tests/live/issue.graphql keep index: 1 unchanged. The null guard is not decoration: a bare ->jsonStringify turns a JSON null into the 4-character string \"null\". THIS WORKSPACE DOES NOT PIN THAT, and cannot: unit cases feeding a JSON null into the converted fields were written and then removed, because every apiResponseBody here is also a conformance body and Gitea's swagger declares all eighteen properties non-nullable — one such case, measured on a throwaway copy, takes validate from \"23 bodies conform, 0 do not\" to \"22 bodies conform, 1 do not\" with \"$.followers_count: null is not allowed (shape is not nullable)\" and exit 1. tests/gitea.connector.yaml therefore carries 9 cases and no null body, and unguarding the mappings leaves it green — measured: rewriting all 77 ->match(...) mappings back to a bare ->jsonStringify on a throwaway copy still gives \"TEST RESULTS: SUCCESSFUL 46 passed; 0 failed\", exit 0. The proof lives outside the pilot, in .github/scripts/null-mapping-probe.sh, run by CI's stack job on a throwaway workspace nobody validates: guarded \"TEST RESULTS: SUCCESSFUL 8 passed; 0 failed\", bare ->jsonStringify \"TEST RESULTS: FAILED 7 passed; 1 failed\" with the actual carrying \"bytes\": \"null\". Before touching these 18 fields, read that script — not this suite. What this workspace does prove: unit 46 passed, 0 failed; e2e 11 passed, 0 failed through a real router; validate 23 conform, 0 do not, 0 unchecked, 2 waived. tests/live.yaml's four numeric predicates now pipe through tonumber, which fails loudly on a non-number, where a bare >= on a JSON string compares as a string and is true for every value the API will ever send.",
         "by": "agent",
         "at": "2026-09-22"
       }
@@ -307,7 +307,7 @@
       "title": "Enable verbose per-field doc comments (opt-in evaluation)",
       "status": "resolved",
       "date": "2026-09-22",
-      "phase": "7j",
+      "phase": "apply",
       "choices": [
         {
           "id": "enabled",
@@ -322,8 +322,8 @@
         "chosen": [
           "enabled"
         ],
-        "note": "A stakeholder comparison against the output of an earlier deterministic generator found this schema missing most field-level doc comments that generator always emitted. The source descriptions are already captured in the inventory (55% of gitea properties); nothing surfaced them. Opting gitea in as the worked proof pending a real success-rate/cost comparison (ADR 0034).",
-        "decision": "Opt gitea into per-field doc comments as the worked example for ADR 0034; not defaulted on repo-wide until measured.",
+        "note": "A stakeholder comparison against the output of an earlier deterministic generator found this schema missing most field-level doc comments that generator always emitted. The source descriptions are already captured in the inventory (55% of gitea properties); nothing surfaced them. Opting gitea in as the worked proof pending a real success-rate/cost comparison.",
+        "decision": "Opt gitea into per-field doc comments as the worked example of opt-in object field doc comments (references/schema-authoring.md § Object field descriptions); not defaulted on repo-wide until measured.",
         "at": "2026-09-22"
       }
     },
@@ -332,7 +332,7 @@
       "title": "Enable one-sentence source descriptions on arguments (opt-in evaluation)",
       "status": "resolved",
       "date": "2026-09-23",
-      "phase": "7l",
+      "phase": "apply",
       "affects": [
         "gitea.graphql",
         "applied.lock.yaml"
@@ -340,7 +340,7 @@
       "choices": [
         {
           "id": "enabled",
-          "label": "Add the inventory parameter description, cut to one sentence, in front of the ADR 0031 constraint clause"
+          "label": "Add the inventory parameter description, cut to one sentence, in front of the argument constraint clause"
         },
         {
           "id": "disabled",
@@ -351,8 +351,8 @@
         "chosen": [
           "enabled"
         ],
-        "note": "The 2026-09-22 AppWorld LLM-arm bundle carried 1,565 argument doc comments where the 16 September bundle carried 0 (fix-list finding D1). 448 were rule-driven — 308 ADR 0031 constraint clauses, 140 § Pagination wording — and 1,058 had no rule asking for them: 691 verbatim OpenAPI parameter text, 367 per-argument access_token sentences from the authoring brief. The bundle's description text went from 28 KB to 229 KB across every doc-comment surface, not arguments alone. ADR 0040 makes the source sentence opt-in per service, one sentence, never type or requiredness; the ADR 0031 constraint clause stays default-on. Opting gitea in as the worked proof pending a measured comparison, as D-0014 did for object fields.",
-        "decision": "Opt gitea into one-sentence source descriptions on root-field arguments as the worked example for ADR 0040: 30 arguments gain the inventory description cut to one sentence, verbatim, as a single-line string. The four page/limit arguments keep § Pagination's wording only (they carry none today, and the two pre-existing pagination-bounds-unknown warnings stay). mode, sort, order, state and type keep their existing curated doc comments — the rule fills gaps and does not relitigate curation. labels and milestone on createIssue get none, because 'list of label ids' and 'milestone id' add nothing to what [ID!] and ID already say; 'search string' on listIssues(q:) stays, because q alone does not say the value is a search term. title, body, assignees and ref have no source description. Not defaulted on repo-wide until measured.",
+        "note": "The 2026-09-22 AppWorld LLM-arm bundle carried 1,565 argument doc comments where the 16 September bundle carried 0 (fix-list finding D1). 448 were rule-driven — 308 argument constraint clauses, 140 § Pagination wording — and 1,058 had no rule asking for them: 691 verbatim OpenAPI parameter text, 367 per-argument access_token sentences from the authoring brief. The bundle's description text went from 28 KB to 229 KB across every doc-comment surface, not arguments alone. The rule that followed makes the source sentence opt-in per service, one sentence, never type or requiredness (references/schema-authoring.md § Argument descriptions); the argument constraint clause stays default-on. Opting gitea in as the worked proof pending a measured comparison, as D-0014 did for object fields.",
+        "decision": "Opt gitea into one-sentence source descriptions on root-field arguments as the worked example of opt-in argument source descriptions: 30 arguments gain the inventory description cut to one sentence, verbatim, as a single-line string. The four page/limit arguments keep § Pagination's wording only (they carry none today, and the two pre-existing pagination-bounds-unknown warnings stay). mode, sort, order, state and type keep their existing curated doc comments — the rule fills gaps and does not relitigate curation. labels and milestone on createIssue get none, because 'list of label ids' and 'milestone id' add nothing to what [ID!] and ID already say; 'search string' on listIssues(q:) stays, because q alone does not say the value is a search term. title, body, assignees and ref have no source description. Not defaulted on repo-wide until measured.",
         "at": "2026-09-23"
       }
     },
@@ -399,11 +399,11 @@
     },
     {
       "id": "D-0018",
-      "title": "RepositoryMeta > owner stays a confirmed link after ADR 0085 removed its fact; the null guard is pasted",
+      "title": "RepositoryMeta > owner stays a confirmed link after the link-target rule removed its fact; the null guard is pasted",
       "status": "resolved",
       "date": "2026-09-29",
-      "question": "ADR 0085 (crate 0.5.51+) keeps a GET-by-id as a link target only when its response carries the path parameter's key; Gitea's User spells it login, so inventory links now lists 0 candidates and refuses get:/users/{username}. Does D-0017's link survive, and in what form?",
-      "context": "inventory build is byte-identical to the committed inventory.json (#133 regenerated it). inventory links: 0 candidate links, 5 GET-by-id refused, get:/users/{username}: its response carries no username of the parameter's type. lint raises no link-* error for an entry with no backing fact and reconcile reports links =1 in sync; lint warned link-null-guard (ADR 0084) because Gitea_RepositoryMeta.owner is a nullable String. No other included GET-by-id qualifies under the new rule. Measured with curl against the seeded Gitea 1.25.0: GET /api/v1/users/fixture returns login fixture, and GET /api/v1/users/ (the empty segment a null owner produces) returns 404 text/plain 404 page not found.",
+      "question": "Since crate 0.5.51 the link-target rule keeps a GET-by-id as a link target only when its response carries the path parameter's key; Gitea's User spells it login, so inventory links now lists 0 candidates and refuses get:/users/{username}. Does D-0017's link survive, and in what form?",
+      "context": "inventory build is byte-identical to the committed inventory.json (#133 regenerated it). inventory links: 0 candidate links, 5 GET-by-id refused, get:/users/{username}: its response carries no username of the parameter's type. lint raises no link-* error for an entry with no backing fact and reconcile reports links =1 in sync; lint warned link-null-guard because Gitea_RepositoryMeta.owner is a nullable String. No other included GET-by-id qualifies under the new rule. Measured with curl against the seeded Gitea 1.25.0: GET /api/v1/users/fixture returns login fixture, and GET /api/v1/users/ (the empty segment a null owner produces) returns 404 text/plain 404 page not found.",
       "affects": [
         ".factory/selection.yaml",
         "gitea.graphql",
@@ -415,7 +415,7 @@
       "choices": [
         {
           "id": "keep-guarded",
-          "label": "Keep the link as a judgement (selection is judgements, ADR 0018); re-print through links apply --dry-run with the null guard; add the null-parent e2e case"
+          "label": "Keep the link as a judgement (selection is judgements); re-print through links apply --dry-run with the null guard; add the null-parent e2e case"
         },
         {
           "id": "drop",
@@ -430,8 +430,8 @@
         "chosen": [
           "keep-guarded"
         ],
-        "note": "drop rejected: the pilot is CI's only executed relationship field (ADR 0089), and nothing about the API changed. other-link rejected: the new rule proposes none. The null-parent item is hand-built from the issue.json recording; the seed never returns a null owner, so the live layer proves only the non-null parent.",
-        "decision": "Keep RepositoryMeta > owner -> get:/users/{username} (field ownerUser) confirmed. The link was never backed by a fact for this target (D-0017 already overrode the fact's get:/packages/{owner}), and ADR 0085 records the login spelling as a known limitation of the rule, not evidence against the relationship: Gitea's GET /users/{username} returns the user whose login equals the username, which the live case asserts (ownerUser.login == owner). owner is nullable, so the field is re-printed by links apply --dry-run with its isSuccess and selection null guard and pasted verbatim, and a null-parent e2e case (issue #3, whose repository omits owner: the spec does not require it and allows no null string) proves the guard; user_empty_segment.json answers the GET /users/ the router still sends for the null parent (ADR 0084: the guard maps the answer, it does not skip the request) as Gitea does (404) and is waived as unmatched, since no operation describes that request.",
+        "note": "drop rejected: the pilot is CI's only executed relationship field, and nothing about the API changed. other-link rejected: the new rule proposes none. The null-parent item is hand-built from the issue.json recording; the seed never returns a null owner, so the live layer proves only the non-null parent.",
+        "decision": "Keep RepositoryMeta > owner -> get:/users/{username} (field ownerUser) confirmed. The link was never backed by a fact for this target (D-0017 already overrode the fact's get:/packages/{owner}), and the login spelling is a known limitation of the rule, not evidence against the relationship: Gitea's GET /users/{username} returns the user whose login equals the username, which the live case asserts (ownerUser.login == owner). owner is nullable, so the field is re-printed by links apply --dry-run with its isSuccess and selection null guard and pasted verbatim, and a null-parent e2e case (issue #3, whose repository omits owner: the spec does not require it and allows no null string) proves the guard; user_empty_segment.json answers the GET /users/ the router still sends for the null parent (the guard maps the answer, it does not skip the request) as Gitea does (404) and is waived as unmatched, since no operation describes that request.",
         "by": "agent",
         "at": "2026-09-29"
       }

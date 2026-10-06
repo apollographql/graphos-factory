@@ -19,6 +19,6 @@
     "x-cases": [
       "list_issues_repository_owner_null"
     ],
-    "x-note": "What the router sends for a null owner, guarded or not (ADR 0084: the guard maps the answer, it does not skip the request): GET /users/ with an empty segment. Measured against the seeded Gitea 1.25.0 with curl on 2026-09-30: 404, text/plain, body \"404 page not found\" (19 bytes). Without this stub the case fails as an unmatched request; without the guard it fails with CONNECTOR_FETCH."
+    "x-note": "What the router sends for a null owner, guarded or not (the guard maps the answer, it does not skip the request): GET /users/ with an empty segment. Measured against the seeded Gitea 1.25.0 with curl on 2026-09-30: 404, text/plain, body \"404 page not found\" (19 bytes). Without this stub the case fails as an unmatched request; without the guard it fails with CONNECTOR_FETCH."
   }
 }

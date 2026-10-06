@@ -56,7 +56,7 @@ for GraphOS Contracts, and off by default**: apply it only when the user's super
 uses contracts, with the names their contracts already filter on, recorded as a
 decision. Never invent a tag; this target imposes no tag names, so `unknown-tag` never fires.
 
-**Setup, before the first command.** `<skill>` below is the directory that holds this file. Under the Claude Code plugin, its SessionStart hook (`scripts/session-start.sh`) has already run `bootstrap.sh` and put the binary on `PATH`: its output says so. Anywhere else (`npx skills add`, `gh skill install`, a copied directory; Codex, Cursor, GitHub Copilot, Gemini CLI or any other agent), check with `bash <skill>/scripts/bootstrap.sh --check`, and on exit 127 run `bash <skill>/scripts/bootstrap.sh` once (about 3 MB into `~/.cache/graphos-factory-core/`). Then run `. <skill>/scripts/env.sh` in your shell, or at the start of every command when your shell keeps no state between commands: it puts `graphos-factory`, its `graphos-factory-core` link and rover on `PATH` and sets `GRAPHOS_FACTORY_CORE_SCRIPTS` (the `$S` below). The toolchain (`toolchain.sh`) is installed only once the user agrees, whatever the host.
+**Setup, before the first command.** `<skill>` below is the directory that holds this file. Under the Claude Code plugin, its SessionStart hook (`scripts/session-start.sh`) has already run `bootstrap.sh` and put the binary on `PATH`: its output says so. Anywhere else (`npx skills add`, `gh skill install`, a copied directory; Codex, Cursor, GitHub Copilot, Gemini CLI or any other agent), check with `bash <skill>/scripts/bootstrap.sh --check`, and on exit 127 run `bash <skill>/scripts/bootstrap.sh` once (about 3 MB into `~/.cache/graphos-factory-core/`). Then run `. <skill>/scripts/env.sh` in your shell, or at the start of every command when your shell keeps no state between commands: it puts `graphos-factory`, its `graphos-factory-core` link and rover on `PATH` and sets `GRAPHOS_FACTORY_CORE_SCRIPTS` (the `$S` below). The toolchain (`toolchain.sh`) is installed only once the user agrees, whatever the host. **First subgraph in a new workspace:** follow [`first-subgraph.md`](references/first-subgraph.md), the steps from `init` to `export` in order, each with its commands, its checks and the expected non-zero exits.
 
 <!-- core:begin -->
 ## Before anything else
@@ -436,6 +436,7 @@ references/export-graphos.md: `export`, then rover, which the user runs.
 
 ## References
 
+- [`first-subgraph.md`](references/first-subgraph.md) — **the first subgraph in a new workspace**: the linear path from `init` to `export`, the expected non-zero exits, and the refusals a first run meets most
 - [`customer-context.md`](graphos-factory-core/references/customer-context.md) — **read only when the intake is specialized or unclear** (step 3 gates it): the specialized workflow, missing inputs, discovery, questions, and the `context.yaml` requirements contract
 - [`workspace-contract.md`](graphos-factory-core/references/workspace-contract.md) — files, shapes, git conventions
 - [`connectors-language.md`](graphos-factory-core/references/connectors-language.md) — `@source`/`@connect`, expression variables, relationship fields, entities, errors, v0.3 vs v0.4

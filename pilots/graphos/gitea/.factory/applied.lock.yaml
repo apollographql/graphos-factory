@@ -1,7 +1,7 @@
 contract_version: 1
 schema: gitea.graphql
-written_at: "2026-10-05T19:49:56.845Z"
-written_by: "graphos-factory 0.9.2"
+written_at: "2026-10-06T19:59:20.490Z"
+written_by: "graphos-factory 0.10.1"
 spans:
   header: "5b71af0eb465c1eb5df9ff11d3dff3a9a2b287a672776ee16f0eec06733d2d58"
   "type:Gitea_StateType": bb2fb1e52a791d33507892cf633159ace99b299cfb3e0280354e3aebf2ba2d62
@@ -30,9 +30,9 @@ inventory: "6fffbae906dbb8237b89a8207e70a6d3a88293053070a541ec5a40d27fa61241"
 sources:
   swagger.json: a876b780af2cab2507d51b186bd724ed72fe22f361a76f1b2650de7d56b1afd8
 provenance:
-  recorded_at: "2026-10-05T19:49:56.912Z"
+  recorded_at: "2026-10-06T19:59:20.557Z"
   skill:
-    revision: d36c231ace46af7d4cb17b0f12118ebef91dc4d5
+    revision: aa00ed642757fca5320e00d407eff07a7c65c85a
     dirty: false
     source: "--skill-dir"
   authoring_agent:
@@ -40,8 +40,8 @@ provenance:
     attested: true
   binary:
     name: graphos-factory
-    version: "0.9.2"
-    revision: d36c231ace46af7d4cb17b0f12118ebef91dc4d5
+    version: "0.10.1"
+    revision: aa00ed642757fca5320e00d407eff07a7c65c85a
     dirty: false
     rustc: "rustc 1.97.1 (8bab26f4f 2026-07-14)"
     target: aarch64-apple-darwin
@@ -53,17 +53,17 @@ provenance:
     wiremock_pin: "3.13.2"
   inputs:
     ".factory/decisions.json":
-      sha256: b3ebcca1d5b4ec40a7742f8d0167413f1494d6aa3a53d41a5539a1b44af25ff7
-      bytes: 44702
+      sha256: fd4507d246a470b930c63b53df99ae3e77c3bcf16be4e0c56eb185cab1e561a7
+      bytes: 44769
     ".factory/findings.json":
-      sha256: "3c773e639e83810e41b58b80c3a9fe4d2513791fdc0aaab2191eb099051b557f"
-      bytes: 1314
+      sha256: "2111b49d22ce10b0e2b8d13de4897130cf70e6d3024f47692d4587a12d77e540"
+      bytes: 1361
     ".factory/inventory.json":
       sha256: "9761bd91d63af6ff8c95be766934e73e4bd1b879f5c0489f9ce51c00753e60a4"
       bytes: 1127955
     ".factory/memory.md":
-      sha256: "8be6dd7fa578bc1e1d6e514c2204c764b160ea0161413df2c0946182d0dc25e9"
-      bytes: 4806
+      sha256: d19ec9a7d9c495203a56e0527567f262369ade132f70236efc5484f387438de0
+      bytes: 4793
     ".factory/selection.yaml":
       sha256: "10e47ca30596ddfd7d000d3bc9758c251dad47c542256149df890172595c6eef"
       bytes: 54395
@@ -264,8 +264,8 @@ provenance:
       sha256: "4debb19084636f74c427846b56353b527d8b0274b49e11c03d0512b0771b20fd"
       bytes: 1168
     tests/fixtures/mappings/list_issues_repository_owner_null.json:
-      sha256: "3cbcfcb008e7b1286046d07a0e5255bcadcd8879b9d2cd2a9e869f7691eef055"
-      bytes: 4575
+      sha256: ade11a73566d5cbac290021f8a9f5da2fabe7d2c5abdf22b974fbf0dbb5ee560
+      bytes: 4563
     tests/fixtures/mappings/repo.json:
       sha256: "6ca405839e500e865a7983f6a5e205db7b274720bb4f945f58cabfa75ee31a5d"
       bytes: 3369
@@ -285,8 +285,8 @@ provenance:
       sha256: b3be415fd6cb05d8bd9ad4f55539de0bf5b15f1aebc1b7c958614f4e908a32f1
       bytes: 391
     tests/fixtures/mappings/user_empty_segment.json:
-      sha256: "992bd75480d0dd1179e7bd7f8637ad34dd44c05cabb7a03a71c7275e363e4a66"
-      bytes: 805
+      sha256: eb18acfe0d024d234c25b62eeca4b9adb28d2fabcd94f0076fae2da9c9d83e4d
+      bytes: 795
     tests/fixtures/mappings/version.json:
       sha256: "31c0872ccffe277598cdc821893444db79e656b15df3e8d16502ef7a026087ea"
       bytes: 320

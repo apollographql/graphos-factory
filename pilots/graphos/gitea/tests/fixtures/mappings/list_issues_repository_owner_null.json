@@ -141,6 +141,6 @@
     "x-cases": [
       "list_issues_repository_owner_null"
     ],
-    "x-note": "Hand-built from the issue.json recording (ids 2 and 3, state closed) for the null-parent case ADR 0084 requires of a nullable foreign key. Gitea_RepositoryMeta.owner is nullable in the schema because the spec does not require RepositoryMeta.owner; the seeded instance always sends one, so the second item omits repository.owner by hand (absent, not null: the spec does not allow a null string)."
+    "x-note": "Hand-built from the issue.json recording (ids 2 and 3, state closed) for the null-parent case a nullable foreign key requires. Gitea_RepositoryMeta.owner is nullable in the schema because the spec does not require RepositoryMeta.owner; the seeded instance always sends one, so the second item omits repository.owner by hand (absent, not null: the spec does not allow a null string)."
   }
 }

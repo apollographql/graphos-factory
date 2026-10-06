@@ -78,5 +78,4 @@ the skill's `references/lessons.md` instead.
   fails a `null` there. `GET /api/v1/users/` (the empty segment) answers
   404, `text/plain`, `404 page not found`; `user_empty_segment.json` carries
   that and is waived as unmatched, since no operation describes it. The
-  router sends that request for the null parent even with the guard (ADR
-  0084); the guard only maps the 404 to a null `ownerUser`.
+  router sends that request for the null parent even with the guard; the guard only maps the 404 to a null `ownerUser`.
