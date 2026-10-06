@@ -18,7 +18,7 @@ pub mod init;
 use graphos_factory_core::args::Flags;
 use graphos_factory_core::lint::Findings;
 use graphos_factory_core::target::{
-    ComposeConfig, EvidenceLayer, InitInput, LayerInput, LintInput, Override, Target, TargetCommand,
+    ComposeConfig, EvidenceLayer, LayerInput, LintInput, Override, Target, TargetCommand,
 };
 use serde_json::Value;
 
