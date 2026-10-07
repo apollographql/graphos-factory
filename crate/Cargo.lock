@@ -324,7 +324,7 @@ dependencies = [
 
 [[package]]
 name = "graphos-factory-core"
-version = "0.10.1"
+version = "0.11.0"
 dependencies = [
  "apollo-compiler",
  "libc",
@@ -340,7 +340,7 @@ dependencies = [
 
 [[package]]
 name = "graphos-factory-targets"
-version = "0.10.1"
+version = "0.11.0"
 dependencies = [
  "apollo-compiler",
  "graphos-factory-core",
