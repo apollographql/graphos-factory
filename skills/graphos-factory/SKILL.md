@@ -109,14 +109,13 @@ This target's verbs, `init` first (it records the target, `skill.name: graphos-f
 | Verb | Read first | What you do |
 |---|---|---|
 | `init <name>` | workspace-contract | decide the subgraph name (snake_case or kebab-case, naming.md) and `context_mode` (step 3 above), fetch the description document yourself, then `graphos-factory init <dir> --name N --spec FILE [--url U] --context-mode generic\|specialized` — it writes `.factory/workspace.yaml` (`skill.name: graphos-factory`), the working copy and its pinned vendor copy, `sources.lock.yaml` and `inventory.json` exactly as `sources pin` + `inventory build` would, plus four skeletons: `<directory>.graphql` (the spec links and the one `@source`, no root field, so compose fails until the first apply), `template.yaml` (`BASE_URL` = the document's first absolute server, else a local stand-in its comment asks you to complete; `AUTH_EXPR` = `{$env.<SERVICE>_TOKEN}` with the scheme named; local test values only, never the production host, which is given at export), `supergraph.yaml` (rover's compose config for this one subgraph, not the user's supergraph) and `tests/router.yaml` (the e2e `override_url`); act on every comment in them, and one that already exists is left alone. It refuses a directory that already holds a workspace; `--dry-run --json` lists every file's path, content and sha256 without writing. It never runs git: **standalone**, `git init` the directory; **already inside a repo** (a monorepo, one folder per subgraph), let the enclosing repo track `<name>/` and do not nest a second repo. Then commit. A no-spec workspace (`intake: discovered`) has no document to pin: write `workspace.yaml` (with `skill.name: graphos-factory`) and `sources.lock.yaml` by hand, as workspace-contract shows |
-| `export` | export-graphos | only after `validate`: `graphos-factory export . --out DIR --base-url URL` (DIR outside the workspace; URL the production host, which the user gives you) renders `DIR/<directory>.graphql` and prints the rover commands, the router's credential variables and minimums, and what is not verified. It refuses an unvalidated workspace (no evidence, a file the layers read changed since `evidence` ran, which it names, a layer not `pass`, an operation with no executed evidence, a lint error) and a base URL that is not an absolute http(s) URL, carries userinfo or is local, and says why, in `evidence`'s terms: fix that (then `evidence`) and re-run, never work around it. Hand the user its output. Never run `rover subgraph check` or `publish` yourself, never handle, ask for or print a GraphOS key, and report `supergraph_check` and anything else it lists as not verified |
+| `export` | export-graphos | only after `validate`: `graphos-factory export . --out DIR --base-url URL` (DIR outside the workspace; URL the production host, which the user gives you) renders `DIR/<directory>.graphql` and prints the rover commands, the router's credential variables and minimums, and what is not verified. It refuses an unvalidated workspace (no evidence, a file the layers read changed since `evidence` ran, which it names, a layer not `pass`, an operation with no executed evidence, a lint error) and a base URL that is not an absolute http(s) URL, carries userinfo or is local, and says why, in `evidence`'s terms: fix that (then `evidence`) and re-run, never work around it. It also refuses a `supergraph_check` that ran and failed, naming rover's errors. Hand the user its output. Never run `rover subgraph check` or `publish` by hand, never handle, ask for or print a GraphOS key, and report `supergraph_check` (when not `pass`) and anything else it lists as not verified |
 
-`validate` on this target also runs the target's evidence layer,
-`supergraph_check`: composing the subgraph against the user's existing
-supergraph. It is not built and always records `not_run` with its reason
-(references/verification.md). The compose layer composes the subgraph alone.
-Report `supergraph_check` as not run, never as a pass, and say plainly that
-the subgraph has not been checked against the user's supergraph.
+`validate` on this target also runs its evidence layer, `supergraph_check`: `rover subgraph check` against the user's
+published variant, only with `APOLLO_KEY` in their environment (the key is theirs: never ask for, set or print it) and a graph ref:
+ask once per session which `<graph>@<variant>`, then set `GRAPHOS_FACTORY_GRAPH_REF` on the commands you run; their own
+`GRAPHOS_FACTORY_SUPERGRAPH_CHECK=auto` uses `$APOLLO_GRAPH_REF` (never set it for them). Else `not_run` (references/verification.md). The compose layer composes the subgraph alone. Report a `not_run` or `skipped`
+check as not run, never as a pass, and say plainly the subgraph has not been checked against the user's supergraph.
 
 <!-- core:begin -->
 ## Instruments
@@ -212,9 +211,10 @@ This target's instruments:
 ```bash
 graphos-factory init <dir> --name N --spec FILE [--url U] [--retrieved-at T] [--created-at T] [--context-mode generic|specialized|undecided] [--dry-run] [--json]   # a new spec-backed workspace: workspace.yaml (skill.name graphos-factory), working + vendor copy, sources.lock.yaml, inventory.json; refuses an existing workspace; never runs git
 graphos-factory export . --out DIR [--base-url URL] [--json]   # the gate over evidence/latest.json, then DIR/<directory>.graphql rendered with the production host and the rover hand-off (link fields lint leaves not validated among what it did not verify); exit 1 refused, 2 usage; never runs rover
+GRAPHOS_FACTORY_GRAPH_REF=<graph>@<variant> bash "$GRAPHOS_FACTORY_TARGET_SCRIPTS/supergraph-check.sh" .   # what evidence's supergraph_check runs (APOLLO_KEY from the user's environment): exit 0 pass, 1 fail, 3 not_run, 127 skipped
 ```
 
-`export` is the target's one command; every other instrument above is the core's. One validated workspace shows the path end to end: [`gitea`](https://github.com/apollographql/graphos-factory/tree/main/pilots/graphos/gitea/) (Swagger 2.0, pinned and patched; `supergraph_check` recorded `not_run`). Every layer, the write and a live run against a seeded Gitea included, is executed upstream before a snapshot is published; this repository's CI re-runs only the offline checks (`lint`, `validate`, `reconcile`, `lock --check --provenance`).
+`export` is the target's one command; every other instrument above is the core's. One validated workspace shows the path end to end: [`gitea`](https://github.com/apollographql/graphos-factory/tree/main/pilots/graphos/gitea/) (Swagger 2.0, pinned and patched; `supergraph_check` recorded `not_run`: no key in CI). Every layer, the write and a live run against a seeded Gitea included, is executed upstream before a snapshot is published; this repository's CI re-runs only the offline checks (`lint`, `validate`, `reconcile`, `lock --check --provenance`).
 
 <!-- core:begin -->
 ## Policies you apply every time (the why is in the references)
@@ -321,10 +321,10 @@ graphos-factory export . --out DIR [--base-url URL] [--json]   # the gate over e
   `sources.lock.yaml` with the reason; add the live evidence as `verified`.
 <!-- core:end -->
 
-- **The subgraph is checked alone: `supergraph_check` is `not_run`.** Compose,
+- **Without the user's key the subgraph is checked alone.** Compose,
   unit, e2e, conformance and live prove the subgraph by itself; whether it
-  composes with the user's other subgraphs is unverified until they run
-  `rover subgraph check` (references/verification.md). Say so in every report,
+  composes with the user's other subgraphs is unverified until `supergraph_check`
+  passes or they run `rover subgraph check` (references/verification.md). Say so in every report,
   and record any entity or `@shareable` choice as a decision (references/federation-subgraph.md).
 
 <!-- core:begin -->
@@ -450,4 +450,4 @@ references/export-graphos.md: `export`, then rover, which the user runs.
 - [`lessons.md`](graphos-factory-core/references/lessons.md) — cross-subgraph memory; append when you learn something vendor-independent
 - [`federation-subgraph.md`](references/federation-subgraph.md) — versions from the user's graph, the directives a connector subgraph may carry and may not, entities another subgraph owns, `@tag` and contracts, what is still open
 - [`export-graphos.md`](references/export-graphos.md) — when to export, the command and its gate, what the user runs (rover, the router), and what an export does not verify
-- [`verification.md`](references/verification.md) — what the layers prove, why `supergraph_check` is `not_run`, and the `rover subgraph check` hand-off
+- [`verification.md`](references/verification.md) — what the layers prove, `supergraph_check` (what it runs, the two variables, reading pass, fail and not_run), and the hand-off

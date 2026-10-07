@@ -14,7 +14,8 @@
 //! cite their decisions, as the other target's gate allows); a `live` that
 //! ran and failed; a selected operation an offline layer left `fail`,
 //! `unchecked` or `skipped`, or with no executed evidence (no unit, e2e or
-//! live `pass`: conformance executes nothing); or a
+//! live `pass`: conformance executes nothing); a `supergraph_check` that
+//! ran against the user's graph and failed, with rover's errors; or a
 //! lint error now. There is no override. The render is the core's
 //! `render_schema` with the production values (`--base-url`, else
 //! `<SERVICE>_BASE_URL`, else `template.yaml`'s `test_default`; `AUTH_EXPR`
@@ -30,7 +31,9 @@
 //! export did not verify, each relationship field lint leaves not validated
 //! among it.
 //!
-//! The binary never runs rover and never reads or asks for a GraphOS key.
+//! The binary never runs rover and never reads or asks for a GraphOS key:
+//! `evidence` records `supergraph_check`, whose script runs rover with the
+//! key the user exported.
 //!
 //! Exit codes: 0 written · 1 refused, or an error · 2 usage.
 
@@ -111,7 +114,8 @@ fn reason<'a>(row: Option<&'a Value>) -> Option<&'a str> {
 /// and failed, then one per operation an offline layer left `fail`,
 /// `unchecked` or `skipped`, and one per operation with no executed
 /// evidence (the core's `has_executed_evidence`, which `evidence`'s own
-/// report reads too).
+/// report reads too), then `supergraph_check: fail` with each of its
+/// findings when the check against the user's graph ran and failed.
 pub fn gate(evidence: &Value) -> Gate {
     let mut reasons = Vec::new();
     for key in REQUIRED {
@@ -143,6 +147,25 @@ pub fn gate(evidence: &Value) -> Gate {
         }
         if !graphos_factory_core::cmd::evidence::has_executed_evidence(columns) {
             reasons.push(format!("{}: no executed evidence at any layer", op));
+        }
+    }
+    // A check against the user's own graph that ran and failed is a real
+    // failure: the subgraph does not compose with it, or breaks what the
+    // checks hold it to. Not run or skipped is listed, never refused.
+    if let Some(row) = get_obj(evidence, "target_evidence_layers")
+        .and_then(|t| t.get("supergraph_check"))
+        .filter(|r| get_str(r, "status") == Some("fail"))
+    {
+        reasons.push(format!(
+            "supergraph_check: fail ({})",
+            reason(Some(row)).unwrap_or("no reason recorded")
+        ));
+        for f in get_arr(row, "findings")
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+        {
+            reasons.push(format!("supergraph_check: {}", f));
         }
     }
     Gate {
@@ -210,7 +233,8 @@ pub fn link_fields(evidence: &Value, lint: &[(String, String)]) -> Vec<(String, 
 
 /// What a passing gate still leaves unverified: a `not_run` connector_unit,
 /// a non-gating layer that is not `pass`, a `live` that did not run, every
-/// target layer that is not `pass` (`supergraph_check` always), every
+/// target layer that is not `pass` (`supergraph_check` when the user gave
+/// no key, with its reason), every
 /// relationship field `link_fields` names from `lint` (findings as
 /// `(rule, message)`), and a GraphOS cloud router, which no layer runs.
 pub fn not_verified(evidence: &Value, lint: &[(String, String)]) -> Vec<(String, String, String)> {
@@ -249,16 +273,18 @@ pub fn not_verified(evidence: &Value, lint: &[(String, String)]) -> Vec<(String,
         );
     }
     let targets = get_obj(evidence, "target_evidence_layers");
-    let supergraph = targets
-        .and_then(|t| t.get("supergraph_check"))
+    let supergraph_row = targets.and_then(|t| t.get("supergraph_check"));
+    let supergraph = supergraph_row
         .and_then(|r| get_str(r, "status"))
         .unwrap_or("missing");
     if supergraph != "pass" {
         push(
             "supergraph_check",
             supergraph,
-            "composition with your other subgraphs; `rover subgraph check` is that check"
-                .to_string(),
+            format!(
+                "composition with your other subgraphs: {}",
+                reason(supergraph_row).unwrap_or("no check against your graph was recorded")
+            ),
         );
     }
     for (name, row) in targets.into_iter().flatten() {

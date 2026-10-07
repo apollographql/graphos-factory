@@ -10,20 +10,21 @@
 //! subgraph's (ADR 0132: `type-prefix` and the entity rules read them as
 //! the owner's entity, its four lint rules check their shape, and
 //! `type-prefix`'s message says how to declare one), names the Federation
-//! directives a subgraph composes with, and
-//! registers `supergraph_check`, the evidence layer for composing the
-//! subgraph against the user's supergraph. The questions it leaves open are written as questions
-//! in `skills/graphos-factory/references/` (proposal §9).
+//! directives a subgraph composes with, and registers `supergraph_check`,
+//! an evidence layer that runs `rover subgraph check` against the user's
+//! published supergraph when they ask for it, and is `not_run` otherwise
+//! ([`supergraph_check`], ADR 0133). The questions it leaves open are
+//! written as questions in `skills/graphos-factory/references/` (proposal §9).
 
 pub mod export;
 pub mod init;
+pub mod supergraph_check;
 
 use graphos_factory_core::args::Flags;
 use graphos_factory_core::lint::Findings;
 use graphos_factory_core::target::{
-    ComposeConfig, EvidenceLayer, LayerInput, LintInput, Override, Target, TargetCommand,
+    ComposeConfig, EvidenceLayer, LintInput, Override, Target, TargetCommand,
 };
-use serde_json::Value;
 
 /// The target's name, and its binary's: what a workspace this target
 /// writes records in `workspace.yaml` `skill.name`, the value `init
@@ -63,11 +64,6 @@ pub const LINK_IMPORTS: &[&str] = &[
     "@listSize",
     "@cost",
 ];
-
-/// Why `supergraph_check` does not run, in words for the user who reads
-/// the evidence: what was checked instead and the command that checks the
-/// rest with their own credentials.
-pub const SUPERGRAPH_CHECK_REASON: &str = "not run: this subgraph was composed alone, not with your supergraph; run `rover subgraph check <graph>@<variant> --name <directory> --schema <rendered schema>` with your own credentials (skills/graphos-factory/references/verification.md)";
 
 fn export_flags(_: Option<&str>) -> Option<&'static Flags> {
     Some(&export::FLAGS)
@@ -126,17 +122,6 @@ fn source_name(message: &str) -> String {
     )
 }
 
-/// `supergraph_check`: compose the subgraph against the user's existing
-/// supergraph (`rover subgraph check` against a GraphOS variant, or a
-/// compose with their other subgraphs; proposal §9, question 3). Not built,
-/// so it says so: `not_run` with the reason, never a pass.
-fn supergraph_check(_: &LayerInput) -> Value {
-    serde_json::json!({
-        "status": "not_run",
-        "reason": SUPERGRAPH_CHECK_REASON,
-    })
-}
-
 pub const TARGET: Target = Target {
     name: NAME,
     placeholders: PLACEHOLDERS,
@@ -175,7 +160,9 @@ pub const TARGET: Target = Target {
     foreign_types: true,
     evidence_layers: &[EvidenceLayer {
         name: "supergraph_check",
-        run: supergraph_check,
+        run: supergraph_check::run,
+        // The user decides what a failing check means for them; `export`
+        // refuses it.
         gating: false,
     }],
     compose: ComposeConfig {

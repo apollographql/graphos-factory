@@ -13,6 +13,7 @@
 mod export;
 mod foreign;
 mod init_files;
+mod supergraph_check;
 
 use graphos_factory_targets::targets::graphos::{self, TARGET};
 use serde_json::Value;
@@ -21,8 +22,15 @@ use std::process::Command;
 
 fn bin() -> Command {
     let mut c = Command::new(env!("CARGO_BIN_EXE_graphos-factory"));
+    // Nothing from the environment the suite runs in reaches GraphOS: a
+    // test that runs the supergraph check sets its own (stubbed) inputs.
     c.env_remove("GRAPHOS_FACTORY_CORE_SCRIPTS")
         .env_remove("GRAPHOS_FACTORY_CORE_BIN")
+        .env_remove("GRAPHOS_FACTORY_TARGET_SCRIPTS")
+        .env_remove("APOLLO_KEY")
+        .env_remove("APOLLO_GRAPH_REF")
+        .env_remove("GRAPHOS_FACTORY_GRAPH_REF")
+        .env_remove("GRAPHOS_FACTORY_SUPERGRAPH_CHECK")
         .stdin(std::process::Stdio::null());
     c
 }
@@ -462,8 +470,21 @@ fn script(dir: &Path, name: &str, body: &str) {
 }
 
 /// `evidence` on a copy of the pilot, with stub wrappers: what is under
-/// test is the recording of this target's layer, not the stack.
+/// test is the recording of this target's layer, not the stack. The target's
+/// own script is the real one, found through `GRAPHOS_FACTORY_TARGET_SCRIPTS`.
 fn evidence(extra: &[&str]) -> (Option<i32>, Value) {
+    let (code, evidence, _) = evidence_with(&[], extra);
+    (code, evidence)
+}
+
+/// The target's scripts in this tree.
+fn target_scripts() -> PathBuf {
+    repo().join("skills/graphos-factory/scripts")
+}
+
+/// `evidence` as [`evidence`] does, with `env` set on the binary; its exit
+/// code, `latest.json` and stdout.
+fn evidence_with(env: &[(&str, &str)], extra: &[&str]) -> (Option<i32>, Value, String) {
     let ws = copy_of(&graphos_pilot());
     let scripts = tempfile::tempdir().unwrap();
     let s = scripts.path();
@@ -479,10 +500,21 @@ fn evidence(extra: &[&str]) -> (Option<i32>, Value) {
     let s_s = s.to_string_lossy().into_owned();
     let mut args = vec!["evidence", &ws_s, "--scripts", &s_s];
     args.extend_from_slice(extra);
-    let (code, stdout, stderr) = run(&args);
+    let mut c = bin();
+    c.env("GRAPHOS_FACTORY_TARGET_SCRIPTS", target_scripts());
+    for (k, v) in env {
+        c.env(k, v);
+    }
+    let out = c.args(&args).output().unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
     let text = std::fs::read_to_string(ws.path().join(".factory/evidence/latest.json"))
         .unwrap_or_else(|e| panic!("{}: {} {}", e, stdout, stderr));
-    (code, serde_json::from_str(&text).unwrap())
+    (
+        out.status.code(),
+        serde_json::from_str(&text).unwrap(),
+        stdout,
+    )
 }
 
 #[test]
@@ -491,13 +523,14 @@ fn evidence_records_supergraph_check_not_run_under_target_evidence_layers() {
     let layers = evidence["target_evidence_layers"].as_object().unwrap();
     let names: Vec<&String> = layers.keys().collect();
     assert_eq!(names, vec!["supergraph_check"], "{}", evidence);
+    // No graph ref for the run: the script says what to set and exits 3.
+    let row = &evidence["target_evidence_layers"]["supergraph_check"];
+    assert_eq!(row["status"], "not_run", "{}", row);
+    assert_eq!(row["target"], "graphos-factory");
+    assert_eq!(row["exit_code"], 3);
     assert_eq!(
-        evidence["target_evidence_layers"]["supergraph_check"],
-        serde_json::json!({
-            "status": "not_run",
-            "reason": graphos::SUPERGRAPH_CHECK_REASON,
-            "target": "graphos-factory",
-        })
+        row["reason"],
+        "supergraph_check: no graph to check against — set GRAPHOS_FACTORY_GRAPH_REF=<graph>@<variant> for this run (the agent asks you first), or GRAPHOS_FACTORY_SUPERGRAPH_CHECK=auto to check against $APOLLO_GRAPH_REF on every run (not_run)"
     );
     // The six core layers are all there, and not_run is not a failure.
     for core in [

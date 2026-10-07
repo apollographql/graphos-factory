@@ -1,0 +1,10 @@
+{
+  "json_version": "1",
+  "data": {
+    "success": false
+  },
+  "error": {
+    "message": "Could not find graph with name \"my-graph\".",
+    "code": "E009"
+  }
+}

@@ -78,7 +78,10 @@
         "reason": { "type": ["string", "null"], "description": "Required whenever status is skipped, not_run, n/a or fail." },
         "findings": { "type": "array", "items": { "type": "string" } },
         "cases": { "type": "integer", "minimum": 0 },
-        "failed": { "type": "integer", "minimum": 0 }
+        "failed": { "type": "integer", "minimum": 0 },
+        "command": { "type": "string", "description": "The command the layer ran, when it ran one. Additive." },
+        "exit_code": { "type": "integer", "description": "That command's exit code, mapped to status as the core layers' are: 0 pass, 3 not_run, 127 skipped, any other fail. Additive." },
+        "details": { "type": "object", "description": "What the layer ran against and found, in the target's own terms (never a credential). A reader that does not know the layer may show it as is. Additive." }
       }
     },
     "status": { "enum": ["pass", "fail", "skipped", "not_run", "excluded", "unchecked", "waived", "n/a"], "description": "excluded: the layer ran but deliberately did not exercise this operation, for a recorded reason (see the layer's `exclusions`). unchecked / waived (conformance): the oracle had nothing to compare a body against, or the engineer accepted that gap in selection.yaml `waivers[]`; neither is a pass. unchecked (e2e): a case whose stub answered an error status without `# expect-upstream-status`, on an operation documenting more than one, or an operation with a documented error status no passing case saw answer its own request (see `error_coverage`); not a pass." },

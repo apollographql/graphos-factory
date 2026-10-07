@@ -144,6 +144,10 @@ pub struct LayerInput<'a> {
     /// The evidence so far, in `latest.json`'s shape: `layers`,
     /// `operations`, and the target layers already run.
     pub evidence: &'a Value,
+    /// The directory of the core's wrapper scripts this run uses
+    /// (`--scripts`, else `GRAPHOS_FACTORY_CORE_SCRIPTS`): a layer that runs
+    /// a script of its own finds it from here, and hands it the same core.
+    pub scripts: &'a Path,
 }
 
 /// What composition holds the schema to, per target.

@@ -1,0 +1,38 @@
+{
+  "json_version": "1",
+  "data": {
+    "success": false,
+    "core_schema_modified": true,
+    "tasks": {
+      "operations": {
+        "task_status": "FAILED",
+        "target_url": "https://studio.apollographql.com/graph/my-graph/variant/current/operationsCheck/2",
+        "operation_check_count": 12,
+        "changes": [
+          {
+            "code": "FIELD_REMOVED",
+            "description": "type `Repository`: field `fullName` removed",
+            "severity": "FAIL"
+          },
+          {
+            "code": "FIELD_ADDED",
+            "description": "type `Query`: field `gitea_repository` added",
+            "severity": "NOTICE"
+          }
+        ],
+        "failure_count": 1
+      },
+      "lint": {
+        "task_status": "PASSED",
+        "target_url": "https://studio.apollographql.com/graph/my-graph/variant/current/lint/2",
+        "diagnostics": [],
+        "errors_count": 0,
+        "warnings_count": 0
+      }
+    }
+  },
+  "error": {
+    "message": "The changes in the schema you proposed caused operation checks to fail.",
+    "code": "E030"
+  }
+}

@@ -107,13 +107,21 @@ did: passed, failed, skipped or not run.
 ## What is yours to do
 
 - **Publishing to GraphOS.** The skill renders the schema and hands you the
-  commands; it never runs them. Run `rover subgraph check` and
-  `rover subgraph publish` yourself, with your own `APOLLO_KEY`.
+  commands; it never publishes. Run `rover subgraph publish` yourself, with
+  your own `APOLLO_KEY`.
 - **The live layer.** It calls the real API, so it needs the API's
   credential in your environment. Without one it is recorded `not_run`.
 - **Composition with your other subgraphs.** The skill composes the subgraph
-  alone, and records `supergraph_check` as `not_run`.
-  `rover subgraph check` against your graph is that check.
+  alone. To check it against your graph, export `APOLLO_KEY` in the shell
+  the agent runs in; the agent asks once per session which `graph@variant`
+  to check against and passes it as `GRAPHOS_FACTORY_GRAPH_REF`. The
+  `supergraph_check` layer then runs `rover subgraph check` (it sends the
+  rendered schema to GraphOS and publishes nothing), and `export` refuses a
+  subgraph that fails it. To have every run checked without being asked,
+  set `GRAPHOS_FACTORY_SUPERGRAPH_CHECK=auto` beside `APOLLO_GRAPH_REF` in
+  your shell profile; `APOLLO_GRAPH_REF` alone starts no check. Otherwise
+  the layer is `not_run`. The key stays in your environment; the agent
+  never asks for it and nothing records it.
 - **Reading the evidence.** A `skipped` or `not_run` layer is never reported
   as a pass, and a workspace where a selected operation has no executed
   evidence is reported as not validated.

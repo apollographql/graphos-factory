@@ -1053,6 +1053,7 @@ pub fn main(argv: &[String]) -> i32 {
             match (layer.run)(&crate::target::LayerInput {
                 dir: &dir,
                 evidence: &so_far,
+                scripts: &scripts,
             }) {
                 Value::Object(row) => row,
                 _ => crate::json::object(vec![

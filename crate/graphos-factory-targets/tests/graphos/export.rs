@@ -14,7 +14,7 @@ use graphos_factory_targets::targets::graphos::export;
 use serde_json::Value;
 use std::path::Path;
 
-const HOST: &str = "https://git.example.com/api/v1";
+pub(super) const HOST: &str = "https://git.example.com/api/v1";
 
 /// `graphos-factory export <ws> <args…>` with no `GITEA_*` override from
 /// the environment the suite runs in, and `extra_env` set.
@@ -36,7 +36,7 @@ fn export_in(
     )
 }
 
-fn export_ok(ws: &Path, args: &[&str]) -> (Option<i32>, String, String) {
+pub(super) fn export_ok(ws: &Path, args: &[&str]) -> (Option<i32>, String, String) {
     export_in(ws, args, &[])
 }
 
@@ -108,7 +108,7 @@ fn current_copy_with(edit: impl FnOnce(&Path)) -> tempfile::TempDir {
     ws
 }
 
-fn current_copy() -> tempfile::TempDir {
+pub(super) fn current_copy() -> tempfile::TempDir {
     current_copy_with(|_| {})
 }
 
@@ -116,7 +116,7 @@ fn evidence_path(ws: &Path) -> std::path::PathBuf {
     ws.join(".factory/evidence/latest.json")
 }
 
-fn edit_evidence(ws: &Path, edit: impl FnOnce(&mut Value)) {
+pub(super) fn edit_evidence(ws: &Path, edit: impl FnOnce(&mut Value)) {
     let file = evidence_path(ws);
     let mut e: Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
     edit(&mut e);

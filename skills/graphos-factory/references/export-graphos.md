@@ -3,7 +3,9 @@
 The subgraph reaches the user's graph in two steps. `graphos-factory export`
 renders the validated schema with its production values and prints a
 hand-off. The user then runs rover with their own GraphOS credentials. The
-binary never contacts GraphOS and never reads a key, and neither do you.
+binary never contacts GraphOS and never reads a key, and neither do you:
+the one rover call the skill makes, `supergraph_check`, runs from a script
+with the key the user exported (verification.md).
 
 ## When to export
 
@@ -85,6 +87,15 @@ terms `evidence` uses. There is no override.
 - A selected operation that an offline layer left `fail`, `unchecked` or
   `skipped`, or that has no executed evidence (no unit, e2e or live
   `pass`: conformance executes nothing).
+- `supergraph_check` ran against the user's graph and failed: the
+  subgraph does not compose with their variant, or a check rover ran
+  failed. The refusal names the reason and each build error or failing
+  change. Fix it (verification.md § Reading the result) and run `evidence`
+  again. A `not_run` or `skipped` check is not a refusal; it is listed as
+  not verified. Export reads the recorded result only: it does not compare
+  the `graph_ref` the check ran against with the graph the user means to
+  publish to now, so name the recorded graph ref when you hand off, and
+  re-run `evidence` with the right one when they differ.
 - A lint error on the files as they are now, which includes a selected
   operation with no entry in the evidence. An `auth-test-default` error is
   named by rule and file, with the value replaced by `<redacted>`: it may
@@ -114,12 +125,18 @@ rover subgraph publish <GRAPH_REF> --name <directory> --schema DIR/<directory>.g
 ```
 
 `rover subgraph check` composes the subgraph with the variant's other
-subgraphs and checks it against recorded operations. That is the composition
-this skill's `supergraph_check` layer does not run, so recommend it before
-every publish. A first publish needs a routing URL. A subgraph whose fields
-are all connectors is never called at it, so `http://localhost` is a
-placeholder. Never run either command yourself, and never ask for or print
-the user's GraphOS key: rover reads the user's own credentials.
+subgraphs and checks it against recorded operations. It is what the
+`supergraph_check` layer runs when `APOLLO_KEY` is in the user's
+environment and a graph ref was given for the run (verification.md § What
+it needs); when that layer passed, the check is already in the evidence
+(`details.graph_ref` and `details.mode` say against what, and how it was
+chosen), and the user should run it again before a publish, since the
+variant moves. When it did not run, recommend it before every publish. A first
+publish needs a routing URL. A subgraph whose fields are all connectors is
+never called at it, so `http://localhost` is a placeholder. Never run
+either command by hand (the check runs only as the layer), and never ask
+for or print the user's GraphOS key: rover reads the user's own
+credentials.
 
 ## The router
 
@@ -147,7 +164,9 @@ connectors:
 The hand-off lists each item. Report every one of them as not verified,
 never as a pass.
 
-- `supergraph_check`: composition with the user's other subgraphs.
+- `supergraph_check`, when it did not pass: composition with the user's
+  other subgraphs, with the layer's reason (no graph ref for the run, no
+  key, rover could not run the check, rover not installed). A `pass` is not listed.
   `rover subgraph check` is that check.
 - `live`, when it did not run: the subgraph was never called against the
   real API.

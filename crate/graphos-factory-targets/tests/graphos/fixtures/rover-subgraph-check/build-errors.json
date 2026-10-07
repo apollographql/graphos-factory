@@ -1,0 +1,28 @@
+{
+  "json_version": "1",
+  "data": {
+    "success": false
+  },
+  "error": {
+    "message": "Encountered 2 build errors while trying to build subgraph \"gitea\" into supergraph \"my-graph@current\".",
+    "code": "E029",
+    "details": {
+      "build_errors": [
+        {
+          "message": "Non-shareable field \"Repository.name\" is resolved from multiple subgraphs: it is resolved from subgraphs \"gitea\" and \"repos\" and defined as non-shareable in all of them",
+          "code": "INVALID_FIELD_SHARING",
+          "type": "composition",
+          "nodes": null,
+          "omittedNodesCount": null
+        },
+        {
+          "message": "The following supergraph API query cannot be satisfied by the subgraphs: { repository { owner } }",
+          "code": "SATISFIABILITY_ERROR",
+          "type": "composition",
+          "nodes": null,
+          "omittedNodesCount": null
+        }
+      ]
+    }
+  }
+}
