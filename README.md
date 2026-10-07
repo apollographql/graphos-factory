@@ -55,15 +55,16 @@ npx skills add apollographql/graphos-factory
 gh skill install apollographql/graphos-factory graphos-factory --agent codex   # or claude-code, cursor, github-copilot, ...
 ```
 
-**As a Claude Code plugin**, from Apollo's marketplace
-(`apollographql/skills`):
+**In Claude Code, as part of Apollo's `apollo-skills` plugin**
+([apollographql/skills](https://github.com/apollographql/skills), which
+carries a copy of each release), where it is `/apollo-skills:graphos-factory`:
 
 ```
 /plugin marketplace add apollographql/skills
-/plugin install graphos-factory@apollo-marketplace
+/plugin install apollo-skills@apollo-marketplace
 ```
 
-The first two copy `skills/graphos-factory/` alone, which is why it carries
+Each copies `skills/graphos-factory/` alone, which is why it carries
 its own `graphos-factory-core/` (the shared references and the validation
 scripts, plus `release.env`, the binary version it pins). The agent sets up
 the binary itself, as `SKILL.md` tells it: `scripts/bootstrap.sh` downloads
@@ -73,7 +74,9 @@ it, and `. scripts/env.sh` puts both, and rover, on `PATH` and sets
 `GRAPHOS_FACTORY_CORE_SCRIPTS`. You can run the same two commands yourself
 from the installed skill's directory.
 
-The plugin does that at the start of each session instead: its hook
+This repository is also a Claude Code plugin of its own
+(`.claude-plugin/plugin.json`), for working in a clone
+(`claude --plugin-dir .`): its session-start hook
 (`skills/graphos-factory/scripts/session-start.sh`) runs `bootstrap.sh` and
 puts the binary on the session's `PATH`. The shared references write
 `graphos-factory-core <command>`; here that is `graphos-factory`. To build
@@ -135,8 +138,12 @@ same commit attached. The binary keeps its own version (`crate/Cargo.toml`),
 which moves only when the binary changes; the skill's
 `graphos-factory-core/release.env` names both, and `bootstrap.sh` downloads
 the binary from that release. `gh skill install` installs the latest
-release, Apollo's marketplace pins one, and `npx skills add` and a clone read
-`main`.
+release, and `npx skills add` and a clone read `main`. Each release also
+opens a pull request on
+[apollographql/skills](https://github.com/apollographql/skills), which keeps
+a read-only copy of this skill in its `apollo-skills` plugin (so
+`npx skills add apollographql/skills` and that plugin carry the latest
+release).
 
 The hook only checks for the validation toolchain (rover and its supergraph
 plugin, the Apollo Router, WireMock); the agent asks you before it runs

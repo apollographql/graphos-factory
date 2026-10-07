@@ -17,10 +17,11 @@ name: release
 #   release   a tag v<version> (which must equal .claude-plugin/plugin.json's
 #             version), pushed by the mirror when a product version reaches
 #             main, or created by a manual dispatch with `version`. After the
-#             assets, the marketplace job opens a pull request on
-#             apollographql/skills that moves the plugin's marketplace entry
-#             to the new tag (it needs the SKILLS_MARKETPLACE_TOKEN secret: a
-#             token that can push a branch to that repository and open a pull
+#             assets, the skills job opens a pull request on
+#             apollographql/skills that releases it there: the copy of the
+#             skill its apollo-skills plugin carries, and that plugin's
+#             version (it needs the SKILLS_MARKETPLACE_TOKEN secret: a token
+#             that can push a branch to that repository and open a pull
 #             request; without it the job says so and does nothing).
 #
 # Every repository reference is ${{ github.repository }}, so the same file
@@ -139,51 +140,50 @@ jobs:
           ref: refs/tags/${{ needs.prepare.outputs.tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Move the plugin's entry in Apollo's marketplace (apollographql/skills,
-  # .claude-plugin/marketplace.json) to this release's tag, as a pull request
-  # that a person reviews and merges. Re-running it for the same tag updates
-  # the same branch.
-  marketplace:
+  # Release to Apollo's skills repository (apollographql/skills), as a pull
+  # request that a person reviews and merges: the read-only copy of the skill
+  # its apollo-skills plugin carries under skills/graphos-factory/ becomes
+  # this release's, and that plugin's version gets a patch bump
+  # (.github/scripts/release-to-skills.sh). Re-running it for the same tag
+  # updates the same branch.
+  skills:
     needs: [prepare, upload-assets]
     if: needs.prepare.outputs.channel == 'release'
     runs-on: ubuntu-latest
     env:
       TAG: ${{ needs.prepare.outputs.tag }}
       GH_TOKEN: ${{ secrets.SKILLS_MARKETPLACE_TOKEN }}
-      MARKETPLACE_REPO: apollographql/skills
-      PLUGIN: graphos-factory
+      SKILLS_REPO: apollographql/skills
     steps:
-      - name: Open the marketplace pull request
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+          path: release
+      - name: Open the skills repository pull request
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::notice::SKILLS_MARKETPLACE_TOKEN is not set: move $PLUGIN to $TAG in $MARKETPLACE_REPO's .claude-plugin/marketplace.json by hand."
+            echo "::notice::SKILLS_MARKETPLACE_TOKEN is not set: release $TAG to $SKILLS_REPO by hand (release/.github/scripts/release-to-skills.sh does the edit)."
             exit 0
           fi
-          branch="$PLUGIN/release-$TAG"
-          gh repo clone "$MARKETPLACE_REPO" skills -- --depth 1
+          branch="graphos-factory/release-$TAG"
+          gh repo clone "$SKILLS_REPO" skills -- --depth 1
+          # An assignment, not a test: a failing script fails the step here.
+          result="$(bash release/.github/scripts/release-to-skills.sh release skills)"
+          if [ "$result" = unchanged ]; then
+            echo "$SKILLS_REPO already holds graphos-factory $TAG"; exit 0
+          fi
           cd skills
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
-          f=.claude-plugin/marketplace.json
-          jq -e --arg p "$PLUGIN" '.plugins | any(.name == $p)' "$f" >/dev/null ||
-            { echo "$f lists no plugin named $PLUGIN" >&2; exit 1; }
-          current="$(jq -r --arg p "$PLUGIN" '.plugins[] | select(.name == $p) | .source.ref // empty' "$f")"
-          if [ "$current" = "$TAG" ]; then
-            echo "$MARKETPLACE_REPO already lists $PLUGIN at $TAG"; exit 0
-          fi
-          jq --arg p "$PLUGIN" --arg t "$TAG" --arg r "$GITHUB_REPOSITORY" '
-            .plugins |= map(if .name == $p
-              then .source = {source: "github", repo: $r, ref: $t}
-              else . end)' "$f" > "$f.new"
-          mv "$f.new" "$f"
           git checkout -b "$branch"
-          git commit -am "Release $PLUGIN ${TAG#v} to the marketplace"
+          git add -A
+          git commit -m "Release graphos-factory ${TAG#v}"
           git push -f origin "$branch"
-          if [ -n "$(gh pr list --repo "$MARKETPLACE_REPO" --head "$branch" --json number --jq '.[].number')" ]; then
+          if [ -n "$(gh pr list --repo "$SKILLS_REPO" --head "$branch" --json number --jq '.[].number')" ]; then
             echo "the pull request for $branch already exists; its branch is updated"
           else
-            gh pr create --repo "$MARKETPLACE_REPO" --head "$branch" \
-              --title "Release $PLUGIN ${TAG#v} to the marketplace" \
-              --body "Moves the \`$PLUGIN\` plugin's marketplace entry to [\`$TAG\`](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG), released by $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID. Opened by the release workflow."
+            gh pr create --repo "$SKILLS_REPO" --head "$branch" \
+              --title "Release graphos-factory ${TAG#v}" \
+              --body "Releases [graphos-factory \`$TAG\`](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG) here: \`skills/graphos-factory/\` becomes that release's skill (the protect check compares it with the tag), and the \`apollo-skills\` plugin version gets a patch bump. Opened by $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID."
           fi
