@@ -150,7 +150,7 @@ while IFS= read -r name; do
   case "$name" in *_AUTH_EXPR) unset_auth+=(-u "$name") ;; esac
 done < <(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p')
 if ! rendered="$(env ${unset_auth[@]+"${unset_auth[@]}"} "$RC" render "$WORKSPACE" --out "$OUT" 2> "$OUT/render.err")"; then
-  echo "supergraph_check: FAIL — the schema did not render: $(head -1 "$OUT/render.err")"
+  say "supergraph_check: FAIL — the schema did not render: $(head -1 "$OUT/render.err")"
   exit 1
 fi
 eval "$rendered"

@@ -166,13 +166,16 @@ git add .factory/evidence && git commit -m "apply: evidence"
 
 `lock --check --provenance` exiting 3 on provenance drift alone (a case, a
 stub, `selection.yaml`) means relock; a changed span means codify first
-(SKILL.md, "Hand edits"). Run `evidence` on a committed tree, or it records
-`-dirty` and `export` refuses it. Only `pass` is a pass. The `operations:`
-line counts selected operations with executed evidence; a `not validated:`
-line names each without, and its absence is the only all-clear. `live` is
-`not_run` without `tests/live.yaml` and the credential (testing.md § Live
-smoke tests); `supergraph_check` always is, until the user runs `rover
-subgraph check` (verification.md). Report both as not run.
+(SKILL.md, "Hand edits"). `evidence` records a hash of every file its
+layers read, and `export` refuses any of them changed since: run `evidence`
+last, after your final edit (a commit is not required). Only `pass` is a
+pass. The `operations:` line counts selected operations with executed
+evidence; a `not validated:` line names each without, and its absence is
+the only all-clear. `live` is `not_run` without `tests/live.yaml` and the
+credential (testing.md § Live smoke tests); `supergraph_check` is `not_run`
+until the user's `APOLLO_KEY` and a graph ref are both there: ask once
+which `<graph>@<variant>` and set `GRAPHOS_FACTORY_GRAPH_REF` on the run
+(verification.md). Report each `not_run` as not run.
 
 ## 10. `export`
 
@@ -188,13 +191,13 @@ Read: export-graphos.md.
 
 | Refusal | Fix |
 |---|---|
-| `evidence-stale` (export) | commit, re-run `evidence`; a commit adding only `.factory/evidence` keeps it current |
+| `evidence-stale` (export) | re-run `evidence`: it names each file changed, added or removed since the last run |
 | `base-url-local` (export) | the test default is this machine: `--base-url` with the production host the user gave |
 | `--out … is inside the workspace` (export) | a directory outside the workspace |
 | `unacknowledged-edit` (lint, `lock --check`) | yours, in this apply: `lock`; anyone else's: codify it (SKILL.md, "Hand edits") |
 | `missing-template` (lint) | restore `template.yaml` (`git checkout --` it; its shape: workspace-contract.md § The local-validation files) |
 | `fixture-overlap` (lint) | add the `absent` matchers it names to the broader stub, or give the narrower one a priority |
-| `unproven-operation` (lint) | a selected operation with no evidence row: commit, re-run `evidence` |
+| `unproven-operation` (lint) | a selected operation with no evidence row: re-run `evidence` |
 | `pagination-bounds-unknown` (lint) | write "no documented maximum" in the size argument's doc comment |
 | `quoted-auth-expr` (lint) | right only for a key the API takes with no scheme; otherwise `Bearer {{AUTH_EXPR}}` |
 | ELv2 `not_run` (compose, unit, e2e, live) | ask once (step 0); on a yes, prefix with `APOLLO_ELV2_LICENSE=accept` |
