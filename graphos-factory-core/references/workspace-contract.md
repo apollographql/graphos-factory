@@ -627,7 +627,22 @@ CURRENT `.factory/inventory.json` shape at the field's own path, checked
 fresh every run — no timestamp or history lives on the entry itself.
 The field's path starts at its type's shape, located by name (a top-level
 shape), through the root field's operation response, or through a parent
-type's property (an inline item shape the vendor never named).
+type's property (an inline item shape the vendor never named). A root
+field's own return is read against its operation's response, under the
+envelope when the selection names one.
+
+The request side is accounted the same way. A root field's argument is a
+row keyed `"<Root>.<field>(<arg>:)"` (`--json-reason
+'Mutation.widget_co_create(meta:)|free-form-object'`), read against where
+the connector sends it: the whole request body when `http.body` is
+`$args.<arg>`, the body property a body entry forwards it into
+(`tags: $args.labels` reads `tags`), else a parameter of the same name
+(case and separators ignored: `page-size` is `pageSize`) or a body
+property of the same name. An input object type is located by name,
+through the argument that sends it, or through a parent input type's
+property, and its fields are rows keyed `"<Input>.<field>"`. A root field
+the selection ties to no operation leaves its arguments `unresolved`.
+`--json` gives each row a `position`: `output`, `argument` or `input`.
 `spans json-accounting --json` reports one of five statuses per field:
 `accounted` (the predicate holds), `unaccounted` (nothing recorded),
 `stale` (recorded, but the predicate no longer holds — the vendor spec

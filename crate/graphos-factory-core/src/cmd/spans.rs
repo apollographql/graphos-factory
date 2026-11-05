@@ -93,6 +93,7 @@ fn json_accounting(argv: &[String]) -> i32 {
                 serde_json::json!({
                     "type": r.type_name,
                     "field": r.field_name,
+                    "position": r.position.label(),
                     "reason": r.reason,
                     "decision": r.decision,
                     "status": r.status.label(),

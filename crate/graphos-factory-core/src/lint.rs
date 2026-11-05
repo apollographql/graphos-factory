@@ -432,6 +432,26 @@ fn lint_schema(
                 .and_then(|s| get(s, "defaults"))
                 .and_then(|d| get_str(d, "opaque_json_policy"))
                 .unwrap_or("forbid");
+            let severity = if policy == "forbid" { "error" } else { "warn" };
+            // Every JSON position the parsed schema has: object fields,
+            // their arguments (on one line or several) and input fields. The
+            // line regex below is the fallback for a schema that does not
+            // parse, and it cannot see an argument written inline.
+            if let Ok(doc) = apollo_compiler::ast::Document::parse(sdl, schema_file) {
+                for (key, kind, offset) in undocumented_json_positions(&doc, &json_scalar) {
+                    findings.add(
+                        severity,
+                        "undocumented-json-scalar",
+                        format!(
+                            "{}: a {} {} has no doc comment saying why the shape cannot be typed",
+                            key, json_scalar, kind
+                        ),
+                        Some(schema_file),
+                        offset.map(|o| sdl[..o.min(sdl.len())].matches('\n').count() + 1),
+                    );
+                }
+                return;
+            }
             let re = Regex::new(&format!(
                 r"(?m)^\s*[A-Za-z_][A-Za-z0-9_]*\s*(\([^)]*\))?\s*:\s*\[?{}",
                 regex::escape(&json_scalar)
@@ -456,6 +476,70 @@ fn lint_schema(
             }
         }
     }
+}
+
+/// Every position typed as the JSON scalar (through any list or non-null
+/// wrapper) with no description: `(key, kind, byte offset)`, where the key
+/// is `Type.field`, `Type.field(arg:)` or `Input.field` and the kind is
+/// `field`, `argument` or `input field`.
+fn undocumented_json_positions(
+    doc: &apollo_compiler::ast::Document,
+    json_scalar: &str,
+) -> Vec<(String, &'static str, Option<usize>)> {
+    use apollo_compiler::ast::{Definition, InputValueDefinition, Type};
+    fn bare(ty: &Type) -> &str {
+        match ty {
+            Type::Named(n) | Type::NonNullNamed(n) => n.as_str(),
+            Type::List(inner) | Type::NonNullList(inner) => bare(inner),
+        }
+    }
+    fn described(d: &Option<apollo_compiler::Node<str>>) -> bool {
+        d.as_ref().is_some_and(|d| !d.trim().is_empty())
+    }
+    let mut out = Vec::new();
+    let inputs = |owner: String,
+                  values: &[apollo_compiler::Node<InputValueDefinition>],
+                  kind: &'static str,
+                  out: &mut Vec<_>| {
+        for v in values {
+            if bare(&v.ty) == json_scalar && !described(&v.description) {
+                let key = if kind == "argument" {
+                    format!("{}{}:)", owner, v.name)
+                } else {
+                    format!("{}.{}", owner, v.name)
+                };
+                out.push((key, kind, v.location().map(|l| l.offset())));
+            }
+        }
+    };
+    for def in &doc.definitions {
+        let (name, fields) = match def {
+            Definition::ObjectTypeDefinition(o) => (&o.name, &o.fields),
+            Definition::ObjectTypeExtension(o) => (&o.name, &o.fields),
+            Definition::InterfaceTypeDefinition(o) => (&o.name, &o.fields),
+            Definition::InputObjectTypeDefinition(i) => {
+                inputs(i.name.to_string(), &i.fields, "input field", &mut out);
+                continue;
+            }
+            _ => continue,
+        };
+        for f in fields {
+            if bare(&f.ty) == json_scalar && !described(&f.description) {
+                out.push((
+                    format!("{}.{}", name, f.name),
+                    "field",
+                    f.location().map(|l| l.offset()),
+                ));
+            }
+            inputs(
+                format!("{}.{}(", name, f.name),
+                &f.arguments,
+                "argument",
+                &mut out,
+            );
+        }
+    }
+    out
 }
 
 fn value_str(v: &Value) -> String {

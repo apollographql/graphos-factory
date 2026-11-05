@@ -1677,7 +1677,7 @@ fn root_shape_ref(op: &Value, side: &str) -> Value {
 /// `reconcile::string_arg` uses, written locally rather than exposing that
 /// private helper, since the value here can also be a `{...}` object
 /// literal (`errors:` itself), not only a string.
-fn find_value(text: &str, key: &str) -> Option<String> {
+pub(crate) fn find_value(text: &str, key: &str) -> Option<String> {
     let bytes = text.as_bytes();
     let mut depth = 0i32;
     let mut i = 0usize;

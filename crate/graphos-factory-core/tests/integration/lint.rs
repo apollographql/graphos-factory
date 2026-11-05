@@ -390,6 +390,38 @@ fn an_undocumented_json_scalar_is_an_error_under_the_default_policy() {
     assert!(rules(&r).contains(&"undocumented-json-scalar".to_string()));
 }
 
+/// An argument written inline, on the field's own line, is a JSON position
+/// too: the line-oriented reading it replaced saw only arguments on lines of
+/// their own (Phase 9d; Confluence had 23 such arguments).
+#[test]
+fn an_undocumented_json_argument_on_one_line_is_reported() {
+    let undocumented = lint(vec![(
+        "widget-co.graphql",
+        s(&SDL.replace(
+            "widget_co_listWidgets(limit: Int)",
+            "widget_co_listWidgets(limit: Int, filter: Widget_Co_JSON)",
+        )),
+    )]);
+    let messages: Vec<&str> = undocumented
+        .findings
+        .iter()
+        .filter(|f| f.rule == "undocumented-json-scalar")
+        .map(|f| f.message.as_str())
+        .collect();
+    assert_eq!(
+        messages,
+        vec!["Query.widget_co_listWidgets(filter:): a Widget_Co_JSON argument has no doc comment saying why the shape cannot be typed"]
+    );
+    let described = lint(vec![(
+        "widget-co.graphql",
+        s(&SDL.replace(
+            "widget_co_listWidgets(limit: Int)",
+            "widget_co_listWidgets(limit: Int, \"Free-form filter; the spec documents no properties.\" filter: Widget_Co_JSON)",
+        )),
+    )]);
+    assert!(!rules(&described).contains(&"undocumented-json-scalar".to_string()));
+}
+
 #[test]
 fn allow_with_reason_downgrades_an_undocumented_json_scalar_to_a_warning() {
     let r = lint(vec![

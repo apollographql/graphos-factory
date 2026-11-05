@@ -97,10 +97,37 @@ impl Status {
     }
 }
 
+/// Which side of the wire a row's JSON position is on (Phase 9d): a field
+/// the response fills, or a value the caller sends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Position {
+    /// A field of an object type, root fields included: read against the
+    /// response shape.
+    Output,
+    /// A root field's argument, keyed `Root.field(arg:)` (a schema
+    /// coordinate): read against the request body or the parameter it fills.
+    Argument,
+    /// A field of an input object type: read against the request shape the
+    /// type is sent as.
+    Input,
+}
+
+impl Position {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Position::Output => "output",
+            Position::Argument => "argument",
+            Position::Input => "input",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FieldRow {
     pub type_name: String,
+    /// The field name, or for an argument `field(arg:)`.
     pub field_name: String,
+    pub position: Position,
     /// `Some` only when a resolved decision's `json_reasons` names this
     /// field with a reason in [`REASONS`]; an unrecognized reason is the
     /// same as no entry.
@@ -132,7 +159,8 @@ pub struct TypeCounts {
 pub struct Report {
     pub json_scalar: String,
     /// Every field on every object type in the SDL (Query and Mutation
-    /// included), the denominator for the typed-to-JSON ratio.
+    /// included), every root field's argument and every input object
+    /// field: the denominator for the typed-to-JSON ratio.
     pub total_fields: usize,
     /// One row per field whose bare type is `json_scalar`.
     pub rows: Vec<FieldRow>,
@@ -255,6 +283,7 @@ fn snake_case(s: &str) -> String {
 }
 
 /// Where an object type's inventory shape was found.
+#[derive(Clone)]
 enum Located {
     /// The shape the type's fields are read from.
     Shape(Value),
@@ -415,39 +444,7 @@ fn locate_types(
         }
     }
 
-    // Root field -> (operation, envelope), from the selection's included
-    // operations.
-    let mut roots: HashMap<String, (&Value, Option<String>)> = HashMap::new();
-    let ops = inventory.and_then(|i| get_arr(i, "operations"));
-    for (key, entry) in selection
-        .and_then(|s| get_obj(s, "operations"))
-        .into_iter()
-        .flatten()
-    {
-        if !crate::json::truthy(crate::json::get(entry, "include")) {
-            continue;
-        }
-        let Some(name) = crate::json::get(entry, "graphql").and_then(|g| get_str(g, "name")) else {
-            continue;
-        };
-        let Some(op) = ops
-            .into_iter()
-            .flatten()
-            .find(|o| get_str(o, "key") == Some(key.as_str()))
-        else {
-            continue;
-        };
-        let envelope = crate::json::get(entry, "response")
-            .and_then(|r| get_str(r, "envelope"))
-            .or_else(|| crate::json::get(op, "response").and_then(|r| get_str(r, "envelope")))
-            .map(str::to_string);
-        let field = if field_prefix.is_empty() {
-            name.to_string()
-        } else {
-            format!("{}_{}", field_prefix, name)
-        };
-        roots.insert(field, (op, envelope));
-    }
+    let roots = root_operations(inventory, selection, field_prefix);
     for root in ["Query", "Mutation"] {
         for (field, ty) in types.get(root).cloned().unwrap_or_default() {
             if located.contains_key(&ty) || !types.contains_key(&ty) {
@@ -507,6 +504,297 @@ fn locate_types(
         located.extend(found);
     }
     located
+}
+
+/// Root field -> (operation, envelope), from the selection's included
+/// operations.
+fn root_operations<'a>(
+    inventory: Option<&'a Value>,
+    selection: Option<&Value>,
+    field_prefix: &str,
+) -> std::collections::HashMap<String, (&'a Value, Option<String>)> {
+    let mut roots = std::collections::HashMap::new();
+    let ops = inventory.and_then(|i| get_arr(i, "operations"));
+    for (key, entry) in selection
+        .and_then(|s| get_obj(s, "operations"))
+        .into_iter()
+        .flatten()
+    {
+        if !crate::json::truthy(crate::json::get(entry, "include")) {
+            continue;
+        }
+        let Some(name) = crate::json::get(entry, "graphql").and_then(|g| get_str(g, "name")) else {
+            continue;
+        };
+        let Some(op) = ops
+            .into_iter()
+            .flatten()
+            .find(|o| get_str(o, "key") == Some(key.as_str()))
+        else {
+            continue;
+        };
+        let envelope = crate::json::get(entry, "response")
+            .and_then(|r| get_str(r, "envelope"))
+            .or_else(|| crate::json::get(op, "response").and_then(|r| get_str(r, "envelope")))
+            .map(str::to_string);
+        let field = if field_prefix.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}_{}", field_prefix, name)
+        };
+        roots.insert(field, (op, envelope));
+    }
+    roots
+}
+
+/// A root field's own position is the operation's response: the shape under
+/// its envelope when the selection names one the shape has, else the whole
+/// response. Kept raw (not stepped into array items), so a list response is
+/// judged as the list it is.
+fn response_position(op: &Value, envelope: Option<&str>, shapes: &Object) -> Located {
+    let Some(shape_ref) = crate::json::get(op, "response").and_then(|r| get_str(r, "shape_ref"))
+    else {
+        return Located::Undocumented;
+    };
+    let whole = serde_json::json!({ "$ref": shape_ref });
+    if let Some(p) = envelope.and_then(|e| property(&element_shape(&whole, shapes), e).cloned()) {
+        return Located::Shape(p);
+    }
+    Located::Shape(whole)
+}
+
+/// Lowercase letters and digits only: `user-id`, `user_id` and `userId` are
+/// one name.
+fn loose_name(s: &str) -> String {
+    s.chars()
+        .filter(char::is_ascii_alphanumeric)
+        .map(|c| c.to_ascii_lowercase())
+        .collect()
+}
+
+/// A parameter as a shape: its `shape_ref` when it has one, else its
+/// scalar `type` (and `enum`).
+fn parameter_shape(p: &Value) -> Value {
+    if let Some(r) = get_str(p, "shape_ref") {
+        return serde_json::json!({ "$ref": r });
+    }
+    let mut m = serde_json::Map::new();
+    for key in ["type", "enum", "items"] {
+        if let Some(v) = p.get(key).filter(|v| !v.is_null()) {
+            m.insert(key.to_string(), v.clone());
+        }
+    }
+    Value::Object(m)
+}
+
+/// Whether a body expression forwards the argument `arg`: `$args.arg`, or
+/// `$args.arg { … }`, its sub-selection.
+fn forwards_argument(expr: &str, arg: &str) -> bool {
+    let e = crate::reconcile::strip_comments(expr);
+    let Some(rest) = e.trim().strip_prefix("$args.") else {
+        return false;
+    };
+    let Some(after) = rest.strip_prefix(arg) else {
+        return false;
+    };
+    let after = after.trim_start();
+    after.is_empty() || (after.starts_with('{') && after.ends_with('}'))
+}
+
+/// The `@connect` `http.body` expression of one root field, when it has one.
+/// `body` is the root type's body text and `code` is `graphql::blank(body)`.
+fn connector_body(body: &str, code: &str, field: &str) -> Option<String> {
+    let text = crate::lint::body_field_text(body, code, field)?;
+    let args = crate::graphql::directives(&text, "connect")
+        .into_iter()
+        .next()?
+        .args;
+    let http = crate::obligations::find_value(&args, "http")?;
+    crate::obligations::find_value(&http, "body")
+}
+
+/// Where a root field's argument lands in its operation's request, first
+/// found wins:
+/// 1. the connector's body forwards it whole (`body: "$args.input"`): the
+///    request body;
+/// 2. a body entry forwards it (`fields: $args.fields`): that property of
+///    the request body;
+/// 3. a parameter of the same name, compared without case or separators;
+/// 4. a request-body property of the same name.
+///
+/// An input-typed argument (`input_fields` is its type's field names) also
+/// takes the request body when the body names any of those fields, the
+/// whole-input forward a connector may write as a sub-selection. An
+/// operation that documents none of these leaves the argument
+/// `Undocumented`.
+fn argument_position(
+    body_expr: Option<&str>,
+    arg: &str,
+    op: &Value,
+    shapes: &Object,
+    input_fields: Option<&[String]>,
+) -> Located {
+    let body_root = crate::json::get(op, "request_body")
+        .and_then(|b| get_str(b, "shape_ref"))
+        .map(|r| serde_json::json!({ "$ref": r }));
+    let body_element = body_root.as_ref().map(|b| element_shape(b, shapes));
+    if let Some(expr) = body_expr {
+        if forwards_argument(expr, arg) {
+            return match &body_root {
+                Some(b) => Located::Shape(b.clone()),
+                None => Located::Undocumented,
+            };
+        }
+        for (key, value) in crate::obligations::parse_body_pairs(expr) {
+            if forwards_argument(&value, arg) {
+                return match body_element.as_ref().and_then(|b| property(b, &key)) {
+                    Some(p) => Located::Shape(p.clone()),
+                    None => Located::Undocumented,
+                };
+            }
+        }
+    }
+    let wanted = loose_name(arg);
+    if let Some(p) = get_arr(op, "parameters")
+        .into_iter()
+        .flatten()
+        .find(|p| get_str(p, "name").map(loose_name).as_deref() == Some(wanted.as_str()))
+    {
+        return Located::Shape(parameter_shape(p));
+    }
+    if let Some(p) = body_element.as_ref().and_then(|b| property(b, arg)) {
+        return Located::Shape(p.clone());
+    }
+    if let (Some(fields), Some(b), Some(element)) = (input_fields, &body_root, &body_element) {
+        if overlap(element, fields) > 0 {
+            return Located::Shape(b.clone());
+        }
+    }
+    Located::Undocumented
+}
+
+/// The request side's positions: every root field argument (keyed
+/// `(root, field, arg)`) and every input object type, located the way
+/// [`locate_types`] locates object types:
+/// 1. an input type by name, `type_prefix_` stripped;
+/// 2. an argument through its operation's request ([`argument_position`]),
+///    and an input type through the first argument of that type;
+/// 3. an input type through a located parent input type's property.
+///
+/// A root field the selection ties to no operation leaves its arguments,
+/// and any input type reached only through them, absent: `unresolved`.
+#[allow(clippy::type_complexity)]
+fn locate_inputs(
+    sdl: &str,
+    doc: &ast::Document,
+    shapes: &Object,
+    roots: &std::collections::HashMap<String, (&Value, Option<String>)>,
+    type_prefix: &str,
+) -> (
+    std::collections::HashMap<(String, String, String), Located>,
+    std::collections::HashMap<String, Located>,
+) {
+    use std::collections::HashMap;
+    // Input type -> (field name, bare field type).
+    let mut inputs: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    for def in &doc.definitions {
+        if let Definition::InputObjectTypeDefinition(i) = def {
+            inputs.insert(
+                i.name.to_string(),
+                i.fields
+                    .iter()
+                    .map(|f| (f.name.to_string(), bare_type_name(&f.ty).to_string()))
+                    .collect(),
+            );
+        }
+    }
+    let mut types: HashMap<String, Located> = HashMap::new();
+    for name in inputs.keys() {
+        if let Some(shape) = shapes.get(bare_shape_name(name, type_prefix)) {
+            types.insert(
+                name.clone(),
+                Located::Shape(deref(shape, shapes, &mut HashSet::new())),
+            );
+        }
+    }
+
+    let mut args: HashMap<(String, String, String), Located> = HashMap::new();
+    for def in &doc.definitions {
+        let Definition::ObjectTypeDefinition(o) = def else {
+            continue;
+        };
+        let root = o.name.as_str();
+        if root != "Query" && root != "Mutation" {
+            continue;
+        }
+        let Some(root_body) = crate::graphql::type_body(sdl, root) else {
+            continue;
+        };
+        let root_code = crate::graphql::blank(&root_body.body);
+        for f in &o.fields {
+            let Some((op, _)) = roots.get(f.name.as_str()) else {
+                continue;
+            };
+            if f.arguments.is_empty() {
+                continue;
+            }
+            let body_expr = connector_body(&root_body.body, &root_code, f.name.as_str());
+            for a in &f.arguments {
+                let ty = bare_type_name(&a.ty);
+                let fields: Option<Vec<String>> = inputs
+                    .get(ty)
+                    .map(|fs| fs.iter().map(|(n, _)| n.clone()).collect());
+                let at = argument_position(
+                    body_expr.as_deref(),
+                    a.name.as_str(),
+                    op,
+                    shapes,
+                    fields.as_deref(),
+                );
+                if fields.is_some() && !types.contains_key(ty) {
+                    let child = match &at {
+                        Located::Shape(s) => Located::Shape(element_shape(s, shapes)),
+                        Located::Undocumented => Located::Undocumented,
+                    };
+                    types.insert(ty.to_string(), child);
+                }
+                args.insert(
+                    (root.to_string(), f.name.to_string(), a.name.to_string()),
+                    at,
+                );
+            }
+        }
+    }
+
+    loop {
+        let mut found: Vec<(String, Located)> = Vec::new();
+        for (name, fields) in &inputs {
+            let Some(parent) = types.get(name) else {
+                continue;
+            };
+            for (field, ty) in fields {
+                if !inputs.contains_key(ty)
+                    || types.contains_key(ty)
+                    || found.iter().any(|(t, _)| t == ty)
+                {
+                    continue;
+                }
+                let child = match parent {
+                    Located::Undocumented => Located::Undocumented,
+                    Located::Shape(s) => match property(s, field) {
+                        Some(p) => Located::Shape(element_shape(p, shapes)),
+                        None => Located::Undocumented,
+                    },
+                };
+                found.push((ty.clone(), child));
+            }
+        }
+        if found.is_empty() {
+            break;
+        }
+        types.extend(found);
+    }
+    (args, types)
 }
 
 /// Follow a `{"$ref": "#/shapes/Name"}` chain to its concrete shape,
@@ -845,67 +1133,141 @@ pub fn build(dir: &Path) -> Result<Report, String> {
         .and_then(Value::as_u64)
         .unwrap_or(6) as usize;
     let deep = deep_types(&doc, max_depth);
+    let roots = root_operations(inventory.as_ref(), selection.as_ref(), field_prefix);
+    let (arg_positions, input_types) = locate_inputs(&sdl, &doc, &shapes, &roots, type_prefix);
+
+    // One JSON position: its key, where it was found (`None`: nowhere to
+    // look, so `unresolved`), and whether its type sits at the depth cut.
+    let row = |type_name: &str,
+               field_name: String,
+               position: Position,
+               at: Option<Option<&Value>>,
+               deep_type: bool|
+     -> FieldRow {
+        let type_bare = bare_shape_name(type_name, type_prefix).to_string();
+        // The latest resolved record that names the field wins: a later
+        // decision is the newer judgement, as a resolve --force would be.
+        let entry = json_reasons
+            .iter()
+            .rev()
+            .find(|j| j.type_name == type_name && j.field == field_name);
+        let reason = entry
+            .map(|j| j.reason.as_str())
+            .filter(|r| REASONS.contains(r))
+            .map(str::to_string);
+        let decision = entry.map(|j| j.decision.clone());
+        let unresolved = at.is_none();
+        let found = at.flatten();
+        // A holding depth-cap outranks recoverable: re-typing the field
+        // would undo the workspace's stated cut, which is the reason.
+        let depth_cap = reason.as_deref() == Some("depth-cap")
+            && !unresolved
+            && depth_cap_holds(found, &type_bare, deep_type, &shapes);
+        let status = if depth_cap {
+            Status::Accounted
+        } else if is_recoverable(found, &type_bare, &shapes) {
+            Status::Recoverable
+        } else {
+            match &reason {
+                None => Status::Unaccounted,
+                Some(_) if unresolved => Status::Unresolved,
+                Some(r) => {
+                    if predicate_holds(r, found, &type_bare, &shapes) {
+                        Status::Accounted
+                    } else {
+                        Status::Stale
+                    }
+                }
+            }
+        };
+        FieldRow {
+            type_name: type_name.to_string(),
+            field_name,
+            position,
+            reason,
+            decision,
+            status,
+        }
+    };
+    let shape_at = |located: Option<&Located>, field: &str| -> Option<Option<Value>> {
+        match located {
+            Some(Located::Shape(s)) => Some(property(s, field).cloned()),
+            Some(Located::Undocumented) => Some(None),
+            None => None,
+        }
+    };
+
     let mut total_fields = 0usize;
     let mut rows = Vec::new();
     for def in &doc.definitions {
-        let Definition::ObjectTypeDefinition(o) = def else {
-            continue;
-        };
-        let type_name = o.name.to_string();
-        let type_bare = bare_shape_name(&type_name, type_prefix).to_string();
-        for f in &o.fields {
-            total_fields += 1;
-            if bare_type_name(&f.ty) != json_scalar {
-                continue;
-            }
-            let field_name = f.name.to_string();
-            // The latest resolved record that names the field wins: a later
-            // decision is the newer judgement, as a resolve --force would be.
-            let entry = json_reasons
-                .iter()
-                .rev()
-                .find(|j| j.type_name == type_name && j.field == field_name);
-            let reason = entry
-                .map(|j| j.reason.as_str())
-                .filter(|r| REASONS.contains(r))
-                .map(str::to_string);
-            let decision = entry.map(|j| j.decision.clone());
-
-            let (found, unresolved) = match located.get(&type_name) {
-                Some(Located::Shape(s)) => (property(s, &field_name), false),
-                Some(Located::Undocumented) => (None, false),
-                None => (None, true),
-            };
-            // A holding depth-cap outranks recoverable: re-typing the field
-            // would undo the workspace's stated cut, which is the reason.
-            let depth_cap = reason.as_deref() == Some("depth-cap")
-                && !unresolved
-                && depth_cap_holds(found, &type_bare, deep.contains(&type_name), &shapes);
-            let status = if depth_cap {
-                Status::Accounted
-            } else if is_recoverable(found, &type_bare, &shapes) {
-                Status::Recoverable
-            } else {
-                match &reason {
-                    None => Status::Unaccounted,
-                    Some(_) if unresolved => Status::Unresolved,
-                    Some(r) => {
-                        if predicate_holds(r, found, &type_bare, &shapes) {
-                            Status::Accounted
-                        } else {
-                            Status::Stale
+        match def {
+            Definition::ObjectTypeDefinition(o) => {
+                let type_name = o.name.to_string();
+                let is_root = type_name == "Query" || type_name == "Mutation";
+                for f in &o.fields {
+                    total_fields += 1;
+                    if is_root {
+                        for a in &f.arguments {
+                            total_fields += 1;
+                            if bare_type_name(&a.ty) != json_scalar {
+                                continue;
+                            }
+                            let key = (type_name.clone(), f.name.to_string(), a.name.to_string());
+                            let at = arg_positions.get(&key).map(|l| match l {
+                                Located::Shape(s) => Some(s.clone()),
+                                Located::Undocumented => None,
+                            });
+                            rows.push(row(
+                                &type_name,
+                                format!("{}({}:)", f.name, a.name),
+                                Position::Argument,
+                                at.as_ref().map(Option::as_ref),
+                                false,
+                            ));
                         }
                     }
+                    if bare_type_name(&f.ty) != json_scalar {
+                        continue;
+                    }
+                    // A root field's own position is its operation's
+                    // response; any other field's is its type's property.
+                    let at = if is_root {
+                        roots.get(f.name.as_str()).map(|(op, envelope)| {
+                            match response_position(op, envelope.as_deref(), &shapes) {
+                                Located::Shape(s) => Some(s),
+                                Located::Undocumented => None,
+                            }
+                        })
+                    } else {
+                        shape_at(located.get(&type_name), f.name.as_str())
+                    };
+                    rows.push(row(
+                        &type_name,
+                        f.name.to_string(),
+                        Position::Output,
+                        at.as_ref().map(Option::as_ref),
+                        deep.contains(&type_name),
+                    ));
                 }
-            };
-
-            rows.push(FieldRow {
-                type_name: type_name.clone(),
-                field_name,
-                reason,
-                decision,
-                status,
-            });
+            }
+            Definition::InputObjectTypeDefinition(i) => {
+                let type_name = i.name.to_string();
+                for f in &i.fields {
+                    total_fields += 1;
+                    if bare_type_name(&f.ty) != json_scalar {
+                        continue;
+                    }
+                    let at = shape_at(input_types.get(&type_name), f.name.as_str());
+                    rows.push(row(
+                        &type_name,
+                        f.name.to_string(),
+                        Position::Input,
+                        at.as_ref().map(Option::as_ref),
+                        false,
+                    ));
+                }
+            }
+            _ => {}
         }
     }
 
@@ -1863,5 +2225,209 @@ type Query {
             row(&report, "Widgets_Widget.extra").status,
             Status::Unaccounted
         );
+    }
+
+    // ── Phase 9d: the request side and root fields ──────────────────────
+
+    const REQUEST_SDL: &str = r#"
+scalar Widgets_JSON
+
+type Widgets_Widget {
+  id: ID!
+}
+
+input Widgets_WidgetInput {
+  name: String
+  meta: Widgets_JSON
+}
+
+type Query {
+  widgets_list(
+    pageSize: Widgets_JSON
+  ): Widgets_JSON
+    @connect(source: "w", http: { GET: "/widgets", queryParams: "page-size: $args.pageSize" }, selection: "$")
+}
+
+type Mutation {
+  widgets_create(labels: Widgets_JSON, extra: Widgets_JSON): Widgets_Widget
+    @connect(source: "w", http: { POST: "/widgets", body: """
+      tags: $args.labels
+      extra: $args.extra
+      """ }, selection: "id")
+  widgets_replace(input: Widgets_JSON!): Widgets_Widget
+    @connect(source: "w", http: { PUT: "/widgets", body: "$args.input" }, selection: "id")
+  widgets_update(input: Widgets_WidgetInput): Widgets_Widget
+    @connect(source: "w", http: { PATCH: "/widgets", body: "$args.input" }, selection: "id")
+  widgets_orphan(blob: Widgets_JSON): Widgets_Widget
+}
+"#;
+
+    /// The inventory and selection behind [`REQUEST_SDL`]: `tags` is a typed
+    /// list, `extra` a free-form object, the PUT body and `meta` typed
+    /// objects, `page-size` an integer query parameter, and the list
+    /// response a typed array.
+    fn request_workspace(dir: &Path) {
+        workspace(dir);
+        write(dir, "widgets.graphql", REQUEST_SDL);
+        write(
+            dir,
+            ".factory/inventory.json",
+            r##"{
+  "operations": [
+    {"key": "get:/widgets", "parameters": [{"name": "page-size", "in": "query", "type": "integer", "shape_ref": null}],
+     "request_body": null, "response": {"shape_ref": "#/shapes/WidgetList"}},
+    {"key": "post:/widgets", "parameters": [],
+     "request_body": {"shape_ref": "#/shapes/CreateWidget"}, "response": {"shape_ref": "#/shapes/Widget"}},
+    {"key": "put:/widgets", "parameters": [],
+     "request_body": {"shape_ref": "#/shapes/ReplaceWidget"}, "response": {"shape_ref": "#/shapes/Widget"}},
+    {"key": "patch:/widgets", "parameters": [],
+     "request_body": {"shape_ref": "#/shapes/UpdateWidget"}, "response": {"shape_ref": "#/shapes/Widget"}}
+  ],
+  "shapes": {
+    "Widget": {"type": "object", "properties": {"id": {"type": "string"}}},
+    "WidgetList": {"type": "array", "items": {"$ref": "#/shapes/Widget"}},
+    "CreateWidget": {"type": "object", "properties": {
+      "tags": {"type": "array", "items": {"type": "string"}},
+      "extra": {"type": "object"}}},
+    "ReplaceWidget": {"type": "object", "properties": {"name": {"type": "string"}}},
+    "UpdateWidget": {"type": "object", "properties": {
+      "name": {"type": "string"},
+      "meta": {"type": "object", "properties": {"color": {"type": "string"}}}}}
+  }
+}"##,
+        );
+        write(
+            dir,
+            ".factory/selection.yaml",
+            "contract_version: 1\noperations:\n  \"get:/widgets\":\n    include: true\n    graphql: { root: query, name: list }\n  \"post:/widgets\":\n    include: true\n    graphql: { root: mutation, name: create }\n  \"put:/widgets\":\n    include: true\n    graphql: { root: mutation, name: replace }\n  \"patch:/widgets\":\n    include: true\n    graphql: { root: mutation, name: update }\n",
+        );
+    }
+
+    /// A body entry forwards a JSON argument into a
+    /// request property the inventory types, so the argument is recoverable.
+    /// Before Phase 9d no argument was a row at all.
+    #[test]
+    fn a_json_argument_a_body_entry_sends_into_a_typed_property_is_recoverable() {
+        let tmp = tempfile::tempdir().unwrap();
+        request_workspace(tmp.path());
+        let report = build(tmp.path()).unwrap();
+        let r = row(&report, "Mutation.widgets_create(labels:)");
+        assert_eq!(r.position, Position::Argument);
+        assert_eq!(r.status, Status::Recoverable);
+    }
+
+    /// The body entry's wire key, not the argument's name, finds the
+    /// property: `extra` is free-form, so it needs a reason, and the
+    /// free-form-object reason holds there.
+    #[test]
+    fn a_json_argument_into_a_free_form_property_is_accounted_by_its_reason() {
+        let tmp = tempfile::tempdir().unwrap();
+        request_workspace(tmp.path());
+        let key = "Mutation.widgets_create(extra:)";
+        assert_eq!(
+            row(&build(tmp.path()).unwrap(), key).status,
+            Status::Unaccounted
+        );
+        decisions_with_json_reasons(
+            tmp.path(),
+            "D-0001",
+            false,
+            &[("Mutation", "widgets_create(extra:)", "free-form-object")],
+        );
+        assert_eq!(
+            row(&build(tmp.path()).unwrap(), key).status,
+            Status::Accounted
+        );
+        decisions_with_json_reasons(
+            tmp.path(),
+            "D-0001",
+            false,
+            &[("Mutation", "widgets_create(extra:)", "recursive")],
+        );
+        assert_eq!(row(&build(tmp.path()).unwrap(), key).status, Status::Stale);
+    }
+
+    #[test]
+    fn a_json_argument_forwarded_as_the_whole_body_is_read_against_the_body() {
+        let tmp = tempfile::tempdir().unwrap();
+        request_workspace(tmp.path());
+        let report = build(tmp.path()).unwrap();
+        assert_eq!(
+            row(&report, "Mutation.widgets_replace(input:)").status,
+            Status::Recoverable
+        );
+    }
+
+    /// A query parameter matches without case or separators: `page-size` is
+    /// the argument `pageSize`.
+    #[test]
+    fn a_json_argument_matching_a_typed_parameter_is_recoverable() {
+        let tmp = tempfile::tempdir().unwrap();
+        request_workspace(tmp.path());
+        let report = build(tmp.path()).unwrap();
+        assert_eq!(
+            row(&report, "Query.widgets_list(pageSize:)").status,
+            Status::Recoverable
+        );
+    }
+
+    /// An input type is reached through the argument that sends it, and its
+    /// JSON field is read against the request body's property.
+    #[test]
+    fn an_input_field_is_read_against_the_request_shape_its_type_is_sent_as() {
+        let tmp = tempfile::tempdir().unwrap();
+        request_workspace(tmp.path());
+        let report = build(tmp.path()).unwrap();
+        let r = row(&report, "Widgets_WidgetInput.meta");
+        assert_eq!(r.position, Position::Input);
+        assert_eq!(r.status, Status::Recoverable);
+    }
+
+    /// A root field's own JSON return is read against its operation's
+    /// response. Before Phase 9d a root field's type was never located, so
+    /// it could only ever be unaccounted or unresolved.
+    #[test]
+    fn a_root_field_returning_json_is_read_against_its_response() {
+        let tmp = tempfile::tempdir().unwrap();
+        request_workspace(tmp.path());
+        let report = build(tmp.path()).unwrap();
+        let r = row(&report, "Query.widgets_list");
+        assert_eq!(r.position, Position::Output);
+        assert_eq!(r.status, Status::Recoverable);
+    }
+
+    /// A root field the selection ties to no operation has nowhere to look:
+    /// a recorded reason is unresolved, never read against "no shape".
+    #[test]
+    fn an_argument_of_an_unselected_root_field_is_unresolved() {
+        let tmp = tempfile::tempdir().unwrap();
+        request_workspace(tmp.path());
+        let key = "Mutation.widgets_orphan(blob:)";
+        assert_eq!(
+            row(&build(tmp.path()).unwrap(), key).status,
+            Status::Unaccounted
+        );
+        decisions_with_json_reasons(
+            tmp.path(),
+            "D-0001",
+            false,
+            &[("Mutation", "widgets_orphan(blob:)", "vendor-undocumented")],
+        );
+        assert_eq!(
+            row(&build(tmp.path()).unwrap(), key).status,
+            Status::Unresolved
+        );
+    }
+
+    /// Arguments and input fields join the denominator, so the ratio still
+    /// adds up: 6 object fields, 6 arguments and 2 input fields, 7 of them
+    /// JSON.
+    #[test]
+    fn the_ratio_counts_arguments_and_input_fields() {
+        let tmp = tempfile::tempdir().unwrap();
+        request_workspace(tmp.path());
+        let report = build(tmp.path()).unwrap();
+        assert_eq!(report.total_fields, 14);
+        assert_eq!(report.rows.len(), 7);
     }
 }

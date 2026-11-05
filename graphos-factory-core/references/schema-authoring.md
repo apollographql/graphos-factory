@@ -615,7 +615,8 @@ Emit `Widget_Co_JSON` only when the shape cannot be typed honestly:
   a defective spec;
 - `additionalProperties`-only maps.
 
-Every JSON-scalar field carries a doc comment saying **why**: a reader of
+Every JSON-scalar field, argument and input field carries a doc comment
+saying **why**: a reader of
 the schema, and any policy your supergraph attaches to `@tag`, learns
 nothing about a field typed JSON except from that comment, and a field
 nobody can describe is a field nobody can use with confidence. `graphos-factory-core
@@ -627,7 +628,9 @@ The doc comment is for a human; `graphos-factory-core spans json-accounting .
 [--check]` is the machine check. It enumerates every field the *rendered*
 SDL still types as the scalar — including a field nested inside another
 object type and one wrapped in a list at any depth (`[Widget_Co_JSON]`,
-`[Widget_Co_JSON!]!`, …) — and matches each, keyed `"<TypeName>.<fieldName>"`,
+`[Widget_Co_JSON!]!`, …), every root-field argument (keyed
+`"<Root>.<field>(<arg>:)"`) and every input field — and matches each, keyed
+`"<TypeName>.<fieldName>"`,
 against a `json_reasons` entry on a **resolved** `.factory/decisions.json`
 record (`graphos-factory-core decisions add --json-reason 'Type.field|reason'`;
 never a `selection.yaml` field or a schema doc comment — the decisions-only

@@ -516,11 +516,12 @@ fn collect_secret_fields(args: &Args) -> Result<Vec<SecretField>, String> {
     Ok(fields)
 }
 
-/// `--json-reason Type.field|reason`, repeatable: why a response field is
-/// left typed as the workspace's own JSON scalar (ADR 0073). `|` separates
-/// the reason from the field's own key the same way `spans json-accounting`
-/// keys it; the key's single `.` separates the GraphQL type name from the
-/// field name, neither of which can itself contain one.
+/// `--json-reason Type.field|reason`, repeatable: why a field, an argument
+/// (`Root.field(arg:)`, Phase 9d) or an input field is left typed as the
+/// workspace's own JSON scalar (ADR 0073). `|` separates the reason from the
+/// key the same way `spans json-accounting` keys it; the key's single `.`
+/// separates the GraphQL type name from the field name, neither of which
+/// can itself contain one.
 fn collect_json_reasons(args: &Args) -> Result<Vec<JsonReason>, String> {
     let mut out = Vec::new();
     for spec in args.all("json-reason") {
